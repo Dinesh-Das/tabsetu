@@ -1,0 +1,81 @@
+import { describe, expect, it } from "vitest";
+import { normalizeImportedStorageData } from "@/lib/storage";
+
+describe("normalizeImportedStorageData", () => {
+  it("reindexes positions and normalizes imported entities", () => {
+    const result = normalizeImportedStorageData({
+      folders: [
+        {
+          id: "folder-b",
+          name: "Backlog",
+          color: "#10B981",
+          icon: "Backlog",
+          position: 8,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
+          id: "folder-a",
+          name: "Active",
+          color: "#3B82F6",
+          icon: "Active",
+          position: 3,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+      tags: [{ id: "tag-keep", name: "Keep", color: "#34D399", createdAt: 1 }],
+      sessions: [
+        {
+          id: "session-1",
+          name: "Imported session",
+          description: "",
+          folderId: "folder-a",
+          tagIds: ["tag-keep", "tag-missing"],
+          tabs: [
+            {
+              id: "tab-late",
+              title: "Later tab",
+              url: "https://later.example.com",
+              favIconUrl: "",
+              pinned: false,
+              note: "",
+              position: 7,
+              createdAt: 7,
+              lastOpenedAt: null,
+            },
+            {
+              id: "tab-early",
+              title: "Earlier tab",
+              url: "https://earlier.example.com",
+              favIconUrl: "",
+              pinned: false,
+              note: "",
+              position: 1,
+              createdAt: 1,
+              lastOpenedAt: null,
+            },
+          ],
+          note: "",
+          createdAt: 1,
+          updatedAt: 2,
+          lastOpenedAt: 2,
+          version: 0,
+          isPinned: false,
+          isArchived: false,
+        },
+      ],
+      settings: {
+        fuzzySearchThreshold: 0.9,
+      },
+    });
+
+    expect(result.folders.map((folder) => folder.id)).toEqual(["folder-a", "folder-b"]);
+    expect(result.folders.map((folder) => folder.position)).toEqual([0, 1]);
+    expect(result.sessions[0]?.version).toBe(1);
+    expect(result.sessions[0]?.tagIds).toEqual(["tag-keep"]);
+    expect(result.sessions[0]?.tabs.map((tab) => tab.id)).toEqual(["tab-early", "tab-late"]);
+    expect(result.sessions[0]?.tabs.map((tab) => tab.position)).toEqual([0, 1]);
+    expect(result.settings.fuzzySearchThreshold).toBe(0.6);
+  });
+});
