@@ -1,7 +1,6 @@
 import type {
   AIShareConfig,
   Folder,
-  Group,
   Schedule,
   Session,
   Settings,
@@ -22,7 +21,6 @@ export const STORAGE_KEYS = {
   sessions: "TabSetu_sessions",
   folders: "TabSetu_folders",
   tags: "TabSetu_tags",
-  groups: "TabSetu_groups",
   schedules: "TabSetu_schedules",
   standaloneNotes: "TabSetu_standalone_notes",
   shareLinks: "TabSetu_share_links",
@@ -96,7 +94,6 @@ const DEFAULT_STORAGE: StorageData = {
   sessions: [],
   folders: DEFAULT_FOLDERS,
   tags: DEFAULT_TAGS,
-  groups: [],
   schedules: [],
   standaloneNotes: [],
   shareLinks: [],
@@ -108,7 +105,6 @@ const STORAGE_IMPORT_KEYS = [
   "sessions",
   "folders",
   "tags",
-  "groups",
   "schedules",
   "standaloneNotes",
   "shareLinks",
@@ -214,7 +210,6 @@ function normalizeSession(raw: unknown): Session | null {
     name: sanitizeLabel(asString(raw.name), "Untitled Session", 100),
     description: clampText(stripHtml(asString(raw.description)), 300),
     folderId: raw.folderId == null ? null : asString(raw.folderId) || null,
-    groupId: raw.groupId == null ? null : asString(raw.groupId) || null,
     tagIds: asStringArray(raw.tagIds),
     tabs: tabs
       .map((tab, index) => ({
@@ -277,28 +272,6 @@ function normalizeTag(raw: unknown): Tag | null {
     name: clampText(stripHtml(name).replace(/[^a-zA-Z0-9\- ]/g, ""), 30) || "Tag",
     color: asString(raw.color, "#60A5FA"),
     createdAt,
-  };
-}
-
-function normalizeGroup(raw: unknown): Group | null {
-  if (!isRecord(raw)) {
-    return null;
-  }
-
-  const createdAt = asNumber(raw.createdAt, Date.now());
-  const updatedAt = asNumber(raw.updatedAt, createdAt);
-  const name = asString(raw.name, "Group").trim();
-
-  if (!name) {
-    return null;
-  }
-
-  return {
-    id: asString(raw.id, generateId("group")),
-    name: clampText(stripHtml(name), 40),
-    color: asString(raw.color, "#1677ee"),
-    createdAt,
-    updatedAt,
   };
 }
 
@@ -524,7 +497,6 @@ function toStorageRecord(data: StorageData): Record<string, unknown> {
     [STORAGE_KEYS.sessions]: data.sessions,
     [STORAGE_KEYS.folders]: data.folders,
     [STORAGE_KEYS.tags]: data.tags,
-    [STORAGE_KEYS.groups]: data.groups,
     [STORAGE_KEYS.schedules]: data.schedules,
     [STORAGE_KEYS.standaloneNotes]: data.standaloneNotes,
     [STORAGE_KEYS.shareLinks]: data.shareLinks,
@@ -552,7 +524,6 @@ export function getDefaultStorageData(): StorageData {
     sessions: [],
     folders: DEFAULT_FOLDERS.map((folder) => ({ ...folder })),
     tags: DEFAULT_TAGS.map((tag) => ({ ...tag })),
-    groups: [],
     schedules: [],
     standaloneNotes: [],
     shareLinks: [],
@@ -566,7 +537,6 @@ export function normalizeStorageData(raw: unknown): StorageData {
   const defaultData = getDefaultStorageData();
   const rawFolders = sourceValue(source, STORAGE_KEYS.folders, "folders", []);
   const rawTags = sourceValue(source, STORAGE_KEYS.tags, "tags", []);
-  const rawGroups = sourceValue(source, STORAGE_KEYS.groups, "groups", []);
   const rawSessions = sourceValue(source, STORAGE_KEYS.sessions, "sessions", []);
   const rawSchedules = sourceValue(source, STORAGE_KEYS.schedules, "schedules", []);
   const rawStandaloneNotes = sourceValue(source, STORAGE_KEYS.standaloneNotes, "standaloneNotes", []);
@@ -576,25 +546,19 @@ export function normalizeStorageData(raw: unknown): StorageData {
 
   const hasFolderData = Array.isArray(rawFolders);
   const hasTagData = Array.isArray(rawTags);
-  const hasGroupData = Array.isArray(rawGroups);
   const folders = hasFolderData
     ? rawFolders.map(normalizeFolder).filter((item): item is Folder => Boolean(item))
     : [];
   const tags = hasTagData
     ? rawTags.map(normalizeTag).filter((item): item is Tag => Boolean(item))
     : [];
-  const groups = hasGroupData
-    ? rawGroups.map(normalizeGroup).filter((item): item is Group => Boolean(item))
-    : [];
 
   const safeFolders = (hasFolderData ? folders : defaultData.folders)
     .sort((left, right) => left.position - right.position)
     .map((folder, index) => ({ ...folder, position: index }));
   const safeTags = hasTagData ? tags : defaultData.tags;
-  const safeGroups = hasGroupData ? groups : defaultData.groups;
   const folderIds = new Set(safeFolders.map((folder) => folder.id));
   const tagIds = new Set(safeTags.map((tag) => tag.id));
-  const groupIds = new Set(safeGroups.map((group) => group.id));
 
   const sessions = Array.isArray(rawSessions)
     ? rawSessions
@@ -603,7 +567,6 @@ export function normalizeStorageData(raw: unknown): StorageData {
         .map((session) => ({
           ...session,
           folderId: session.folderId && folderIds.has(session.folderId) ? session.folderId : null,
-          groupId: session.groupId && groupIds.has(session.groupId) ? session.groupId : null,
           tagIds: session.tagIds.filter((tagId) => tagIds.has(tagId)),
         }))
     : [];
@@ -635,7 +598,6 @@ export function normalizeStorageData(raw: unknown): StorageData {
     sessions,
     folders: safeFolders,
     tags: safeTags,
-    groups: safeGroups,
     schedules,
     standaloneNotes,
     shareLinks,
@@ -664,10 +626,6 @@ export function validateImportPayload(raw: unknown): void {
 
   if (hasOwnKey(raw, "tags") && !Array.isArray(raw.tags)) {
     throw new Error("The backup file has an invalid tags section.");
-  }
-
-  if (hasOwnKey(raw, "groups") && !Array.isArray(raw.groups)) {
-    throw new Error("The backup file has an invalid groups section.");
   }
 
   if (hasOwnKey(raw, "schedules") && !Array.isArray(raw.schedules)) {
@@ -713,10 +671,6 @@ export async function saveFolders(folders: Folder[]): Promise<void> {
 
 export async function saveTags(tags: Tag[]): Promise<void> {
   await storageSet({ [STORAGE_KEYS.tags]: tags, [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION });
-}
-
-export async function saveGroups(groups: Group[]): Promise<void> {
-  await storageSet({ [STORAGE_KEYS.groups]: groups, [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION });
 }
 
 export async function saveSchedules(schedules: Schedule[]): Promise<void> {

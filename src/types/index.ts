@@ -21,7 +21,6 @@ export interface Session {
   name: string;
   description: string;
   folderId: string | null;
-  groupId: string | null;
   tagIds: string[];
   tabs: TabItem[];
   note: string;
@@ -51,14 +50,6 @@ export interface Tag {
   name: string;
   color: string;
   createdAt: number;
-}
-
-export interface Group {
-  id: string;
-  name: string;
-  color: string;
-  createdAt: number;
-  updatedAt: number;
 }
 
 export type ScheduleType = "once" | "daily" | "weekly" | "weekdays" | "custom";
@@ -145,7 +136,6 @@ export interface StorageData {
   sessions: Session[];
   folders: Folder[];
   tags: Tag[];
-  groups: Group[];
   schedules: Schedule[];
   standaloneNotes: StandaloneNote[];
   shareLinks: ShareLink[];

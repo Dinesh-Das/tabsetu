@@ -4,7 +4,6 @@ import { MobileAppShell, MobileIconButton, type MobileNavView } from "@/componen
 import type { ToastMessage } from "@/types";
 import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
 import { useFolderStore } from "@/store/folderStore";
-import { useGroupStore } from "@/store/groupStore";
 import { useNotesStore } from "@/store/notesStore";
 import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -70,17 +69,38 @@ function titleForView(view: DashView): string {
 }
 
 function desktopViewFromDashView(view: DashView): DesktopSidebarView {
-  if (view === "notes" || view === "reminders" || view === "settings" || view === "importexport") {
+  if (
+    view === "notes" ||
+    view === "reminders" ||
+    view === "schedules" ||
+    view === "settings" ||
+    view === "importexport"
+  ) {
     return view;
   }
 
   return "sessions";
 }
 
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() =>
+    typeof window === "undefined" ? false : window.matchMedia(query).matches,
+  );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query);
+    const handleChange = (event: MediaQueryListEvent): void => setMatches(event.matches);
+    setMatches(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [query]);
+
+  return matches;
+}
+
 export default function DashboardApp() {
   const loadSessions = useSessionStore((state) => state.load);
   const loadFolders = useFolderStore((state) => state.load);
-  const loadGroups = useGroupStore((state) => state.load);
   const loadTags = useTagStore((state) => state.load);
   const loadSchedules = useScheduleStore((state) => state.load);
   const loadNotes = useNotesStore((state) => state.load);
@@ -91,35 +111,24 @@ export default function DashboardApp() {
   const [view, setView] = useState<DashView>(getInitialDashView);
   const [menuOpen, setMenuOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [isDesktop, setIsDesktop] = useState(() =>
-    typeof window === "undefined" ? false : window.matchMedia("(min-width: 900px)").matches,
-  );
+  const isDesktop = useMediaQuery("(min-width: 900px)");
 
   useEffect(() => {
     void Promise.all([
       loadSessions(),
       loadFolders(),
-      loadGroups(),
       loadTags(),
       loadSchedules(),
       loadNotes(),
       loadShareLinks(),
       loadSettings(),
     ]);
-  }, [loadFolders, loadGroups, loadNotes, loadSchedules, loadSessions, loadSettings, loadShareLinks, loadTags]);
+  }, [loadFolders, loadNotes, loadSchedules, loadSessions, loadSettings, loadShareLinks, loadTags]);
 
   useEffect(() => {
     applyTheme(settings.theme);
     return subscribeToSystemTheme(settings.theme, () => applyTheme("system"));
   }, [settings.theme]);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(min-width: 900px)");
-    const handleChange = () => setIsDesktop(mediaQuery.matches);
-    handleChange();
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, []);
 
   const addToast = (type: ToastMessage["type"], message: string) => {
     const id = `toast-${Date.now()}`;

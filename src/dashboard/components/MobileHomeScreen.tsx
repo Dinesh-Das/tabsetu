@@ -3,20 +3,19 @@ import {
   Filter,
   FolderOpen,
   Info,
-  Layers,
   ListChecks,
   Maximize2,
   PackagePlus,
   Search,
+  Tag,
   Trash2,
 } from "lucide-react";
 import { EmptyState, GlassCard, MobileIconButton, SegmentedControl, TabRow } from "@/components/mobile/MobileUI";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { buildSessionListItems } from "@/lib/sessionQuery";
 import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
-import type { Folder, Group, Session, SortOption, TabItem, ToastMessage } from "@/types";
+import type { Folder, Session, SortOption, TabItem, Tag as TagItem, ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
-import { useGroupStore } from "@/store/groupStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useTagStore } from "@/store/tagStore";
@@ -31,7 +30,7 @@ interface Props {
   currentTabCount?: number;
 }
 
-type HomeFilter = "groups" | "folders" | "tabs";
+type HomeFilter = "folders" | "tags";
 
 interface SavedTab {
   session: Session;
@@ -45,12 +44,11 @@ interface FolderBucket {
   tabs: SavedTab[];
 }
 
-interface GroupBucket {
+interface TagBucket {
   id: string | null;
   name: string;
   color: string;
-  folders: FolderBucket[];
-  tabCount: number;
+  tabs: SavedTab[];
 }
 
 function tabPreview(tab: TabItem) {
@@ -81,20 +79,20 @@ function getFolderColor(folderId: string | null, folderMap: Map<string, Folder>)
   return folderMap.get(folderId)?.color ?? "#8b94a3";
 }
 
-function getGroupName(groupId: string | null, groupMap: Map<string, Group>): string {
-  if (!groupId) {
-    return "Ungrouped";
+function getTagName(tagId: string | null, tagMap: Map<string, TagItem>): string {
+  if (!tagId) {
+    return "Untagged";
   }
 
-  return groupMap.get(groupId)?.name ?? "Missing group";
+  return tagMap.get(tagId)?.name ?? "Missing tag";
 }
 
-function getGroupColor(groupId: string | null, groupMap: Map<string, Group>): string {
-  if (!groupId) {
+function getTagColor(tagId: string | null, tagMap: Map<string, TagItem>): string {
+  if (!tagId) {
     return "#8b94a3";
   }
 
-  return groupMap.get(groupId)?.color ?? "#1677ee";
+  return tagMap.get(tagId)?.color ?? "#1677ee";
 }
 
 export default function MobileHomeScreen({
@@ -114,12 +112,11 @@ export default function MobileHomeScreen({
   const removeTabFromSession = useSessionStore((state) => state.removeTabFromSession);
   const recordTabOpened = useSessionStore((state) => state.recordTabOpened);
   const folders = useFolderStore((state) => state.folders);
-  const groups = useGroupStore((state) => state.groups);
   const tags = useTagStore((state) => state.tags);
   const settings = useSettingsStore((state) => state.settings);
 
   const [query, setQuery] = useState("");
-  const [homeFilter, setHomeFilter] = useState<HomeFilter>("groups");
+  const [homeFilter, setHomeFilter] = useState<HomeFilter>("folders");
   const [saveModalMode, setSaveModalMode] = useState<"save" | "collapse" | null>(null);
   const deferredQuery = useDebouncedValue(query, 140);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -152,7 +149,7 @@ export default function MobileHomeScreen({
 
   const visibleSessions = useMemo(() => items.map((item) => item.session), [items]);
   const folderMap = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
-  const groupMap = useMemo(() => new Map(groups.map((group) => [group.id, group])), [groups]);
+  const tagMap = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
 
   const savedTabCount = useMemo(
     () => sessions.reduce((total, session) => total + session.tabs.length, 0),
@@ -170,35 +167,28 @@ export default function MobileHomeScreen({
     [visibleSessions],
   );
 
-  const groupBuckets = useMemo<GroupBucket[]>(() => {
-    const groupsById = new Map<string | null, SavedTab[]>();
+  const tagBuckets = useMemo<TagBucket[]>(() => {
+    const tabsByTagId = new Map<string | null, SavedTab[]>();
 
     for (const savedTab of savedTabs) {
-      const key = savedTab.session.groupId ?? null;
-      groupsById.set(key, [...(groupsById.get(key) ?? []), savedTab]);
-    }
-
-    return [...groupsById.entries()].map(([groupId, tabs]) => {
-      const foldersById = new Map<string | null, SavedTab[]>();
-      for (const savedTab of tabs) {
-        const folderId = savedTab.session.folderId ?? null;
-        foldersById.set(folderId, [...(foldersById.get(folderId) ?? []), savedTab]);
+      const tagIds = savedTab.session.tagIds;
+      if (tagIds.length === 0) {
+        tabsByTagId.set(null, [...(tabsByTagId.get(null) ?? []), savedTab]);
+        continue;
       }
 
-      return {
-        id: groupId,
-        name: getGroupName(groupId, groupMap),
-        color: getGroupColor(groupId, groupMap),
-        tabCount: tabs.length,
-        folders: [...foldersById.entries()].map(([folderId, folderTabs]) => ({
-          id: folderId,
-          name: getFolderName(folderId, folderMap),
-          color: getFolderColor(folderId, folderMap),
-          tabs: folderTabs,
-        })),
-      };
-    });
-  }, [folderMap, groupMap, savedTabs]);
+      for (const tagId of tagIds) {
+        tabsByTagId.set(tagId, [...(tabsByTagId.get(tagId) ?? []), savedTab]);
+      }
+    }
+
+    return [...tabsByTagId.entries()].map(([tagId, tabs]) => ({
+      id: tagId,
+      name: getTagName(tagId, tagMap),
+      color: getTagColor(tagId, tagMap),
+      tabs,
+    }));
+  }, [savedTabs, tagMap]);
 
   const folderBuckets = useMemo<FolderBucket[]>(() => {
     const foldersById = new Map<string | null, SavedTab[]>();
@@ -291,7 +281,7 @@ export default function MobileHomeScreen({
             ref={searchInputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search"
+            placeholder="Search sessions and tabs... Ctrl+K"
           />
         </label>
         <MobileIconButton title="Filter">
@@ -335,11 +325,21 @@ export default function MobileHomeScreen({
             <ListChecks size={17} />
             Select Tabs
           </button>
-          <button className="mobile-secondary-button" type="button" onClick={openQuickSave}>
+          <button
+            className="mobile-secondary-button"
+            type="button"
+            data-onboarding-target="save-session"
+            onClick={openQuickSave}
+          >
             <PackagePlus size={17} />
             Quick Save
           </button>
-          <button className="mobile-link-button" type="button" onClick={openCollapse}>
+          <button
+            className="mobile-link-button"
+            type="button"
+            data-onboarding-target="collapse-tabs"
+            onClick={openCollapse}
+          >
             Collapse current tabs
           </button>
         </div>
@@ -350,84 +350,68 @@ export default function MobileHomeScreen({
           value={homeFilter}
           onChange={setHomeFilter}
           options={[
-            { value: "groups", label: "Groups" },
             { value: "folders", label: "Folders" },
-            { value: "tabs", label: "Tabs" },
+            { value: "tags", label: "Tags" },
           ]}
         />
       </div>
 
-      {savedTabs.length === 0 ? (
-        <EmptyState
-          icon={<FolderOpen size={44} />}
-          title={query ? "No saved tabs found" : "No tabs saved yet"}
-          description={query ? "Try a different search or clear filters." : "Save your current window to make TabSetu useful immediately."}
-          action={
-            <button className="mobile-primary-button" type="button" onClick={openQuickSave}>
-              Quick Save Tabs
-            </button>
-          }
-        />
-      ) : null}
+      <div data-onboarding-target="session-list">
+        {savedTabs.length === 0 ? (
+          <EmptyState
+            icon={<FolderOpen size={44} />}
+            title={query ? "No saved tabs found" : "No tabs saved yet"}
+            description={query ? "Try a different search or clear filters." : "Save your current window to make TabSetu useful immediately."}
+            action={
+              <button className="mobile-primary-button" type="button" onClick={openQuickSave}>
+                Quick Save Tabs
+              </button>
+            }
+          />
+        ) : null}
 
-      {homeFilter === "groups" && savedTabs.length > 0 ? (
-        <div className="home-hierarchy-list">
-          {groupBuckets.map((group) => (
-            <GlassCard className="home-group-card" key={group.id ?? "ungrouped"}>
-              <div className="home-bucket-header">
-                <div className="home-bucket-icon" style={{ background: `${group.color}18`, color: group.color }}>
-                  <Layers size={22} />
+        {homeFilter === "folders" && savedTabs.length !== 0 ? (
+          <div className="home-hierarchy-list">
+            {folderBuckets.map((folder) => (
+              <GlassCard className="home-bucket-card" key={folder.id ?? "nofolder"}>
+                <div className="home-bucket-header">
+                  <div className="home-bucket-icon" style={{ background: `${folder.color}18`, color: folder.color }}>
+                    <FolderOpen size={22} />
+                  </div>
+                  <div>
+                    <strong>{folder.name}</strong>
+                    <span>{folder.tabs.length} tabs</span>
+                  </div>
                 </div>
-                <div>
-                  <strong>{group.name}</strong>
-                  <span>{group.tabCount} tabs</span>
+                <div className="mobile-list mobile-session-tabs home-compact-tabs">
+                  {folder.tabs.map(renderSavedTab)}
                 </div>
-              </div>
-              <div className="home-folder-stack">
-                {group.folders.map((folder) => (
-                  <section className="home-folder-bucket" key={`${group.id ?? "ungrouped"}-${folder.id ?? "nofolder"}`}>
-                    <div className="home-folder-bucket-title">
-                      <FolderOpen size={16} color={folder.color} />
-                      <strong>{folder.name}</strong>
-                      <span>{folder.tabs.length} tabs</span>
-                    </div>
-                    <div className="mobile-list mobile-session-tabs home-compact-tabs">
-                      {folder.tabs.map(renderSavedTab)}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            </GlassCard>
-          ))}
-        </div>
-      ) : null}
+              </GlassCard>
+            ))}
+          </div>
+        ) : null}
 
-      {homeFilter === "folders" && savedTabs.length > 0 ? (
-        <div className="home-hierarchy-list">
-          {folderBuckets.map((folder) => (
-            <GlassCard className="home-group-card" key={folder.id ?? "nofolder"}>
-              <div className="home-bucket-header">
-                <div className="home-bucket-icon" style={{ background: `${folder.color}18`, color: folder.color }}>
-                  <FolderOpen size={22} />
+        {homeFilter === "tags" && savedTabs.length !== 0 ? (
+          <div className="home-hierarchy-list">
+            {tagBuckets.map((tagBucket) => (
+              <GlassCard className="home-bucket-card" key={tagBucket.id ?? "untagged"}>
+                <div className="home-bucket-header">
+                  <div className="home-bucket-icon" style={{ background: `${tagBucket.color}18`, color: tagBucket.color }}>
+                    <Tag size={22} />
+                  </div>
+                  <div>
+                    <strong>{tagBucket.name}</strong>
+                    <span>{tagBucket.tabs.length} tabs</span>
+                  </div>
                 </div>
-                <div>
-                  <strong>{folder.name}</strong>
-                  <span>{folder.tabs.length} tabs</span>
+                <div className="mobile-list mobile-session-tabs home-compact-tabs">
+                  {tagBucket.tabs.map(renderSavedTab)}
                 </div>
-              </div>
-              <div className="mobile-list mobile-session-tabs home-compact-tabs">
-                {folder.tabs.map(renderSavedTab)}
-              </div>
-            </GlassCard>
-          ))}
-        </div>
-      ) : null}
-
-      {homeFilter === "tabs" && savedTabs.length > 0 ? (
-        <div className="mobile-list mobile-session-tabs home-compact-tabs">
-          {savedTabs.map(renderSavedTab)}
-        </div>
-      ) : null}
+              </GlassCard>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       {saveModalMode ? (
         <SaveModal

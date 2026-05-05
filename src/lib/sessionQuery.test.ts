@@ -34,7 +34,6 @@ function createSession(
     name: `Session ${id}`,
     description: "",
     folderId,
-    groupId: null,
     tagIds,
     tabs: [createTab(`${id}-tab`, lastOpenedAt)],
     note: "",

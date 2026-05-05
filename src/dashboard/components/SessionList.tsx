@@ -177,7 +177,7 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
   const selectAllVisible = () => {
     setSelectedIds((current) => {
       const visible = new Set(visibleSessionIds);
-      const allVisibleSelected = visibleSessionIds.length > 0 && visibleSessionIds.every((id) => current.includes(id));
+      const allVisibleSelected = visibleSessionIds.length !== 0 && visibleSessionIds.every((id) => current.includes(id));
       if (allVisibleSelected) {
         return current.filter((id) => !visible.has(id));
       }
@@ -198,7 +198,7 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
   };
 
   const handleBulkArchive = () => {
-    const shouldUnarchive = selectedSessions.length > 0 && selectedSessions.every((session) => session.isArchived);
+    const shouldUnarchive = selectedSessions.length !== 0 && selectedSessions.every((session) => session.isArchived);
     selectedIds.forEach((id) => archiveSession(id, !shouldUnarchive));
     addToast("success", shouldUnarchive ? "Restored selected sessions." : "Archived selected sessions.");
     clearBulkSelection();
@@ -298,10 +298,10 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
         {selectMode ? (
           <div className="bulk-action-bar">
             <button className="btn btn-secondary" type="button" onClick={selectAllVisible}>
-              {visibleSessionIds.length > 0 && visibleSessionIds.every((id) => selectedIds.includes(id))
+              {visibleSessionIds.length !== 0 && visibleSessionIds.every((id) => selectedIds.includes(id))
                 ? <CheckSquare size={14} />
                 : <Square size={14} />}
-              {visibleSessionIds.length > 0 && visibleSessionIds.every((id) => selectedIds.includes(id))
+              {visibleSessionIds.length !== 0 && visibleSessionIds.every((id) => selectedIds.includes(id))
                 ? "Unselect visible"
                 : "Select visible"}
             </button>
@@ -336,7 +336,7 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
               onClick={handleBulkArchive}
             >
               <Archive size={14} />
-              {selectedSessions.length > 0 && selectedSessions.every((session) => session.isArchived)
+              {selectedSessions.length !== 0 && selectedSessions.every((session) => session.isArchived)
                 ? "Restore"
                 : "Archive"}
             </button>

@@ -20,7 +20,6 @@ export interface StorageSummary {
   tabs: number;
   folders: number;
   tags: number;
-  groups: number;
   schedules: number;
   notes: number;
   shareLinks: number;
@@ -50,7 +49,6 @@ export function summarizeStorageData(data: StorageData): StorageSummary {
     tabs: data.sessions.reduce((total, session) => total + session.tabs.length, 0),
     folders: data.folders.length,
     tags: data.tags.length,
-    groups: data.groups.length,
     schedules: data.schedules.length,
     notes: data.standaloneNotes.length + sessionNoteCount + tabNoteCount,
     shareLinks: data.shareLinks.length,
@@ -111,7 +109,6 @@ export function mergeStorageData(current: StorageData, imported: StorageData): S
     sessions: mergeById(current.sessions, imported.sessions, chooseSessionWinner),
     folders: mergeById(current.folders, imported.folders, chooseMostRecent),
     tags: mergeById(current.tags, imported.tags, chooseMostRecent),
-    groups: mergeById(current.groups, imported.groups, chooseMostRecent),
     schedules: mergeById(current.schedules, imported.schedules, chooseMostRecent),
     standaloneNotes: mergeById(current.standaloneNotes, imported.standaloneNotes, chooseMostRecent),
     shareLinks: mergeById(current.shareLinks, imported.shareLinks, chooseMostRecent),
@@ -224,7 +221,7 @@ export function generateAIPrompt(session: Session, config?: Partial<AIShareConfi
     `Analyze this browser session called "${session.name}".`,
     includeNotes && session.note ? `Session note: ${session.note}` : "",
     "1. Summarize the likely purpose in 2 to 3 sentences.",
-    "2. Group the links by topic or task.",
+    "2. Cluster the links by topic or task.",
     "3. Suggest 3 to 5 tags.",
     "4. Flag duplicate or low-value tabs.",
     "",

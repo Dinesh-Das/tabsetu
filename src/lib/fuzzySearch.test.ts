@@ -29,7 +29,6 @@ function createSession(tab: TabItem): Session {
     name: "Research sprint",
     description: "",
     folderId: null,
-    groupId: null,
     tagIds: [],
     tabs: [tab],
     note: "",

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Bell, Clock3, ExternalLink, Moon, Trash2 } from "lucide-react";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
-import { formatDateTime } from "@/lib/format";
+import { formatReminderDate, isReminderInPastWindow } from "@/lib/reminders";
 import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
 import type { Session, TabItem, ToastMessage } from "@/types";
 import { useSessionStore } from "@/store/sessionStore";
@@ -49,18 +49,20 @@ function updateReminderInSession(
 async function scheduleReminderAlarm(tabId: string, dueAt: number | null): Promise<void> {
   await chrome.alarms.clear(reminderAlarmName(tabId));
   if (dueAt && dueAt > Date.now()) {
-    chrome.alarms.create(reminderAlarmName(tabId), { when: dueAt });
+    await chrome.alarms.create(reminderAlarmName(tabId), { when: dueAt });
   }
 }
 
 function ReminderList({
   rows,
   emptyTitle,
+  mode,
   addToast,
   onOpenSession,
 }: {
   rows: ReminderRow[];
   emptyTitle: string;
+  mode: "upcoming" | "past";
   addToast: Props["addToast"];
   onOpenSession?: Props["onOpenSession"];
 }) {
@@ -88,6 +90,18 @@ function ReminderList({
     });
     await scheduleReminderAlarm(row.tab.id, null);
     addToast("success", "Reminder dismissed.");
+  };
+
+  const clearReminder = async (row: ReminderRow) => {
+    updateSession(row.session.id, {
+      tabs: updateReminderInSession(row.session, row.tab.id, {
+        reminderAt: null,
+        reminderSnoozedUntil: null,
+        reminderDismissed: false,
+      }),
+    });
+    await scheduleReminderAlarm(row.tab.id, null);
+    addToast("success", "Reminder cleared.");
   };
 
   const reopenReminder = async (row: ReminderRow) => {
@@ -132,7 +146,7 @@ function ReminderList({
                 <span>{getDomainLabel(row.tab.url)} in {row.session.name}</span>
                 <small>
                   <Clock3 size={12} />
-                  {formatDateTime(row.dueAt)}
+                  {formatReminderDate(row.dueAt)}
                 </small>
                 {row.tab.note ? <p>{row.tab.note.slice(0, 180)}</p> : null}
                 {!settings.remindersEnabled ? (
@@ -145,28 +159,32 @@ function ReminderList({
                 <ExternalLink size={14} />
                 Open tab
               </button>
-              <button
-                className="btn btn-secondary"
-                type="button"
-                onClick={() => void snoozeReminder(row, Date.now() + 60 * 60 * 1000, "1 hour")}
-              >
-                <Clock3 size={14} />
-                Snooze 1h
-              </button>
-              <button
-                className="btn btn-secondary"
-                type="button"
-                onClick={() => void snoozeReminder(row, tomorrowMorning(), "until tomorrow at 9 AM")}
-              >
-                <Moon size={14} />
-                Tomorrow
-              </button>
+              {mode === "upcoming" ? (
+                <>
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    onClick={() => void snoozeReminder(row, Date.now() + 60 * 60 * 1000, "1 hour")}
+                  >
+                    <Clock3 size={14} />
+                    Snooze 1h
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    onClick={() => void snoozeReminder(row, tomorrowMorning(), "until tomorrow at 9 AM")}
+                  >
+                    <Moon size={14} />
+                    Tomorrow
+                  </button>
+                </>
+              ) : null}
               {onOpenSession ? (
                 <button className="btn btn-secondary" type="button" onClick={() => onOpenSession(row.session.id)}>
                   Session
                 </button>
               ) : null}
-              {!row.dismissed ? (
+              {mode === "upcoming" && !row.dismissed ? (
                 <button
                   className="btn btn-ghost btn-icon"
                   type="button"
@@ -174,6 +192,11 @@ function ReminderList({
                   onClick={() => void dismissReminder(row)}
                 >
                   <Trash2 size={14} />
+                </button>
+              ) : null}
+              {mode === "past" ? (
+                <button className="btn btn-secondary" type="button" onClick={() => void clearReminder(row)}>
+                  Clear
                 </button>
               ) : null}
             </div>
@@ -187,7 +210,8 @@ function ReminderList({
 export default function RemindersPage({ addToast, onOpenSession }: Props) {
   const sessions = useSessionStore((state) => state.sessions);
 
-  const { upcomingRows, dismissedRows } = useMemo(() => {
+  const { upcomingRows, pastRows } = useMemo(() => {
+    const now = Date.now();
     const rows: ReminderRow[] = sessions.flatMap((session) =>
       session.tabs
         .filter((tab) => tab.reminderAt || tab.reminderSnoozedUntil || tab.reminderDismissed)
@@ -202,12 +226,11 @@ export default function RemindersPage({ addToast, onOpenSession }: Props) {
 
     return {
       upcomingRows: rows
-        .filter((row) => !row.dismissed)
+        .filter((row) => !row.dismissed && row.dueAt >= now)
         .sort((left, right) => left.dueAt - right.dueAt),
-      dismissedRows: rows
-        .filter((row) => row.dismissed)
-        .sort((left, right) => right.dueAt - left.dueAt)
-        .slice(0, 30),
+      pastRows: rows
+        .filter((row) => (row.dismissed || row.dueAt < now) && isReminderInPastWindow(row.dueAt, now))
+        .sort((left, right) => right.dueAt - left.dueAt),
     };
   }, [sessions]);
 
@@ -233,6 +256,7 @@ export default function RemindersPage({ addToast, onOpenSession }: Props) {
           <ReminderList
             rows={upcomingRows}
             emptyTitle="No upcoming tab reminders yet."
+            mode="upcoming"
             addToast={addToast}
             onOpenSession={onOpenSession}
           />
@@ -240,12 +264,13 @@ export default function RemindersPage({ addToast, onOpenSession }: Props) {
 
         <section className="reminders-section">
           <div className="detail-section-header">
-            <h3>Dismissed</h3>
-            <span className="badge badge-subtle">{dismissedRows.length} shown</span>
+            <h3>Past and dismissed</h3>
+            <span className="badge badge-subtle">{pastRows.length} shown</span>
           </div>
           <ReminderList
-            rows={dismissedRows}
-            emptyTitle="No dismissed reminders yet."
+            rows={pastRows}
+            emptyTitle="No past reminders from the last 30 days."
+            mode="past"
             addToast={addToast}
             onOpenSession={onOpenSession}
           />

@@ -1,5 +1,14 @@
-import type { Schedule, Session, Settings, UndoCollapseBuffer } from "@/types";
-import { chromeTabToTabItemWithFavicon, generateId, isRestrictedUrl } from "@/lib/tabHelpers";
+import type { Schedule, Session, Settings, ShareSnapshot, TabItem, UndoCollapseBuffer } from "@/types";
+import { nextMatchingDate } from "@/lib/alarmScheduling";
+import {
+  chromeTabToTabItemWithFavicon,
+  clampText,
+  generateId,
+  isRestrictedUrl,
+  isValidUrl,
+  sanitizeLabel,
+  stripHtml,
+} from "@/lib/tabHelpers";
 import {
   initializeStorageForInstall,
   loadStorage,
@@ -192,49 +201,16 @@ function scheduleMatchesToday(schedule: Schedule, date: Date): boolean {
   return true;
 }
 
-function getNextScheduleFireDate(schedule: Schedule, from = new Date()): Date | null {
-  if (schedule.type === "once") {
-    if (!schedule.date) {
-      return null;
-    }
+async function createScheduleAlarm(schedule: Schedule, from = new Date()): Promise<void> {
+  const name = alarmName(schedule.id);
+  await chrome.alarms.clear(name);
 
-    const target = new Date(`${schedule.date}T${schedule.time}:00`);
-    return target > from ? target : null;
-  }
-
-  const [hours, minutes] = schedule.time.split(":").map(Number);
-  const next = new Date(from);
-  next.setHours(hours, minutes, 0, 0);
-  if (next <= from) {
-    next.setDate(next.getDate() + 1);
-  }
-
-  if (schedule.type === "weekdays") {
-    while (next.getDay() === 0 || next.getDay() === 6) {
-      next.setDate(next.getDate() + 1);
-    }
-  }
-
-  if (schedule.type === "weekly" || schedule.type === "custom") {
-    if (schedule.daysOfWeek.length === 0) {
-      return null;
-    }
-
-    while (!schedule.daysOfWeek.includes(next.getDay())) {
-      next.setDate(next.getDate() + 1);
-    }
-  }
-
-  return next;
-}
-
-function createScheduleAlarm(schedule: Schedule, from = new Date()): void {
-  const next = getNextScheduleFireDate(schedule, from);
+  const next = nextMatchingDate(schedule, from);
   if (!next) {
     return;
   }
 
-  chrome.alarms.create(alarmName(schedule.id), {
+  await chrome.alarms.create(name, {
     when: Math.max(next.getTime(), Date.now() + 1000),
   });
 }
@@ -262,7 +238,7 @@ async function hydrateAlarms(): Promise<void> {
       if (!schedule.enabled) {
         continue;
       }
-      createScheduleAlarm(schedule);
+      await createScheduleAlarm(schedule);
     }
   }
 
@@ -277,7 +253,9 @@ async function hydrateAlarms(): Promise<void> {
         continue;
       }
 
-      chrome.alarms.create(reminderAlarmName(tab.id), {
+      const name = reminderAlarmName(tab.id);
+      await chrome.alarms.clear(name);
+      await chrome.alarms.create(name, {
         when: Math.max(dueAt, Date.now() + 1000),
       });
     }
@@ -348,6 +326,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "IMPORT_SHARED_SESSION") {
+    const snapshot = typeof message === "object" && message !== null && "snapshot" in message
+      ? (message as { snapshot?: unknown }).snapshot
+      : null;
+
+    if (!isShareSnapshot(snapshot)) {
+      sendResponse({ ok: false });
+      return undefined;
+    }
+
+    void importSharedSession(snapshot)
+      .then((session) => sendResponse({ ok: true, sessionId: session.id }))
+      .catch(() => sendResponse({ ok: false }));
+
+    return true;
+  }
+
   return undefined;
 });
 
@@ -386,7 +381,6 @@ async function createSessionFromWindow(mode: "save" | "collapse"): Promise<void>
     name: sessionName,
     description: "",
     folderId: null,
-    groupId: null,
     tagIds: [],
     tabs: savedTabs,
     note: "",
@@ -416,10 +410,93 @@ async function createSessionFromWindow(mode: "save" | "collapse"): Promise<void>
       expiresAt: createdAt + 10000,
     };
     await saveUndoBuffer(buffer);
-    if (tabIds.length > 0) {
+    if (tabIds.length !== 0) {
       await chrome.tabs.remove(tabIds);
     }
   }
+}
+
+function isShareSnapshot(value: unknown): value is ShareSnapshot {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const snapshot = value as Partial<ShareSnapshot>;
+  return (
+    snapshot.v === 1 &&
+    typeof snapshot.name === "string" &&
+    typeof snapshot.description === "string" &&
+    typeof snapshot.createdAt === "number" &&
+    Array.isArray(snapshot.tabs) &&
+    snapshot.tabs.every(
+      (tab) =>
+        typeof tab === "object" &&
+        tab !== null &&
+        typeof tab.title === "string" &&
+        typeof tab.url === "string",
+    )
+  );
+}
+
+function snapshotTabToTabItem(tab: ShareSnapshot["tabs"][number], position: number): TabItem | null {
+  const url = tab.url.trim();
+  if (!isValidUrl(url)) {
+    return null;
+  }
+
+  const createdAt = Date.now();
+  return {
+    id: generateId("tab"),
+    title: sanitizeLabel(tab.title, "Untitled Tab", 200),
+    url,
+    favIconUrl: null,
+    favIconDataUrl: null,
+    pinned: false,
+    windowId: null,
+    note: "",
+    reminderAt: null,
+    reminderSnoozedUntil: null,
+    reminderDismissed: false,
+    position,
+    openCount: 0,
+    createdAt,
+    lastOpenedAt: null,
+  };
+}
+
+async function importSharedSession(snapshot: ShareSnapshot): Promise<Session> {
+  const { sessions } = await loadRuntimeData();
+  const createdAt = Date.now();
+  const tabs = snapshot.tabs
+    .map((tab, index) => snapshotTabToTabItem(tab, index))
+    .filter((tab): tab is TabItem => Boolean(tab))
+    .map((tab, index) => ({ ...tab, position: index }));
+
+  if (tabs.length === 0) {
+    throw new Error("Shared session has no openable tabs.");
+  }
+
+  const session: Session = {
+    id: generateId("session"),
+    name: sanitizeLabel(snapshot.name, "Shared session", 100),
+    description: clampText(stripHtml(snapshot.description), 300),
+    folderId: null,
+    tagIds: [],
+    tabs,
+    note: "",
+    color: null,
+    icon: null,
+    openCount: 0,
+    createdAt,
+    updatedAt: createdAt,
+    lastOpenedAt: null,
+    version: 1,
+    isPinned: false,
+    isArchived: false,
+  };
+
+  await saveSessions([session, ...sessions]);
+  return session;
 }
 
 function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
@@ -906,8 +983,10 @@ chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) =
       ...tab,
       reminderSnoozedUntil: snoozedUntil,
       reminderDismissed: false,
-    })).then(() => {
-      chrome.alarms.create(reminderAlarmName(tabId), { when: snoozedUntil });
+    })).then(async () => {
+      const name = reminderAlarmName(tabId);
+      await chrome.alarms.clear(name);
+      await chrome.alarms.create(name, { when: snoozedUntil });
       void chrome.notifications.clear(notificationId);
     });
   }
@@ -948,7 +1027,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
   const now = new Date();
   if (!scheduleMatchesToday(schedule, now)) {
-    createScheduleAlarm(schedule, now);
+    await createScheduleAlarm(schedule, now);
     return;
   }
 
@@ -996,7 +1075,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   );
   await saveSessions(updatedSessions);
   await saveSchedules(updatedSchedules);
-  createScheduleAlarm({ ...schedule, lastFiredAt: openedAt, updatedAt: openedAt }, new Date(openedAt + 1000));
+  await createScheduleAlarm({ ...schedule, lastFiredAt: openedAt, updatedAt: openedAt }, new Date(openedAt + 1000));
 });
 
 chrome.runtime.onInstalled.addListener((details) => {

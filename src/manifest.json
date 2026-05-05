@@ -65,7 +65,12 @@
   "options_page": "src/dashboard/index.html",
   "web_accessible_resources": [
     {
-      "resources": ["src/dashboard/index.html"],
+      "resources": [
+        "src/dashboard/index.html",
+        "share-page/index.html",
+        "share-page/share.css",
+        "share-page/share.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ]

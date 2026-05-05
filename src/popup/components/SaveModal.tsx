@@ -4,8 +4,6 @@ import {
   ChevronDown,
   ChevronRight,
   FolderOpen,
-  Heart,
-  Layers,
   Paintbrush,
   Plus,
   Tag,
@@ -14,7 +12,6 @@ import { BottomSheet } from "@/components/mobile/MobileUI";
 import type { Session, ToastMessage } from "@/types";
 import { closeTabs, collectTabsForSession, chromeTabToTabItemWithFavicon } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
-import { useGroupStore } from "@/store/groupStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useTagStore } from "@/store/tagStore";
@@ -37,7 +34,17 @@ function defaultSessionName(closeAfterSaving: boolean): string {
   })}`;
 }
 
-const SESSION_COLORS = ["#14b8a6", "#1677ee", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+const COLOR_LABELS: Array<{ value: string | null; label: string }> = [
+  { value: null, label: "None" },
+  { value: "#EF4444", label: "Red" },
+  { value: "#F97316", label: "Orange" },
+  { value: "#EAB308", label: "Yellow" },
+  { value: "#22C55E", label: "Green" },
+  { value: "#3B82F6", label: "Blue" },
+  { value: "#8B5CF6", label: "Purple" },
+  { value: "#EC4899", label: "Pink" },
+  { value: "#6B7280", label: "Gray" },
+];
 
 export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onCollapseSaved }: Props) {
   const createSession = useSessionStore((state) => state.createSession);
@@ -46,14 +53,11 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
   const createFolder = useFolderStore((state) => state.createFolder);
   const tags = useTagStore((state) => state.tags);
   const createTag = useTagStore((state) => state.createTag);
-  const groups = useGroupStore((state) => state.groups);
-  const createGroup = useGroupStore((state) => state.createGroup);
   const settings = useSettingsStore((state) => state.settings);
 
-  const usesSelectedTabs = selectedTabIds.length > 0;
+  const usesSelectedTabs = selectedTabIds.length !== 0;
   const [folderId, setFolderId] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const [groupId, setGroupId] = useState("");
   const [sessionColor, setSessionColor] = useState<string | null>(null);
   const [includePinned, setIncludePinned] = useState(mode === "save" ? true : settings.collapseIncludesPinned);
   const [closeAfterSave, setCloseAfterSave] = useState(mode === "collapse");
@@ -61,13 +65,10 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
   const [isSaving, setIsSaving] = useState(false);
   const [foldersOpen, setFoldersOpen] = useState(true);
   const [tagsOpen, setTagsOpen] = useState(true);
-  const [groupsOpen, setGroupsOpen] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [creatingTag, setCreatingTag] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [newTagName, setNewTagName] = useState("");
-  const [creatingGroup, setCreatingGroup] = useState(false);
-  const [newGroupName, setNewGroupName] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -137,21 +138,6 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
     addToast("success", `Created tag "${name}".`);
   };
 
-  const handleCreateGroup = () => {
-    const name = newGroupName.trim();
-    if (!name) {
-      addToast("info", "Name the group first.");
-      return;
-    }
-
-    const created = createGroup(name, "#1677ee");
-    setGroupId(created.id);
-    setNewGroupName("");
-    setCreatingGroup(false);
-    setGroupsOpen(true);
-    addToast("success", `Created group "${name}".`);
-  };
-
   const handleSave = async () => {
     setIsSaving(true);
 
@@ -176,7 +162,6 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
         savedTabs,
         folderId || null,
         selectedTagIds,
-        groupId || null,
       );
 
       if (sessionColor) {
@@ -231,8 +216,8 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
                 onClick={() => setFolderId("")}
               >
                 <span>
-                  <Heart size={18} />
-                  Favourites (0)
+                  <FolderOpen size={18} />
+                  No folder
                 </span>
                 {!folderId ? <Check size={17} /> : null}
               </button>
@@ -283,7 +268,7 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
           </button>
           {tagsOpen ? (
             <div className="save-sheet-tags">
-              {tags.length > 0 ? (
+              {tags.length !== 0 ? (
                 <div className="mobile-chip-row">
                   {tags.map((tag) => (
                     <button
@@ -324,68 +309,6 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
           ) : null}
         </section>
 
-        <section className="mobile-accordion">
-          <button className="mobile-accordion-header" type="button" onClick={() => setGroupsOpen((open) => !open)}>
-            <span>
-              <Layers size={18} />
-              Group
-            </span>
-            {groupsOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-          </button>
-          {groupsOpen ? (
-            <>
-              <div className="save-sheet-helper">
-                Groups are optional workspaces above folders. Leave this empty if folders are enough.
-              </div>
-              <button
-                className="mobile-accordion-row"
-                type="button"
-                data-active={!groupId || undefined}
-                onClick={() => setGroupId("")}
-              >
-                <span>No group</span>
-                {!groupId ? <Check size={17} /> : null}
-              </button>
-              {groups.map((group) => (
-                <button
-                  className="mobile-accordion-row"
-                  type="button"
-                  key={group.id}
-                  data-active={groupId === group.id || undefined}
-                  onClick={() => setGroupId(group.id)}
-                >
-                  <span>
-                    <Layers size={18} color={group.color} />
-                    {group.name}
-                  </span>
-                  {groupId === group.id ? <Check size={17} /> : null}
-                </button>
-              ))}
-              {creatingGroup ? (
-                <div className="save-sheet-create-row">
-                  <input
-                    className="mobile-input"
-                    value={newGroupName}
-                    onChange={(event) => setNewGroupName(event.target.value)}
-                    placeholder="Group name"
-                    autoFocus
-                  />
-                  <button className="mobile-primary-button" type="button" onClick={handleCreateGroup}>
-                    Add
-                  </button>
-                </div>
-              ) : (
-                <button className="mobile-accordion-row" type="button" onClick={() => setCreatingGroup(true)}>
-                  <span>
-                    <Plus size={18} />
-                    Create group
-                  </span>
-                </button>
-              )}
-            </>
-          ) : null}
-        </section>
-
         <section className="mobile-accordion save-sheet-tags">
           <div className="mobile-accordion-header">
             <span>
@@ -395,24 +318,22 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
             <span style={{ fontSize: 12, color: "var(--mobile-muted)", textTransform: "none" }}>Optional</span>
           </div>
           <div className="mobile-color-row">
-            <button
-              className="mobile-color-dot"
-              type="button"
-              data-active={!sessionColor || undefined}
-              onClick={() => setSessionColor(null)}
-              title="No color"
-              style={{ background: "#e6e9ef" }}
-            />
-            {SESSION_COLORS.map((color) => (
+            {COLOR_LABELS.map((colorLabel) => (
               <button
-                key={color}
+                key={colorLabel.value ?? "none"}
                 className="mobile-color-dot"
                 type="button"
-                data-active={sessionColor === color || undefined}
-                onClick={() => setSessionColor(color)}
-                title={color}
-                style={{ background: color }}
-              />
+                data-active={sessionColor === colorLabel.value || undefined}
+                onClick={() => setSessionColor(colorLabel.value)}
+                title={colorLabel.label}
+                aria-label={`Set color label to ${colorLabel.label}`}
+                style={{
+                  background: colorLabel.value ?? "#e6e9ef",
+                  color: colorLabel.value ? "#fff" : "var(--mobile-text)",
+                }}
+              >
+                {sessionColor === colorLabel.value ? <Check size={16} /> : null}
+              </button>
             ))}
           </div>
         </section>

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Schedule } from "@/types";
+import { nextMatchingDate } from "@/lib/alarmScheduling";
 import { loadStorage, saveSchedules } from "@/lib/storage";
 import { generateId } from "@/lib/tabHelpers";
 
@@ -7,52 +8,21 @@ function alarmName(scheduleId: string): string {
   return `schedule_${scheduleId}`;
 }
 
-function getNextTriggerTime(schedule: Schedule): number | null {
-  const now = new Date();
+async function syncScheduleAlarm(schedule: Schedule): Promise<void> {
+  const name = alarmName(schedule.id);
+  await chrome.alarms.clear(name);
 
-  if (schedule.type === "once" && schedule.date) {
-    const target = new Date(`${schedule.date}T${schedule.time}:00`);
-    return target > now ? target.getTime() : null;
-  }
-
-  const [hours, minutes] = schedule.time.split(":").map(Number);
-  const next = new Date(now);
-  next.setHours(hours, minutes, 0, 0);
-  if (next <= now) {
-    next.setDate(next.getDate() + 1);
-  }
-
-  if (schedule.type === "weekdays") {
-    while (next.getDay() === 0 || next.getDay() === 6) {
-      next.setDate(next.getDate() + 1);
-    }
-  }
-
-  if (schedule.type === "weekly" || schedule.type === "custom") {
-    if (schedule.daysOfWeek.length === 0) {
-      return null;
-    }
-
-    while (!schedule.daysOfWeek.includes(next.getDay())) {
-      next.setDate(next.getDate() + 1);
-    }
-  }
-
-  return next.getTime();
-}
-
-function registerAlarm(schedule: Schedule): void {
   if (!schedule.enabled) {
     return;
   }
 
-  const when = getNextTriggerTime(schedule);
-  if (!when) {
+  const next = nextMatchingDate(schedule);
+  if (!next) {
     return;
   }
 
-  chrome.alarms.create(alarmName(schedule.id), {
-    when: Math.max(when, Date.now() + 1000),
+  await chrome.alarms.create(name, {
+    when: Math.max(next.getTime(), Date.now() + 1000),
   });
 }
 
@@ -68,7 +38,7 @@ async function replaceBrowserAlarms(schedules: Schedule[], schedulesEnabled: boo
     return;
   }
 
-  schedules.filter((schedule) => schedule.enabled).forEach(registerAlarm);
+  await Promise.all(schedules.map(syncScheduleAlarm));
 }
 
 interface ScheduleState {
@@ -106,7 +76,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     const schedules = [...get().schedules, schedule];
     set({ schedules });
     persistSchedules(schedules);
-    registerAlarm(schedule);
+    void syncScheduleAlarm(schedule);
   },
 
   updateSchedule: (id, updates) => {
@@ -120,8 +90,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
         ...updates,
         updatedAt: Date.now(),
       };
-      void chrome.alarms.clear(alarmName(schedule.id));
-      registerAlarm(updated);
+      void syncScheduleAlarm(updated);
       return updated;
     });
     set({ schedules });
@@ -150,10 +119,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
         enabled,
         updatedAt: Date.now(),
       };
-      void chrome.alarms.clear(alarmName(schedule.id));
-      if (enabled) {
-        registerAlarm(updated);
-      }
+      void syncScheduleAlarm(updated);
       return updated;
     });
     set({ schedules });

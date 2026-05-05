@@ -17,13 +17,11 @@ interface SessionState {
     tabs: TabItem[],
     folderId?: string | null,
     tagIds?: string[],
-    groupId?: string | null,
   ) => Session;
   updateSession: (id: string, updates: Partial<Session>) => void;
   updateSessionNote: (id: string, note: string) => void;
   setSessionFolder: (id: string, folderId: string | null) => void;
   setSessionTags: (id: string, tagIds: string[]) => void;
-  setSessionGroup: (id: string, groupId: string | null) => void;
   deleteSession: (id: string) => void;
   duplicateSession: (id: string) => void;
   renameSession: (id: string, name: string) => void;
@@ -37,7 +35,6 @@ interface SessionState {
   recordTabOpened: (sessionId: string, tabId: string) => void;
   unassignFolder: (folderId: string) => void;
   removeTagReferences: (tagId: string) => void;
-  removeGroupReferences: (groupId: string) => void;
   applyAutoArchive: (days: 30 | 60 | 90 | null) => void;
   setSortBy: (sort: SortOption) => void;
   setViewFilter: (filter: ViewFilter) => void;
@@ -118,7 +115,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  createSession: (name, description, tabs, folderId = null, tagIds = [], groupId = null) => {
+  createSession: (name, description, tabs, folderId = null, tagIds = []) => {
     const createdAt = Date.now();
     const normalizedTabs = reindexTabs(tabs);
     const session: Session = {
@@ -126,7 +123,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       name: sanitizeLabel(name, "Untitled Session", 100),
       description: clampText(stripHtml(description), 300),
       folderId,
-      groupId,
       tagIds,
       tabs: normalizedTabs,
       note: "",
@@ -188,14 +184,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setSessionTags: (id, tagIds) => {
     const sessions = get().sessions.map((session) =>
       session.id === id ? touchSession(session, { tagIds }) : session,
-    );
-    set({ sessions });
-    persistSessions(sessions);
-  },
-
-  setSessionGroup: (id, groupId) => {
-    const sessions = get().sessions.map((session) =>
-      session.id === id ? touchSession(session, { groupId }) : session,
     );
     set({ sessions });
     persistSessions(sessions);
@@ -390,14 +378,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             }),
           }
         : session,
-    );
-    set({ sessions });
-    persistSessions(sessions);
-  },
-
-  removeGroupReferences: (groupId) => {
-    const sessions = get().sessions.map((session) =>
-      session.groupId === groupId ? touchSession(session, { groupId: null }) : session,
     );
     set({ sessions });
     persistSessions(sessions);

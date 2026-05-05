@@ -92,7 +92,7 @@ export default function CurrentTabs({
         </div>
         <button className="mobile-secondary-button popup-select-all" type="button" onClick={toggleAll}>
           <SquareCheckBig size={16} />
-          {selectedVisibleCount === visibleTabs.length && visibleTabs.length > 0 ? "Clear" : "Select All"}
+          {selectedVisibleCount === visibleTabs.length && visibleTabs.length !== 0 ? "Clear" : "Select All"}
         </button>
       </section>
 

@@ -4,7 +4,6 @@ import {
   Edit3,
   FolderOpen,
   Heart,
-  Layers,
   MoreHorizontal,
   Plus,
   Search,
@@ -14,9 +13,8 @@ import {
 import MobileConfirmSheet from "@/components/mobile/MobileConfirmSheet";
 import { BottomSheet, EmptyState, GlassCard, MobileIconButton, TabRow } from "@/components/mobile/MobileUI";
 import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
-import type { Folder, Group, Session, TabItem, Tag, ToastMessage } from "@/types";
+import type { Folder, Session, TabItem, Tag, ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
-import { useGroupStore } from "@/store/groupStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useTagStore } from "@/store/tagStore";
 
@@ -29,19 +27,16 @@ const FOLDER_COLORS = ["#1677ee", "#4f46e5", "#0f9f87", "#f59e0b", "#ef4444"];
 type OrganizerEditorState =
   | { type: "folder"; item: Folder | null }
   | { type: "tag"; item: Tag | null }
-  | { type: "group"; item: Group | null }
   | null;
 
 type DeleteState =
   | { type: "folder"; item: Folder }
   | { type: "tag"; item: Tag }
-  | { type: "group"; item: Group }
   | null;
 
 type ActiveCollection =
   | { type: "folder"; id: string; name: string; color: string }
   | { type: "tag"; id: string; name: string; color: string }
-  | { type: "group"; id: string; name: string; color: string }
   | null;
 
 interface FolderEditorProps {
@@ -50,9 +45,8 @@ interface FolderEditorProps {
   addToast: Props["addToast"];
 }
 
-interface LabelEditorProps {
-  type: "tag" | "group";
-  item: Tag | Group | null;
+interface TagEditorProps {
+  tag: Tag | null;
   onClose: () => void;
   addToast: Props["addToast"];
 }
@@ -60,8 +54,8 @@ interface LabelEditorProps {
 function tabPreview(tab: TabItem) {
   return (
     <div className="session-tab-preview">
-      {tab.favIconUrl ? (
-        <img src={tab.favIconUrl} alt="" />
+      {tab.favIconDataUrl ?? tab.favIconUrl ? (
+        <img src={tab.favIconDataUrl ?? tab.favIconUrl ?? ""} alt="" />
       ) : (
         <span>{getDomainLabel(tab.url).slice(0, 2).toUpperCase()}</span>
       )}
@@ -69,58 +63,49 @@ function tabPreview(tab: TabItem) {
   );
 }
 
-function LabelEditor({ type, item, onClose, addToast }: LabelEditorProps) {
+function TagEditor({ tag, onClose, addToast }: TagEditorProps) {
   const createTag = useTagStore((state) => state.createTag);
   const updateTag = useTagStore((state) => state.updateTag);
-  const createGroup = useGroupStore((state) => state.createGroup);
-  const updateGroup = useGroupStore((state) => state.updateGroup);
-  const [name, setName] = useState(item?.name ?? "");
-  const [color, setColor] = useState(item?.color ?? FOLDER_COLORS[0]);
-  const label = type === "tag" ? "tag" : "group";
+  const [name, setName] = useState(tag?.name ?? "");
+  const [color, setColor] = useState(tag?.color ?? FOLDER_COLORS[0]);
 
   const handleSubmit = () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      addToast("info", `${label[0].toUpperCase()}${label.slice(1)} name is required.`);
+      addToast("info", "Tag name is required.");
       return;
     }
 
-    if (type === "tag") {
-      if (item) {
-        updateTag(item.id, { name: trimmed, color });
-      } else {
-        createTag(trimmed, color);
-      }
-    } else if (item) {
-      updateGroup(item.id, { name: trimmed, color });
+    if (tag) {
+      updateTag(tag.id, { name: trimmed, color });
     } else {
-      createGroup(trimmed, color);
+      createTag(trimmed, color);
     }
 
-    addToast("success", `${label[0].toUpperCase()}${label.slice(1)} ${item ? "updated" : "created"}.`);
+    addToast("success", `Tag ${tag ? "updated" : "created"}.`);
     onClose();
   };
 
   return (
     <BottomSheet
-      title={item ? `Edit ${label}` : `Create ${label}`}
-      subtitle={type === "tag" ? "Make saved sessions easier to scan." : "Group related workspaces together."}
+      title={tag ? "Edit tag" : "Create tag"}
+      subtitle="Make saved sessions easier to scan."
       onClose={onClose}
       footer={
         <button className="mobile-primary-button save-sheet-primary" type="button" onClick={handleSubmit}>
-          {item ? "Save" : "Create"}
+          {tag ? "Save" : "Create"}
         </button>
       }
     >
       <div className="mobile-form-stack">
         <div className="mobile-field">
-          <label htmlFor={`${type}-name`}>Name</label>
+          <label htmlFor="tag-name">Name</label>
           <input
-            id={`${type}-name`}
+            id="tag-name"
             className="mobile-input"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder={type === "tag" ? "Important" : "Launch prep"}
+            placeholder="Important"
             autoFocus
           />
         </div>
@@ -218,12 +203,9 @@ export default function MobileFoldersScreen({ addToast }: Props) {
   const deleteFolder = useFolderStore((state) => state.deleteFolder);
   const tags = useTagStore((state) => state.tags);
   const deleteTag = useTagStore((state) => state.deleteTag);
-  const groups = useGroupStore((state) => state.groups);
-  const deleteGroup = useGroupStore((state) => state.deleteGroup);
   const sessions = useSessionStore((state) => state.sessions);
   const unassignFolder = useSessionStore((state) => state.unassignFolder);
   const removeTagReferences = useSessionStore((state) => state.removeTagReferences);
-  const removeGroupReferences = useSessionStore((state) => state.removeGroupReferences);
   const recordTabOpened = useSessionStore((state) => state.recordTabOpened);
 
   const [editor, setEditor] = useState<OrganizerEditorState>(null);
@@ -231,6 +213,7 @@ export default function MobileFoldersScreen({ addToast }: Props) {
   const [activeCollection, setActiveCollection] = useState<ActiveCollection>(null);
   const [query, setQuery] = useState("");
 
+  const normalizedQuery = query.trim().toLowerCase();
   const folderCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const session of sessions) {
@@ -240,17 +223,6 @@ export default function MobileFoldersScreen({ addToast }: Props) {
     }
     return counts;
   }, [sessions]);
-
-  const pinnedTabs = useMemo(
-    () => sessions.filter((session) => session.isPinned).reduce((total, session) => total + session.tabs.length, 0),
-    [sessions],
-  );
-
-  const visibleFolders = folders.filter((folder) =>
-    folder.name.toLowerCase().includes(query.trim().toLowerCase()),
-  );
-  const visibleTags = tags.filter((tag) => tag.name.toLowerCase().includes(query.trim().toLowerCase()));
-  const visibleGroups = groups.filter((group) => group.name.toLowerCase().includes(query.trim().toLowerCase()));
 
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -262,15 +234,13 @@ export default function MobileFoldersScreen({ addToast }: Props) {
     return counts;
   }, [sessions]);
 
-  const groupCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const session of sessions) {
-      if (session.groupId) {
-        counts.set(session.groupId, (counts.get(session.groupId) ?? 0) + session.tabs.length);
-      }
-    }
-    return counts;
-  }, [sessions]);
+  const pinnedTabs = useMemo(
+    () => sessions.filter((session) => session.isPinned).reduce((total, session) => total + session.tabs.length, 0),
+    [sessions],
+  );
+
+  const visibleFolders = folders.filter((folder) => folder.name.toLowerCase().includes(normalizedQuery));
+  const visibleTags = tags.filter((tag) => tag.name.toLowerCase().includes(normalizedQuery));
 
   const activeSessions = useMemo(() => {
     if (!activeCollection) {
@@ -281,11 +251,7 @@ export default function MobileFoldersScreen({ addToast }: Props) {
       return sessions.filter((session) => session.folderId === activeCollection.id);
     }
 
-    if (activeCollection.type === "tag") {
-      return sessions.filter((session) => session.tagIds.includes(activeCollection.id));
-    }
-
-    return sessions.filter((session) => session.groupId === activeCollection.id);
+    return sessions.filter((session) => session.tagIds.includes(activeCollection.id));
   }, [activeCollection, sessions]);
 
   const activeTabCount = activeSessions.reduce((total, session) => total + session.tabs.length, 0);
@@ -316,7 +282,7 @@ export default function MobileFoldersScreen({ addToast }: Props) {
         {activeSessions.length === 0 ? (
           <EmptyState
             compact
-            icon={activeCollection.type === "group" ? <Layers size={42} /> : <FolderOpen size={42} />}
+            icon={activeCollection.type === "folder" ? <FolderOpen size={42} /> : <TagIcon size={42} />}
             title="No tabs here yet"
             description={`Save tabs into this ${activeCollection.type} and they will appear here.`}
           />
@@ -334,7 +300,7 @@ export default function MobileFoldersScreen({ addToast }: Props) {
                       key={tab.id}
                       title={tab.title}
                       subtitle={getDomainLabel(tab.url)}
-                      favIconUrl={tab.favIconUrl}
+                      favIconUrl={tab.favIconDataUrl ?? tab.favIconUrl}
                       preview={tabPreview(tab)}
                       showCheckbox={false}
                       onSelect={() => void handleOpenTab(session, tab)}
@@ -354,7 +320,7 @@ export default function MobileFoldersScreen({ addToast }: Props) {
       <div className="mobile-toolbar">
         <label className="mobile-search">
           <Search size={18} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search folders, tags, groups" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search folders and tags" />
         </label>
         <MobileIconButton title="Create folder" onClick={() => setEditor({ type: "folder", item: null })}>
           <Plus size={18} />
@@ -370,7 +336,7 @@ export default function MobileFoldersScreen({ addToast }: Props) {
             <strong>Favourites</strong>
             <span>{pinnedTabs} tabs</span>
           </div>
-          <MobileIconButton title="Pin folder">
+          <MobileIconButton title="Pinned sessions">
             <MoreHorizontal size={18} />
           </MobileIconButton>
         </GlassCard>
@@ -431,47 +397,15 @@ export default function MobileFoldersScreen({ addToast }: Props) {
           </GlassCard>
         ))}
 
-        <div className="organizer-section-heading">
-          <h2>Groups</h2>
-          <button type="button" onClick={() => setEditor({ type: "group", item: null })}>
-            <Plus size={16} />
-            New group
-          </button>
-        </div>
-
-        {visibleGroups.map((group) => (
-          <GlassCard className="folder-row-card" key={group.id}>
-            <button
-              className="folder-row-main-button"
-              type="button"
-              onClick={() => setActiveCollection({ type: "group", id: group.id, name: group.name, color: group.color })}
-            >
-              <div className="folder-row-icon" style={{ background: `${group.color}18`, color: group.color }}>
-                <Layers size={23} />
-              </div>
-              <div className="folder-row-copy">
-                <strong>{group.name}</strong>
-                <span>{groupCounts.get(group.id) ?? 0} tabs</span>
-              </div>
-            </button>
-            <MobileIconButton title="Edit group" onClick={() => setEditor({ type: "group", item: group })}>
-              <Edit3 size={17} />
-            </MobileIconButton>
-            <MobileIconButton title="Delete group" danger onClick={() => setPendingDelete({ type: "group", item: group })}>
-              <Trash2 size={17} />
-            </MobileIconButton>
-          </GlassCard>
-        ))}
-
-        {visibleFolders.length === 0 && visibleTags.length === 0 && visibleGroups.length === 0 ? (
+        {visibleFolders.length === 0 && visibleTags.length === 0 ? (
           <GlassCard className="folder-empty-card">
             <EmptyState
               icon={<FolderOpen size={48} />}
               title={query ? "Nothing found" : "Create your first folder"}
               description={
                 query
-                  ? "No folder, tag, or group matches that search."
-                  : "Create folders, tags, and groups to keep saved tab sets tidy."
+                  ? "No folder or tag matches that search."
+                  : "Create folders and tags to keep saved tab sets tidy."
               }
               action={
                 <button className="mobile-primary-button" type="button" onClick={() => setEditor({ type: "folder", item: null })}>
@@ -487,8 +421,8 @@ export default function MobileFoldersScreen({ addToast }: Props) {
         <FolderEditor folder={editor.item} addToast={addToast} onClose={() => setEditor(null)} />
       ) : null}
 
-      {editor?.type === "tag" || editor?.type === "group" ? (
-        <LabelEditor type={editor.type} item={editor.item} addToast={addToast} onClose={() => setEditor(null)} />
+      {editor?.type === "tag" ? (
+        <TagEditor tag={editor.item} addToast={addToast} onClose={() => setEditor(null)} />
       ) : null}
 
       {pendingDelete ? (
@@ -502,12 +436,9 @@ export default function MobileFoldersScreen({ addToast }: Props) {
             if (pendingDelete.type === "folder") {
               unassignFolder(pendingDelete.item.id);
               deleteFolder(pendingDelete.item.id);
-            } else if (pendingDelete.type === "tag") {
+            } else {
               removeTagReferences(pendingDelete.item.id);
               deleteTag(pendingDelete.item.id);
-            } else {
-              removeGroupReferences(pendingDelete.item.id);
-              deleteGroup(pendingDelete.item.id);
             }
             addToast("success", `${pendingDelete.type[0].toUpperCase()}${pendingDelete.type.slice(1)} deleted.`);
             setPendingDelete(null);

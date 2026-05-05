@@ -113,22 +113,35 @@ export default function SettingsPanel({ addToast }: Props) {
       return;
     }
 
-    sessions.forEach((session) => {
-      session.tabs.forEach((tab) => {
-        const dueAt = tab.reminderSnoozedUntil ?? tab.reminderAt;
-        if (!dueAt || tab.reminderDismissed) {
-          return;
-        }
+    const reminderTabs = sessions.flatMap((session) =>
+      session.tabs
+        .map((tab) => ({
+          id: tab.id,
+          dueAt: tab.reminderSnoozedUntil ?? tab.reminderAt,
+          dismissed: tab.reminderDismissed,
+        }))
+        .filter((tab): tab is { id: string; dueAt: number; dismissed: false } =>
+          Boolean(tab.dueAt) && !tab.dismissed,
+        ),
+    );
 
+    await Promise.all(
+      reminderTabs.map((tab) =>
         chrome.alarms.create(`reminder_${tab.id}`, {
-          when: Math.max(dueAt, Date.now() + 1000),
-        });
-      });
-    });
+          when: Math.max(tab.dueAt, Date.now() + 1000),
+        }),
+      ),
+    );
   };
 
   const storageUsageMb = storageBytes / (1024 * 1024);
   const storageUsagePercent = Math.min(100, (storageBytes / STORAGE_LIMIT_BYTES) * 100);
+  const storageUsageColor =
+    storageUsagePercent > 80
+      ? "var(--color-danger)"
+      : storageUsagePercent >= 60
+        ? "var(--color-warning)"
+        : "var(--color-success)";
 
   return (
     <section style={{ flex: 1, overflowY: "auto", padding: 28 }}>
@@ -409,13 +422,21 @@ export default function SettingsPanel({ addToast }: Props) {
                 <div className="card-raised" style={{ padding: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
                     <strong>{storageUsageMb.toFixed(2)} MB used</strong>
-                    <span style={{ color: storageUsagePercent >= 80 ? "var(--color-warning)" : "var(--color-text-muted)" }}>
+                    <span style={{ color: storageUsagePercent >= 60 ? storageUsageColor : "var(--color-text-muted)" }}>
                       of 10 MB
                     </span>
                   </div>
                   <div className="storage-bar">
-                    <div className="storage-bar-fill" style={{ width: `${storageUsagePercent}%` }} />
+                    <div
+                      className="storage-bar-fill"
+                      style={{ width: `${storageUsagePercent}%`, background: storageUsageColor }}
+                    />
                   </div>
+                  {storageUsagePercent > 80 ? (
+                    <p style={{ color: "var(--color-danger)", fontSize: 12, margin: "10px 0 0" }}>
+                      Approaching storage limit. Consider exporting and clearing old sessions.
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </div>

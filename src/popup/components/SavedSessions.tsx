@@ -44,28 +44,25 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
   const quickInfoShowTimer = useRef<number | null>(null);
   const quickInfoHideTimer = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (activeFolderId && !folders.some((folder) => folder.id === activeFolderId)) {
-      setActiveFolderId("");
-    }
-  }, [activeFolderId, folders]);
+  const itemsForTagFilters = useMemo(
+    () =>
+      buildSessionListItems({
+        sessions,
+        folders,
+        tags,
+        settings,
+        query,
+        sortBy: "lastOpenedAt",
+        folderId: activeFolderId || null,
+        tagId: null,
+      }),
+    [activeFolderId, folders, query, sessions, settings, tags],
+  );
 
-  useEffect(() => {
-    if (activeTagId && !tags.some((tag) => tag.id === activeTagId)) {
-      setActiveTagId("");
-    }
-  }, [activeTagId, tags]);
-
-  useEffect(() => {
-    return () => {
-      if (quickInfoShowTimer.current) {
-        window.clearTimeout(quickInfoShowTimer.current);
-      }
-      if (quickInfoHideTimer.current) {
-        window.clearTimeout(quickInfoHideTimer.current);
-      }
-    };
-  }, []);
+  const availableTags = useMemo(() => {
+    const visibleTagIds = new Set(itemsForTagFilters.flatMap((item) => item.session.tagIds));
+    return tags.filter((tag) => visibleTagIds.has(tag.id));
+  }, [itemsForTagFilters, tags]);
 
   const visibleItems = useMemo(
     () =>
@@ -81,6 +78,29 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
       }),
     [activeFolderId, activeTagId, folders, query, sessions, settings, tags],
   );
+
+  useEffect(() => {
+    if (activeFolderId && !folders.some((folder) => folder.id === activeFolderId)) {
+      setActiveFolderId("");
+    }
+  }, [activeFolderId, folders]);
+
+  useEffect(() => {
+    if (activeTagId && !availableTags.some((tag) => tag.id === activeTagId)) {
+      setActiveTagId("");
+    }
+  }, [activeTagId, availableTags]);
+
+  useEffect(() => {
+    return () => {
+      if (quickInfoShowTimer.current) {
+        window.clearTimeout(quickInfoShowTimer.current);
+      }
+      if (quickInfoHideTimer.current) {
+        window.clearTimeout(quickInfoHideTimer.current);
+      }
+    };
+  }, []);
 
   const listKeyboardActive = keyboardActive && pendingDelete === null;
 
@@ -346,9 +366,9 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
         </button>
       </div>
 
-      {folders.length > 0 || tags.length > 0 ? (
+      {folders.length !== 0 || availableTags.length !== 0 ? (
         <div className="popup-filter-chips">
-          {folders.length > 0 ? (
+          {folders.length !== 0 ? (
             <div className="popup-filter-strip" aria-label="Folder filters">
               <button
                 className="tag-chip"
@@ -376,19 +396,13 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
               ))}
             </div>
           ) : null}
-          {tags.length > 0 ? (
-            <div className="popup-filter-strip" aria-label="Tag filters">
-              <button
-                className="tag-chip"
-                type="button"
-                data-active={!activeTagId}
-                onClick={() => setActiveTagId("")}
-              >
-                All tags
-              </button>
-              {tags.map((tag) => (
+          {availableTags.length !== 0 ? (
+            <div className="popup-filter-strip" role="listbox" aria-label="Filter by tag">
+              {availableTags.map((tag) => (
                 <button
                   key={tag.id}
+                  role="option"
+                  aria-selected={activeTagId === tag.id}
                   className="tag-chip"
                   type="button"
                   data-active={activeTagId === tag.id}
@@ -552,7 +566,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
                       {getDomainLabel(tab.url)}
                     </button>
                   ))}
-                  {session.tabs.length > 3 ? (
+                  {typeof session.tabs[3] !== "undefined" ? (
                     <span className="badge badge-subtle">+{session.tabs.length - 3} more</span>
                   ) : null}
                 </div>

@@ -15,7 +15,6 @@ import {
 import { copyTextToClipboard } from "@/lib/sessionBrowser";
 import { loadStorage, saveStorageData } from "@/lib/storage";
 import { useFolderStore } from "@/store/folderStore";
-import { useGroupStore } from "@/store/groupStore";
 import { useNotesStore } from "@/store/notesStore";
 import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -40,8 +39,6 @@ export default function ImportExportPanel({ addToast }: Props) {
   const importFolders = useFolderStore((state) => state.importFolders);
   const tags = useTagStore((state) => state.tags);
   const importTags = useTagStore((state) => state.importTags);
-  const groups = useGroupStore((state) => state.groups);
-  const importGroups = useGroupStore((state) => state.importGroups);
   const schedules = useScheduleStore((state) => state.schedules);
   const importSchedules = useScheduleStore((state) => state.importSchedules);
   const standaloneNotes = useNotesStore((state) => state.standaloneNotes);
@@ -59,7 +56,6 @@ export default function ImportExportPanel({ addToast }: Props) {
       sessions,
       folders,
       tags,
-      groups,
       schedules,
       standaloneNotes,
       shareLinks,
@@ -74,7 +70,7 @@ export default function ImportExportPanel({ addToast }: Props) {
       },
       settings,
     }),
-    [folders, groups, schedules, sessions, settings, shareLinks, standaloneNotes, tags],
+    [folders, schedules, sessions, settings, shareLinks, standaloneNotes, tags],
   );
 
   const currentSummary = useMemo(() => summarizeStorageData(currentData), [currentData]);
@@ -132,7 +128,6 @@ export default function ImportExportPanel({ addToast }: Props) {
       importSessions(resultData.sessions);
       importFolders(resultData.folders);
       importTags(resultData.tags);
-      importGroups(resultData.groups);
       importSchedules(resultData.schedules);
       importNotes(resultData.standaloneNotes);
       importShareLinks(resultData.shareLinks);
@@ -167,7 +162,7 @@ export default function ImportExportPanel({ addToast }: Props) {
           <div className="card settings-card">
             <h3>Full backup</h3>
             <p style={{ color: "var(--color-text-secondary)", marginTop: 8 }}>
-              JSON exports include sessions, folders, tags, groups, notes, schedules, and settings.
+              JSON exports include sessions, folders, tags, notes, schedules, and settings.
             </p>
             <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
               <button className="btn btn-primary" onClick={() => void handleExportAll()}>
@@ -195,7 +190,7 @@ export default function ImportExportPanel({ addToast }: Props) {
             <h3>What gets restored</h3>
             <ul className="plain-list" style={{ marginTop: 14 }}>
               <li>Saved sessions, descriptions, and notes</li>
-              <li>Folders, tags, groups, and session assignments</li>
+              <li>Folders, tags, and session assignments</li>
               <li>Schedules and their enabled state</li>
               <li>Theme and behavioral preferences</li>
             </ul>
@@ -292,7 +287,7 @@ export default function ImportExportPanel({ addToast }: Props) {
           <div className="form-stack">
             <div className="card-raised" style={{ padding: 16 }}>
               <strong>Backup contents</strong>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(8, minmax(0, 1fr))", gap: 10, marginTop: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 10, marginTop: 12 }}>
                 <div className="detail-empty" style={{ padding: 10 }}>
                   <strong>{incomingSummary.sessions}</strong>
                   <div>Sessions</div>
@@ -308,10 +303,6 @@ export default function ImportExportPanel({ addToast }: Props) {
                 <div className="detail-empty" style={{ padding: 10 }}>
                   <strong>{incomingSummary.tags}</strong>
                   <div>Tags</div>
-                </div>
-                <div className="detail-empty" style={{ padding: 10 }}>
-                  <strong>{incomingSummary.groups}</strong>
-                  <div>Groups</div>
                 </div>
                 <div className="detail-empty" style={{ padding: 10 }}>
                   <strong>{incomingSummary.schedules}</strong>
@@ -335,7 +326,7 @@ export default function ImportExportPanel({ addToast }: Props) {
                   <span>
                     <strong style={{ display: "block", marginBottom: 4 }}>Merge with current library</strong>
                     <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                      Sessions, folders, tags, groups, and schedules are merged by ID, with the newer record winning when duplicates exist. Current settings stay as they are.
+                      Sessions, folders, tags, and schedules are merged by ID, with the newer record winning when duplicates exist. Current settings stay as they are.
                     </span>
                   </span>
                   <input
@@ -349,7 +340,7 @@ export default function ImportExportPanel({ addToast }: Props) {
                   <span>
                     <strong style={{ display: "block", marginBottom: 4 }}>Replace everything</strong>
                     <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                      Overwrites sessions, folders, tags, groups, schedules, and settings with the backup exactly as imported.
+                      Overwrites sessions, folders, tags, schedules, and settings with the backup exactly as imported.
                     </span>
                   </span>
                   <input
@@ -365,9 +356,9 @@ export default function ImportExportPanel({ addToast }: Props) {
             <div className="card-raised" style={{ padding: 16 }}>
               <strong>Library after import</strong>
               <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 6 }}>
-                Current library: {currentSummary.sessions} sessions, {currentSummary.tabs} tabs, {currentSummary.folders} folders, {currentSummary.tags} tags, {currentSummary.groups} groups, {currentSummary.schedules} schedules, {currentSummary.notes} notes.
+                Current library: {currentSummary.sessions} sessions, {currentSummary.tabs} tabs, {currentSummary.folders} folders, {currentSummary.tags} tags, {currentSummary.schedules} schedules, {currentSummary.notes} notes.
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(8, minmax(0, 1fr))", gap: 10, marginTop: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 10, marginTop: 12 }}>
                 <div className="detail-empty" style={{ padding: 10 }}>
                   <strong>{resultSummary.sessions}</strong>
                   <div>Sessions</div>
@@ -383,10 +374,6 @@ export default function ImportExportPanel({ addToast }: Props) {
                 <div className="detail-empty" style={{ padding: 10 }}>
                   <strong>{resultSummary.tags}</strong>
                   <div>Tags</div>
-                </div>
-                <div className="detail-empty" style={{ padding: 10 }}>
-                  <strong>{resultSummary.groups}</strong>
-                  <div>Groups</div>
                 </div>
                 <div className="detail-empty" style={{ padding: 10 }}>
                   <strong>{resultSummary.schedules}</strong>

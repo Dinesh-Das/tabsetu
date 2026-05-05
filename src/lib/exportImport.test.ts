@@ -29,7 +29,6 @@ function makeSession(overrides?: Partial<Session>): Session {
     name: "Launch plan",
     description: "Research links",
     folderId: null,
-    groupId: null,
     tagIds: [],
     tabs: [makeTab({ note: "Read before standup" })],
     note: "Prepare talking points",
@@ -68,7 +67,6 @@ describe("exportImport", () => {
       ],
       folders: [],
       tags: [],
-      groups: [],
       schedules: [],
       standaloneNotes: [
         {

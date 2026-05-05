@@ -1,13 +1,14 @@
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, Bell, FileText, Layers, Pin, Settings, Upload } from "lucide-react";
+import { Archive, Bell, CalendarDays, FileText, Layers, Pin, Settings, Upload } from "lucide-react";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
 import EntityEditorModal from "@/components/shared/EntityEditorModal";
 import { useFolderStore } from "@/store/folderStore";
+import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useTagStore } from "@/store/tagStore";
 
-export type DesktopSidebarView = "sessions" | "notes" | "reminders" | "settings" | "importexport";
+export type DesktopSidebarView = "sessions" | "notes" | "reminders" | "schedules" | "settings" | "importexport";
 
 interface Props {
   view: DesktopSidebarView;
@@ -76,6 +77,7 @@ export default function Sidebar({ view, setView }: Props) {
   const createFolder = useFolderStore((state) => state.createFolder);
   const tags = useTagStore((state) => state.tags);
   const createTag = useTagStore((state) => state.createTag);
+  const schedules = useScheduleStore((state) => state.schedules);
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [showTagModal, setShowTagModal] = useState(false);
 
@@ -94,7 +96,7 @@ export default function Sidebar({ view, setView }: Props) {
   return (
     <aside
       style={{
-        width: 260,
+        width: 240,
         background: "var(--color-surface)",
         borderRight: "1px solid var(--color-border)",
         display: "flex",
@@ -269,6 +271,13 @@ export default function Sidebar({ view, setView }: Props) {
           onClick={() => setView("reminders")}
           Icon={Bell}
           count={activeReminders}
+        />
+        <NavItem
+          label="Schedules"
+          active={view === "schedules"}
+          onClick={() => setView("schedules")}
+          Icon={CalendarDays}
+          count={schedules.filter((schedule) => schedule.enabled).length}
         />
         <NavItem
           label="Import and export"

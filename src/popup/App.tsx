@@ -13,7 +13,6 @@ import { filterCapturableTabs } from "@/lib/popupTabs";
 import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
 import { getCurrentTabs } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
-import { useGroupStore } from "@/store/groupStore";
 import { useNotesStore } from "@/store/notesStore";
 import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -60,7 +59,6 @@ export default function PopupApp() {
   const loadSessions = useSessionStore((state) => state.load);
   const sessions = useSessionStore((state) => state.sessions);
   const loadFolders = useFolderStore((state) => state.load);
-  const loadGroups = useGroupStore((state) => state.load);
   const loadTags = useTagStore((state) => state.load);
   const loadSchedules = useScheduleStore((state) => state.load);
   const loadNotes = useNotesStore((state) => state.load);
@@ -86,7 +84,6 @@ export default function PopupApp() {
       loadSessions(),
       loadFolders(),
       loadTags(),
-      loadGroups(),
       loadSchedules(),
       loadNotes(),
       loadShareLinks(),
@@ -99,7 +96,7 @@ export default function PopupApp() {
     return () => {
       mounted = false;
     };
-  }, [loadFolders, loadGroups, loadNotes, loadSchedules, loadSessions, loadSettings, loadShareLinks, loadTags]);
+  }, [loadFolders, loadNotes, loadSchedules, loadSessions, loadSettings, loadShareLinks, loadTags]);
 
   useEffect(() => {
     applyTheme(settings.theme);

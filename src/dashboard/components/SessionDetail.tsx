@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
+  ArrowDown,
+  ArrowUp,
   CalendarClock,
   ClipboardCopy,
   ExternalLink,
@@ -24,6 +26,7 @@ import {
   generateAIPrompt,
 } from "@/lib/exportImport";
 import { formatDateTime, formatScheduleLabel } from "@/lib/format";
+import { formatReminderDate, oneHourFromNow, tomorrowAtNine } from "@/lib/reminders";
 import { copyTextToClipboard, getDomainLabel, openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
 import { chromeTabToTabItemWithFavicon, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
@@ -83,11 +86,67 @@ function toDateTimeInputValue(value: number | null): string {
   return date.toISOString().slice(0, 16);
 }
 
-function tomorrowAt(hour: number, minute: number): number {
-  const date = new Date();
-  date.setDate(date.getDate() + 1);
-  date.setHours(hour, minute, 0, 0);
-  return date.getTime();
+interface ReminderPickerProps {
+  tab: Session["tabs"][number];
+  onSet: (reminderAt: number) => void;
+  onClear: () => void;
+}
+
+function ReminderPicker({ tab, onSet, onClear }: ReminderPickerProps) {
+  const [showPicker, setShowPicker] = useState(false);
+  const activeReminderAt = tab.reminderSnoozedUntil ?? tab.reminderAt;
+
+  return (
+    <div className="reminder-picker" role="group" aria-label={`Reminder for ${tab.title}`}>
+      {!activeReminderAt ? (
+        <div className="reminder-chips">
+          <button className="btn btn-secondary" type="button" onClick={() => onSet(oneHourFromNow())}>
+            In 1 hour
+          </button>
+          <button className="btn btn-secondary" type="button" onClick={() => onSet(tomorrowAtNine())}>
+            Tomorrow 9 AM
+          </button>
+          <button className="btn btn-secondary" type="button" onClick={() => setShowPicker(true)}>
+            Pick date...
+          </button>
+        </div>
+      ) : (
+        <div className="reminder-set">
+          <span className="badge badge-subtle">
+            <Bell size={12} />
+            {formatReminderDate(activeReminderAt)}
+          </span>
+          <button className="btn btn-secondary" type="button" onClick={onClear}>
+            Clear
+          </button>
+          <button className="btn btn-secondary" type="button" onClick={() => setShowPicker(true)}>
+            Change
+          </button>
+        </div>
+      )}
+      {showPicker ? (
+        <input
+          className="input"
+          type="datetime-local"
+          autoFocus
+          min={toDateTimeInputValue(Date.now())}
+          onChange={(event) => {
+            if (!event.target.value) {
+              return;
+            }
+
+            const timestamp = new Date(event.target.value).getTime();
+            if (Number.isFinite(timestamp)) {
+              onSet(timestamp);
+              setShowPicker(false);
+            }
+          }}
+          onBlur={() => setShowPicker(false)}
+          aria-label="Pick reminder date and time"
+        />
+      ) : null}
+    </div>
+  );
 }
 
 export default function SessionDetail({ session, onClose, addToast }: Props) {
@@ -188,24 +247,26 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
   };
 
   const setTabReminderAt = async (tabId: string, reminderAt: number | null) => {
+    if (reminderAt !== null && reminderAt <= Date.now()) {
+      addToast("error", "Choose a future time for reminders.");
+      return;
+    }
+
     updateTabReminder(session.id, tabId, reminderAt);
     await chrome.alarms.clear(`reminder_${tabId}`);
+
+    if (reminderAt === null) {
+      addToast("success", "Reminder cleared.");
+      return;
+    }
 
     if (!settings.remindersEnabled) {
       addToast("info", "Reminders are disabled in Settings.");
       return;
     }
 
-    if (reminderAt && reminderAt > Date.now()) {
-      chrome.alarms.create(`reminder_${tabId}`, { when: reminderAt });
-      addToast("success", "Reminder scheduled.");
-    } else {
-      addToast("success", "Reminder cleared.");
-    }
-  };
-
-  const handleTabReminder = async (tabId: string, value: string) => {
-    await setTabReminderAt(tabId, value ? new Date(value).getTime() : null);
+    await chrome.alarms.create(`reminder_${tabId}`, { when: reminderAt });
+    addToast("success", "Reminder scheduled.");
   };
 
   const handleAddActiveTab = async () => {
@@ -224,6 +285,28 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
     addToast("success", `Added ${activeTab.title ?? "active tab"} to the session.`);
   };
 
+  const reorderTabs = (fromIndex: number, toIndex: number): boolean => {
+    const orderedTabs = [...session.tabs].sort((left, right) => left.position - right.position);
+    if (
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= orderedTabs.length ||
+      toIndex >= orderedTabs.length ||
+      fromIndex === toIndex
+    ) {
+      return false;
+    }
+
+    const [movedTab] = orderedTabs.splice(fromIndex, 1);
+    if (!movedTab) {
+      return false;
+    }
+
+    orderedTabs.splice(toIndex, 0, movedTab);
+    updateSession(session.id, { tabs: orderedTabs });
+    return true;
+  };
+
   const handleTabDrop = (targetTabId: string) => {
     if (!draggedTabId || draggedTabId === targetTabId) {
       setDraggedTabId(null);
@@ -233,16 +316,20 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
     const orderedTabs = [...session.tabs].sort((left, right) => left.position - right.position);
     const fromIndex = orderedTabs.findIndex((tab) => tab.id === draggedTabId);
     const toIndex = orderedTabs.findIndex((tab) => tab.id === targetTabId);
-    if (fromIndex === -1 || toIndex === -1) {
-      setDraggedTabId(null);
-      return;
-    }
-
-    const [movedTab] = orderedTabs.splice(fromIndex, 1);
-    orderedTabs.splice(toIndex, 0, movedTab);
-    updateSession(session.id, { tabs: orderedTabs });
+    const reordered = reorderTabs(fromIndex, toIndex);
     setDraggedTabId(null);
-    addToast("success", "Tabs reordered.");
+    if (reordered) {
+      addToast("success", "Tabs reordered.");
+    }
+  };
+
+  const moveTabByOffset = (tabId: string, offset: -1 | 1) => {
+    const orderedTabs = [...session.tabs].sort((left, right) => left.position - right.position);
+    const fromIndex = orderedTabs.findIndex((tab) => tab.id === tabId);
+    const toIndex = fromIndex + offset;
+    if (reorderTabs(fromIndex, toIndex)) {
+      addToast("success", "Tabs reordered.");
+    }
   };
 
   const resetScheduleEditor = () => {
@@ -317,7 +404,7 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
   return (
     <aside
       style={{
-        width: 430,
+        width: "100%",
         borderLeft: "1px solid var(--color-border)",
         background: "var(--color-surface)",
         display: "flex",
@@ -656,7 +743,7 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
             <span className="badge badge-subtle">{session.tabs.length} total</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {session.tabs.map((tab) => {
+            {session.tabs.map((tab, index) => {
               const favicon = tab.favIconDataUrl ?? tab.favIconUrl;
 
               return (
@@ -679,9 +766,32 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
                     }}
                     onDragEnd={() => setDraggedTabId(null)}
                     title="Drag to reorder"
+                    aria-label={`Drag ${tab.title} to reorder`}
                   >
                     <GripVertical size={15} />
                   </button>
+                  <div className="tab-reorder-buttons" aria-label={`Move ${tab.title}`} role="group">
+                    <button
+                      className="btn btn-ghost btn-icon"
+                      type="button"
+                      disabled={index === 0}
+                      onClick={() => moveTabByOffset(tab.id, -1)}
+                      title="Move tab up"
+                      aria-label={`Move ${tab.title} up`}
+                    >
+                      <ArrowUp size={14} />
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-icon"
+                      type="button"
+                      disabled={index === session.tabs.length - 1}
+                      onClick={() => moveTabByOffset(tab.id, 1)}
+                      title="Move tab down"
+                      aria-label={`Move ${tab.title} down`}
+                    >
+                      <ArrowDown size={14} />
+                    </button>
+                  </div>
                   {favicon ? (
                     <img
                       src={favicon}
@@ -736,39 +846,11 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
                     <Bell size={14} />
                     Reminder
                   </label>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button
-                      className="btn btn-secondary"
-                      type="button"
-                      onClick={() => void setTabReminderAt(tab.id, Date.now() + 60 * 60 * 1000)}
-                    >
-                      In 1 hour
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      type="button"
-                      onClick={() => void setTabReminderAt(tab.id, tomorrowAt(9, 0))}
-                    >
-                      Tomorrow 9 AM
-                    </button>
-                    <input
-                      className="input"
-                      type="datetime-local"
-                      style={{ flex: "1 1 190px" }}
-                      value={toDateTimeInputValue(tab.reminderAt)}
-                      onChange={(event) => void handleTabReminder(tab.id, event.target.value)}
-                      title="Pick date and time"
-                    />
-                    {tab.reminderAt ? (
-                      <button
-                        className="btn btn-secondary"
-                        type="button"
-                        onClick={() => void handleTabReminder(tab.id, "")}
-                      >
-                        Clear
-                      </button>
-                    ) : null}
-                  </div>
+                  <ReminderPicker
+                    tab={tab}
+                    onSet={(reminderAt) => void setTabReminderAt(tab.id, reminderAt)}
+                    onClear={() => void setTabReminderAt(tab.id, null)}
+                  />
                 </div>
               </div>
               );

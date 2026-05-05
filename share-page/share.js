@@ -30,6 +30,33 @@ function renderError(message) {
   setText("tab-count", "No tabs");
 }
 
+function openSnapshotTabs(snapshot) {
+  snapshot.tabs.forEach((tab, index) => {
+    window.open(tab.url, index === 0 ? "_blank" : `tabsetu-share-${index}`, "noopener,noreferrer");
+  });
+}
+
+async function importSnapshotIntoTabSetu(snapshot) {
+  if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
+    return false;
+  }
+
+  const response = await chrome.runtime.sendMessage({
+    type: "IMPORT_SHARED_SESSION",
+    snapshot,
+  });
+
+  if (!response?.ok) {
+    return false;
+  }
+
+  if (chrome.runtime.getURL) {
+    window.open(chrome.runtime.getURL("src/dashboard/index.html?view=home"), "_blank", "noopener,noreferrer");
+  }
+
+  return true;
+}
+
 try {
   const snapshot = readSnapshot();
   setText("session-name", snapshot.name || "Shared session");
@@ -62,10 +89,18 @@ try {
     }, 1400);
   });
 
-  openAllButton?.addEventListener("click", () => {
-    snapshot.tabs.forEach((tab, index) => {
-      window.open(tab.url, index === 0 ? "_blank" : `tabsetu-share-${index}`, "noopener,noreferrer");
-    });
+  openAllButton?.addEventListener("click", async () => {
+    try {
+      const imported = await importSnapshotIntoTabSetu(snapshot);
+      if (imported) {
+        openAllButton.textContent = "Imported into TabSetu";
+        return;
+      }
+    } catch {
+      // Fall through to plain browser tabs when extension messaging is unavailable.
+    }
+
+    openSnapshotTabs(snapshot);
   });
 } catch (error) {
   renderError(error instanceof Error ? error.message : "Unknown share error.");
