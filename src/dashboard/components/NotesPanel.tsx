@@ -9,6 +9,7 @@ import type { StandaloneNote, ToastMessage } from "@/types";
 
 interface Props {
   addToast: (type: ToastMessage["type"], message: string) => void;
+  onOpenSession?: (sessionId: string) => void;
 }
 
 type NoteRow =
@@ -16,7 +17,7 @@ type NoteRow =
   | { id: string; kind: "session"; title: string; content: string; updatedAt: number; sessionId: string }
   | { id: string; kind: "tab"; title: string; content: string; updatedAt: number; sessionId: string; tabId: string };
 
-export default function NotesPanel({ addToast }: Props) {
+export default function NotesPanel({ addToast, onOpenSession }: Props) {
   const sessions = useSessionStore((state) => state.sessions);
   const updateSessionNote = useSessionStore((state) => state.updateSessionNote);
   const updateTabNote = useSessionStore((state) => state.updateTabNote);
@@ -176,6 +177,15 @@ export default function NotesPanel({ addToast }: Props) {
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
+                  {row.kind !== "standalone" && onOpenSession ? (
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      onClick={() => onOpenSession(row.sessionId)}
+                    >
+                      Jump to session
+                    </button>
+                  ) : null}
                   <button className="btn btn-secondary" type="button" onClick={() => setEditing(row)}>
                     Edit
                   </button>

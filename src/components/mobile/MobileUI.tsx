@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import {
+  Bell,
   ChevronLeft,
   X,
   CalendarDays,
@@ -10,7 +11,7 @@ import {
 } from "lucide-react";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
 
-export type MobileNavView = "home" | "folders" | "schedules" | "notes";
+export type MobileNavView = "home" | "folders" | "schedules" | "reminders" | "notes";
 
 interface MobileFrameProps {
   children: ReactNode;
@@ -96,6 +97,7 @@ export function BottomNav({ activeView, onViewChange }: BottomNavProps) {
     { view: "home", label: "Home", icon: Home },
     { view: "folders", label: "Folders", icon: FolderOpen },
     { view: "schedules", label: "Schedules", icon: CalendarDays },
+    { view: "reminders", label: "Reminders", icon: Bell },
     { view: "notes", label: "Notes", icon: FileText },
   ];
 

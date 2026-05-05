@@ -1,5 +1,5 @@
 import type { Schedule, Session, Settings, UndoCollapseBuffer } from "@/types";
-import { chromeTabToTabItem, generateId, isRestrictedUrl } from "@/lib/tabHelpers";
+import { chromeTabToTabItemWithFavicon, generateId, isRestrictedUrl } from "@/lib/tabHelpers";
 import {
   initializeStorageForInstall,
   loadStorage,
@@ -192,6 +192,53 @@ function scheduleMatchesToday(schedule: Schedule, date: Date): boolean {
   return true;
 }
 
+function getNextScheduleFireDate(schedule: Schedule, from = new Date()): Date | null {
+  if (schedule.type === "once") {
+    if (!schedule.date) {
+      return null;
+    }
+
+    const target = new Date(`${schedule.date}T${schedule.time}:00`);
+    return target > from ? target : null;
+  }
+
+  const [hours, minutes] = schedule.time.split(":").map(Number);
+  const next = new Date(from);
+  next.setHours(hours, minutes, 0, 0);
+  if (next <= from) {
+    next.setDate(next.getDate() + 1);
+  }
+
+  if (schedule.type === "weekdays") {
+    while (next.getDay() === 0 || next.getDay() === 6) {
+      next.setDate(next.getDate() + 1);
+    }
+  }
+
+  if (schedule.type === "weekly" || schedule.type === "custom") {
+    if (schedule.daysOfWeek.length === 0) {
+      return null;
+    }
+
+    while (!schedule.daysOfWeek.includes(next.getDay())) {
+      next.setDate(next.getDate() + 1);
+    }
+  }
+
+  return next;
+}
+
+function createScheduleAlarm(schedule: Schedule, from = new Date()): void {
+  const next = getNextScheduleFireDate(schedule, from);
+  if (!next) {
+    return;
+  }
+
+  chrome.alarms.create(alarmName(schedule.id), {
+    when: Math.max(next.getTime(), Date.now() + 1000),
+  });
+}
+
 async function loadRuntimeData(): Promise<{
   schedules: Schedule[];
   sessions: Session[];
@@ -215,29 +262,7 @@ async function hydrateAlarms(): Promise<void> {
       if (!schedule.enabled) {
         continue;
       }
-
-      const [hours, minutes] = schedule.time.split(":").map(Number);
-      const next = new Date();
-
-      if (schedule.type === "once" && schedule.date) {
-        const target = new Date(`${schedule.date}T${schedule.time}:00`);
-        if (target > new Date()) {
-          chrome.alarms.create(alarmName(schedule.id), {
-            delayInMinutes: Math.max((target.getTime() - Date.now()) / 60000, 1),
-          });
-        }
-        continue;
-      }
-
-      next.setHours(hours, minutes, 0, 0);
-      if (next <= new Date()) {
-        next.setDate(next.getDate() + 1);
-      }
-
-      chrome.alarms.create(alarmName(schedule.id), {
-        delayInMinutes: Math.max((next.getTime() - Date.now()) / 60000, 1),
-        periodInMinutes: 24 * 60,
-      });
+      createScheduleAlarm(schedule);
     }
   }
 
@@ -352,6 +377,10 @@ async function createSessionFromWindow(mode: "save" | "collapse"): Promise<void>
     hour: "2-digit",
     minute: "2-digit",
   })}`;
+  const savedTabs = await Promise.all(
+    eligibleTabs.map((tab, index) => chromeTabToTabItemWithFavicon(tab, index)),
+  );
+
   const session: Session = {
     id: generateId("session"),
     name: sessionName,
@@ -359,7 +388,7 @@ async function createSessionFromWindow(mode: "save" | "collapse"): Promise<void>
     folderId: null,
     groupId: null,
     tagIds: [],
-    tabs: eligibleTabs.map((tab, index) => chromeTabToTabItem(tab, index)),
+    tabs: savedTabs,
     note: "",
     color: null,
     icon: null,
@@ -696,10 +725,51 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
   input.focus();
 }
 
+function showTabSetuOverlayDisabledToast(message: string): void {
+  const hostId = "tabsetu-toast-host";
+  document.getElementById(hostId)?.remove();
+
+  const host = document.createElement("div");
+  host.id = hostId;
+  document.documentElement.appendChild(host);
+  const shadow = host.attachShadow({ mode: "open" });
+  shadow.innerHTML = `
+    <style>
+      :host { all: initial; }
+      .toast {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 2147483647;
+        max-width: min(360px, calc(100vw - 36px));
+        padding: 12px 14px;
+        border: 1px solid rgba(132, 216, 234, 0.5);
+        border-radius: 12px;
+        background: #101828;
+        color: #f8fbff;
+        font: 600 13px/1.4 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        box-shadow: 0 18px 48px rgba(4, 10, 22, 0.28);
+      }
+    </style>
+    <div class="toast" role="status"></div>
+  `;
+  const toast = shadow.querySelector(".toast") as HTMLDivElement;
+  toast.textContent = message;
+  window.setTimeout(() => host.remove(), 2200);
+}
+
 async function openSearchOverlay(): Promise<void> {
   const data = await loadStorage();
   const { settings } = data;
   if (!settings.searchOverlayEnabled) {
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (activeTab?.id && activeTab.url && !isRestrictedUrl(activeTab.url)) {
+      await chrome.scripting.executeScript({
+        target: { tabId: activeTab.id },
+        func: showTabSetuOverlayDisabledToast,
+        args: ["TabSetu search overlay is disabled. Enable it in Settings > Search."],
+      });
+    }
     return;
   }
 
@@ -878,6 +948,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
   const now = new Date();
   if (!scheduleMatchesToday(schedule, now)) {
+    createScheduleAlarm(schedule, now);
     return;
   }
 
@@ -925,6 +996,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   );
   await saveSessions(updatedSessions);
   await saveSchedules(updatedSchedules);
+  createScheduleAlarm({ ...schedule, lastFiredAt: openedAt, updatedAt: openedAt }, new Date(openedAt + 1000));
 });
 
 chrome.runtime.onInstalled.addListener((details) => {

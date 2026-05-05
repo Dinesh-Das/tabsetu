@@ -72,6 +72,13 @@ p {
   border-bottom: 1px solid var(--border);
 }
 
+.panel-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 button {
   border: 1px solid var(--border);
   border-radius: 8px;

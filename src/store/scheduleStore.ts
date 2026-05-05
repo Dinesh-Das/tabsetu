@@ -7,23 +7,38 @@ function alarmName(scheduleId: string): string {
   return `schedule_${scheduleId}`;
 }
 
-function getNextTriggerMinutes(schedule: Schedule): number {
+function getNextTriggerTime(schedule: Schedule): number | null {
   const now = new Date();
-  const [hours, minutes] = schedule.time.split(":").map(Number);
 
   if (schedule.type === "once" && schedule.date) {
     const target = new Date(`${schedule.date}T${schedule.time}:00`);
-    return Math.max((target.getTime() - now.getTime()) / 60000, 1);
+    return target > now ? target.getTime() : null;
   }
 
+  const [hours, minutes] = schedule.time.split(":").map(Number);
   const next = new Date(now);
   next.setHours(hours, minutes, 0, 0);
-
   if (next <= now) {
     next.setDate(next.getDate() + 1);
   }
 
-  return Math.max((next.getTime() - now.getTime()) / 60000, 1);
+  if (schedule.type === "weekdays") {
+    while (next.getDay() === 0 || next.getDay() === 6) {
+      next.setDate(next.getDate() + 1);
+    }
+  }
+
+  if (schedule.type === "weekly" || schedule.type === "custom") {
+    if (schedule.daysOfWeek.length === 0) {
+      return null;
+    }
+
+    while (!schedule.daysOfWeek.includes(next.getDay())) {
+      next.setDate(next.getDate() + 1);
+    }
+  }
+
+  return next.getTime();
 }
 
 function registerAlarm(schedule: Schedule): void {
@@ -31,11 +46,13 @@ function registerAlarm(schedule: Schedule): void {
     return;
   }
 
-  const recurring = schedule.type !== "once";
+  const when = getNextTriggerTime(schedule);
+  if (!when) {
+    return;
+  }
 
   chrome.alarms.create(alarmName(schedule.id), {
-    delayInMinutes: getNextTriggerMinutes(schedule),
-    ...(recurring ? { periodInMinutes: 24 * 60 } : {}),
+    when: Math.max(when, Date.now() + 1000),
   });
 }
 

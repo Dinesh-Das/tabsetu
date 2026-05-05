@@ -64,6 +64,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   fuzzySearchThreshold: 0.32,
   autoArchiveDays: null,
+  hasCompletedOnboarding: false,
 };
 
 export const DEFAULT_FOLDERS: Folder[] = [
@@ -468,6 +469,10 @@ function normalizeSettings(raw: unknown): Settings {
     },
     fuzzySearchThreshold,
     autoArchiveDays,
+    hasCompletedOnboarding: asBoolean(
+      raw.hasCompletedOnboarding,
+      typeof raw.version === "string" ? true : DEFAULT_SETTINGS.hasCompletedOnboarding,
+    ),
   };
 }
 

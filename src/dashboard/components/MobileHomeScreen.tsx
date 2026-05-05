@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Filter,
   FolderOpen,
@@ -14,7 +14,7 @@ import { EmptyState, GlassCard, MobileIconButton, SegmentedControl, TabRow } fro
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { buildSessionListItems } from "@/lib/sessionQuery";
 import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
-import type { Folder, Group, Session, TabItem, ToastMessage } from "@/types";
+import type { Folder, Group, Session, SortOption, TabItem, ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
 import { useGroupStore } from "@/store/groupStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -107,6 +107,7 @@ export default function MobileHomeScreen({
 }: Props) {
   const sessions = useSessionStore((state) => state.sessions);
   const sortBy = useSessionStore((state) => state.sortBy);
+  const setSortBy = useSessionStore((state) => state.setSortBy);
   const viewFilter = useSessionStore((state) => state.viewFilter);
   const activeFolderId = useSessionStore((state) => state.activeFolderId);
   const activeTagId = useSessionStore((state) => state.activeTagId);
@@ -121,6 +122,17 @@ export default function MobileHomeScreen({
   const [homeFilter, setHomeFilter] = useState<HomeFilter>("groups");
   const [saveModalMode, setSaveModalMode] = useState<"save" | "collapse" | null>(null);
   const deferredQuery = useDebouncedValue(query, 140);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const focusSearch = () => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    };
+
+    window.addEventListener("tabsetu:focus-home-search", focusSearch);
+    return () => window.removeEventListener("tabsetu:focus-home-search", focusSearch);
+  }, []);
 
   const items = useMemo(
     () =>
@@ -275,7 +287,12 @@ export default function MobileHomeScreen({
       <div className="mobile-toolbar home-toolbar">
         <label className="mobile-search">
           <Search size={18} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" />
+          <input
+            ref={searchInputRef}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search"
+          />
         </label>
         <MobileIconButton title="Filter">
           <Filter size={18} />
@@ -284,6 +301,19 @@ export default function MobileHomeScreen({
           <Maximize2 size={18} />
         </MobileIconButton>
       </div>
+
+      <select
+        className="mobile-select home-sort-select"
+        value={sortBy}
+        onChange={(event) => setSortBy(event.target.value as SortOption)}
+        aria-label="Sort saved sessions"
+      >
+        <option value="updatedAt">Recently updated</option>
+        <option value="createdAt">Recently created</option>
+        <option value="lastOpenedAt">Recently opened</option>
+        <option value="name">Name</option>
+        <option value="tabCount">Tab count</option>
+      </select>
 
       <GlassCard className="mobile-card-padded home-summary-card">
         <div>

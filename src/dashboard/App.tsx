@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, MoreHorizontal, Settings } from "lucide-react";
 import { MobileAppShell, MobileIconButton, type MobileNavView } from "@/components/mobile/MobileUI";
 import type { ToastMessage } from "@/types";
+import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
 import { useFolderStore } from "@/store/folderStore";
 import { useGroupStore } from "@/store/groupStore";
 import { useNotesStore } from "@/store/notesStore";
@@ -17,6 +18,9 @@ import MobileHomeScreen from "./components/MobileHomeScreen";
 import MobileNotesScreen from "./components/MobileNotesScreen";
 import MobileSchedulesScreen from "./components/MobileSchedulesScreen";
 import SettingsPanel from "./components/SettingsPanel";
+import DesktopLayout from "./layouts/DesktopLayout";
+import RemindersPage from "./pages/RemindersPage";
+import type { DesktopSidebarView } from "./components/Sidebar";
 
 type DashView = MobileNavView | "settings" | "importexport";
 
@@ -26,7 +30,15 @@ function getInitialDashView(): DashView {
   }
 
   const view = new URLSearchParams(window.location.search).get("view");
-  if (view === "home" || view === "folders" || view === "schedules" || view === "notes" || view === "settings" || view === "importexport") {
+  if (
+    view === "home" ||
+    view === "folders" ||
+    view === "schedules" ||
+    view === "reminders" ||
+    view === "notes" ||
+    view === "settings" ||
+    view === "importexport"
+  ) {
     return view;
   }
 
@@ -34,7 +46,7 @@ function getInitialDashView(): DashView {
 }
 
 function isMobileNavView(view: DashView): view is MobileNavView {
-  return view === "home" || view === "folders" || view === "schedules" || view === "notes";
+  return view === "home" || view === "folders" || view === "schedules" || view === "reminders" || view === "notes";
 }
 
 function titleForView(view: DashView): string {
@@ -45,6 +57,8 @@ function titleForView(view: DashView): string {
       return "Schedules";
     case "notes":
       return "Notes";
+    case "reminders":
+      return "Reminders";
     case "settings":
       return "Settings";
     case "importexport":
@@ -53,6 +67,14 @@ function titleForView(view: DashView): string {
     default:
       return "TabSetu";
   }
+}
+
+function desktopViewFromDashView(view: DashView): DesktopSidebarView {
+  if (view === "notes" || view === "reminders" || view === "settings" || view === "importexport") {
+    return view;
+  }
+
+  return "sessions";
 }
 
 export default function DashboardApp() {
@@ -64,10 +86,14 @@ export default function DashboardApp() {
   const loadNotes = useNotesStore((state) => state.load);
   const loadShareLinks = useShareStore((state) => state.load);
   const loadSettings = useSettingsStore((state) => state.load);
+  const settings = useSettingsStore((state) => state.settings);
 
   const [view, setView] = useState<DashView>(getInitialDashView);
   const [menuOpen, setMenuOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window === "undefined" ? false : window.matchMedia("(min-width: 900px)").matches,
+  );
 
   useEffect(() => {
     void Promise.all([
@@ -83,7 +109,16 @@ export default function DashboardApp() {
   }, [loadFolders, loadGroups, loadNotes, loadSchedules, loadSessions, loadSettings, loadShareLinks, loadTags]);
 
   useEffect(() => {
-    document.documentElement.className = "light";
+    applyTheme(settings.theme);
+    return subscribeToSystemTheme(settings.theme, () => applyTheme("system"));
+  }, [settings.theme]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 900px)");
+    const handleChange = () => setIsDesktop(mediaQuery.matches);
+    handleChange();
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
   }, []);
 
   const addToast = (type: ToastMessage["type"], message: string) => {
@@ -95,6 +130,15 @@ export default function DashboardApp() {
   };
 
   const activeNavView = isMobileNavView(view) ? view : "home";
+
+  if (isDesktop) {
+    return (
+      <div className="desktop-dashboard-stage">
+        <DesktopLayout addToast={addToast} initialView={desktopViewFromDashView(view)} />
+        <DashToast toasts={toasts} />
+      </div>
+    );
+  }
 
   return (
     <div className="mobile-dashboard-stage">
@@ -128,6 +172,7 @@ export default function DashboardApp() {
         {view === "home" ? <MobileHomeScreen addToast={addToast} /> : null}
         {view === "folders" ? <MobileFoldersScreen addToast={addToast} /> : null}
         {view === "schedules" ? <MobileSchedulesScreen addToast={addToast} /> : null}
+        {view === "reminders" ? <RemindersPage addToast={addToast} /> : null}
         {view === "notes" ? <MobileNotesScreen addToast={addToast} /> : null}
         {view === "settings" ? <SettingsPanel addToast={addToast} /> : null}
         {view === "importexport" ? <ImportExportPanel addToast={addToast} /> : null}

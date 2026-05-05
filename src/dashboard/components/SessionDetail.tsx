@@ -5,6 +5,7 @@ import {
   ClipboardCopy,
   ExternalLink,
   FolderOpen,
+  GripVertical,
   Link2,
   Plus,
   Save,
@@ -24,7 +25,7 @@ import {
 } from "@/lib/exportImport";
 import { formatDateTime, formatScheduleLabel } from "@/lib/format";
 import { copyTextToClipboard, getDomainLabel, openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
-import { chromeTabToTabItem, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
+import { chromeTabToTabItemWithFavicon, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
 import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -82,6 +83,13 @@ function toDateTimeInputValue(value: number | null): string {
   return date.toISOString().slice(0, 16);
 }
 
+function tomorrowAt(hour: number, minute: number): number {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  date.setHours(hour, minute, 0, 0);
+  return date.getTime();
+}
+
 export default function SessionDetail({ session, onClose, addToast }: Props) {
   const folders = useFolderStore((state) => state.folders);
   const tags = useTagStore((state) => state.tags);
@@ -113,6 +121,7 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
 
   useEffect(() => {
     setName(session.name);
@@ -178,22 +187,25 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
     addToast("success", `Opened ${tab.title}.`);
   };
 
-  const handleTabReminder = async (tabId: string, value: string) => {
-    const reminderAt = value ? new Date(value).getTime() : null;
+  const setTabReminderAt = async (tabId: string, reminderAt: number | null) => {
     updateTabReminder(session.id, tabId, reminderAt);
+    await chrome.alarms.clear(`reminder_${tabId}`);
 
     if (!settings.remindersEnabled) {
       addToast("info", "Reminders are disabled in Settings.");
       return;
     }
 
-    await chrome.alarms.clear(`reminder_${tabId}`);
     if (reminderAt && reminderAt > Date.now()) {
       chrome.alarms.create(`reminder_${tabId}`, { when: reminderAt });
       addToast("success", "Reminder scheduled.");
     } else {
       addToast("success", "Reminder cleared.");
     }
+  };
+
+  const handleTabReminder = async (tabId: string, value: string) => {
+    await setTabReminderAt(tabId, value ? new Date(value).getTime() : null);
   };
 
   const handleAddActiveTab = async () => {
@@ -203,13 +215,34 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
       return;
     }
 
-    const added = addTabToSession(session.id, chromeTabToTabItem(activeTab));
+    const added = addTabToSession(session.id, await chromeTabToTabItemWithFavicon(activeTab));
     if (!added) {
       addToast("info", "That tab is already part of this session.");
       return;
     }
 
     addToast("success", `Added ${activeTab.title ?? "active tab"} to the session.`);
+  };
+
+  const handleTabDrop = (targetTabId: string) => {
+    if (!draggedTabId || draggedTabId === targetTabId) {
+      setDraggedTabId(null);
+      return;
+    }
+
+    const orderedTabs = [...session.tabs].sort((left, right) => left.position - right.position);
+    const fromIndex = orderedTabs.findIndex((tab) => tab.id === draggedTabId);
+    const toIndex = orderedTabs.findIndex((tab) => tab.id === targetTabId);
+    if (fromIndex === -1 || toIndex === -1) {
+      setDraggedTabId(null);
+      return;
+    }
+
+    const [movedTab] = orderedTabs.splice(fromIndex, 1);
+    orderedTabs.splice(toIndex, 0, movedTab);
+    updateSession(session.id, { tabs: orderedTabs });
+    setDraggedTabId(null);
+    addToast("success", "Tabs reordered.");
   };
 
   const resetScheduleEditor = () => {
@@ -623,12 +656,35 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
             <span className="badge badge-subtle">{session.tabs.length} total</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {session.tabs.map((tab) => (
-              <div key={tab.id} className="card-raised detail-card">
+            {session.tabs.map((tab) => {
+              const favicon = tab.favIconDataUrl ?? tab.favIconUrl;
+
+              return (
+              <div
+                key={tab.id}
+                className="card-raised detail-card"
+                data-dragging={draggedTabId === tab.id || undefined}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => handleTabDrop(tab.id)}
+              >
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                  {tab.favIconUrl ? (
+                  <button
+                    className="btn btn-ghost btn-icon tab-drag-handle"
+                    type="button"
+                    draggable
+                    onDragStart={(event) => {
+                      setDraggedTabId(tab.id);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", tab.id);
+                    }}
+                    onDragEnd={() => setDraggedTabId(null)}
+                    title="Drag to reorder"
+                  >
+                    <GripVertical size={15} />
+                  </button>
+                  {favicon ? (
                     <img
-                      src={tab.favIconUrl}
+                      src={favicon}
                       className="favicon"
                       alt=""
                       onError={(event) => {
@@ -680,12 +736,28 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
                     <Bell size={14} />
                     Reminder
                   </label>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      onClick={() => void setTabReminderAt(tab.id, Date.now() + 60 * 60 * 1000)}
+                    >
+                      In 1 hour
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      onClick={() => void setTabReminderAt(tab.id, tomorrowAt(9, 0))}
+                    >
+                      Tomorrow 9 AM
+                    </button>
                     <input
                       className="input"
                       type="datetime-local"
+                      style={{ flex: "1 1 190px" }}
                       value={toDateTimeInputValue(tab.reminderAt)}
                       onChange={(event) => void handleTabReminder(tab.id, event.target.value)}
+                      title="Pick date and time"
                     />
                     {tab.reminderAt ? (
                       <button
@@ -699,7 +771,8 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 

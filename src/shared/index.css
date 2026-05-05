@@ -453,6 +453,29 @@ textarea.input {
   box-shadow: 0 20px 48px rgba(15, 185, 216, 0.18);
 }
 
+.session-card[data-selected="true"] {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent-dim) 28%, var(--color-surface) 72%);
+}
+
+.bulk-card-check {
+  flex: 0 0 auto;
+  color: var(--color-accent);
+}
+
+.bulk-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  box-shadow: var(--shadow-soft);
+}
+
 .session-grid[data-card-style="compact"] .session-card {
   box-shadow: var(--shadow-soft);
 }
@@ -504,6 +527,20 @@ textarea.input {
 
 .detail-card {
   padding: 14px;
+}
+
+.detail-card[data-dragging="true"] {
+  opacity: 0.62;
+  border-color: var(--color-accent);
+}
+
+.tab-drag-handle {
+  cursor: grab;
+  flex: 0 0 auto;
+}
+
+.tab-drag-handle:active {
+  cursor: grabbing;
 }
 
 .form-stack {
@@ -1052,9 +1089,9 @@ button.mobile-card {
   bottom: 0;
   height: 76px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   align-items: center;
-  padding: 7px 14px 10px;
+  padding: 7px 8px 10px;
   background: rgba(255, 255, 255, 0.95);
   border-top: 1px solid var(--mobile-border-soft);
   box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
@@ -1077,7 +1114,7 @@ button.mobile-card {
 }
 
 .mobile-bottom-nav-item span {
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1;
 }
 
@@ -1380,6 +1417,165 @@ button.mobile-card {
     linear-gradient(180deg, #f2f6ff, #e9edf5);
 }
 
+.desktop-dashboard-stage {
+  min-height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 10% -10%, color-mix(in srgb, var(--color-accent) 22%, transparent), transparent 34%),
+    linear-gradient(180deg, var(--color-bg), color-mix(in srgb, var(--color-bg) 82%, #020617));
+  color: var(--color-text-primary);
+}
+
+.desktop-dashboard-layout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) auto;
+  background: color-mix(in srgb, var(--color-bg) 84%, transparent);
+}
+
+.desktop-dashboard-main {
+  min-width: 0;
+  min-height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+.reminders-page {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 28px;
+}
+
+.reminders-shell {
+  max-width: 1180px;
+}
+
+.reminders-header {
+  align-items: center;
+}
+
+.reminders-section {
+  margin-top: 24px;
+}
+
+.reminders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reminder-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 16px;
+}
+
+.reminder-card-main {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.reminder-favicon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.reminder-favicon img,
+.reminder-favicon .tabsetu-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.reminder-copy {
+  min-width: 0;
+}
+
+.reminder-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.reminder-title-row strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reminder-copy span,
+.reminder-copy small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  color: var(--color-text-muted);
+}
+
+.reminder-copy p {
+  margin: 9px 0 0;
+  color: var(--color-text-secondary);
+}
+
+.reminder-warning {
+  color: var(--color-warning) !important;
+}
+
+.reminder-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reminders-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 760px) {
+  .reminders-page {
+    padding: 0;
+  }
+
+  .reminders-header {
+    display: none;
+  }
+
+  .reminders-section {
+    margin-top: 0;
+    margin-bottom: 18px;
+  }
+
+  .reminder-card {
+    grid-template-columns: 1fr;
+  }
+
+  .reminder-actions {
+    justify-content: stretch;
+  }
+
+  .reminder-actions .btn {
+    flex: 1 1 132px;
+  }
+}
+
 .mobile-dashboard-stage .mobile-frame {
   height: min(100vh, 900px);
   max-height: 100vh;
@@ -1456,6 +1652,123 @@ button.mobile-card {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.popup-filter-chips {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 0 16px 10px;
+}
+
+.popup-filter-strip {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.popup-filter-strip .tag-chip {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(13, 18, 30, 0.48);
+  backdrop-filter: blur(10px);
+}
+
+.onboarding-card {
+  position: relative;
+  width: min(100%, 344px);
+  padding: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(35, 139, 255, 0.18), transparent 34%),
+    rgba(255, 255, 255, 0.97);
+  color: var(--mobile-text);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+}
+
+.onboarding-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--mobile-border);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--mobile-text-soft);
+  cursor: pointer;
+}
+
+.onboarding-icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--mobile-primary-soft);
+  color: var(--mobile-primary);
+}
+
+.onboarding-kicker {
+  margin: 18px 0 8px;
+  color: var(--mobile-primary);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.onboarding-card h2 {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 25px;
+  line-height: 1.08;
+  color: var(--mobile-text);
+}
+
+.onboarding-card p:not(.onboarding-kicker) {
+  margin: 10px 0 0;
+  color: var(--mobile-text-soft);
+}
+
+.onboarding-dots {
+  display: flex;
+  gap: 7px;
+  margin-top: 20px;
+}
+
+.onboarding-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #d8dee9;
+}
+
+.onboarding-dots span[data-active="true"] {
+  width: 24px;
+  background: var(--mobile-primary);
+}
+
+.onboarding-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 24px;
 }
 
 .popup-select-screen {
@@ -1585,6 +1898,14 @@ button.mobile-card {
   border-top: 1px solid var(--mobile-border-soft);
 }
 
+.save-sheet-helper {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--mobile-border-soft);
+  color: var(--mobile-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .save-sheet-group-row,
 .save-sheet-option-row {
   min-height: 52px;
@@ -1635,6 +1956,10 @@ button.mobile-card {
 
 .home-toolbar {
   margin-top: 2px;
+}
+
+.home-sort-select {
+  margin: -4px 0 14px;
 }
 
 .home-summary-card {

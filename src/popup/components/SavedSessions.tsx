@@ -347,45 +347,62 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
       </div>
 
       {folders.length > 0 || tags.length > 0 ? (
-        <div style={{ display: "flex", gap: 8, padding: "0 16px 10px", flexShrink: 0 }}>
-          <select
-            className="input"
-            value={activeFolderId}
-            onChange={(event) => setActiveFolderId(event.target.value)}
-            style={{ flex: 1, minWidth: 0 }}
-          >
-            <option value="">All folders</option>
-            {folders.map((folder) => (
-              <option key={folder.id} value={folder.id}>
-                {folder.name}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input"
-            value={activeTagId}
-            onChange={(event) => setActiveTagId(event.target.value)}
-            style={{ flex: 1, minWidth: 0 }}
-          >
-            <option value="">All tags</option>
-            {tags.map((tag) => (
-              <option key={tag.id} value={tag.id}>
-                {tag.name}
-              </option>
-            ))}
-          </select>
-          {activeFolderId || activeTagId ? (
-            <button
-              className="btn btn-secondary"
-              type="button"
-              style={{ fontSize: 12 }}
-              onClick={() => {
-                setActiveFolderId("");
-                setActiveTagId("");
-              }}
-            >
-              Clear
-            </button>
+        <div className="popup-filter-chips">
+          {folders.length > 0 ? (
+            <div className="popup-filter-strip" aria-label="Folder filters">
+              <button
+                className="tag-chip"
+                type="button"
+                data-active={!activeFolderId}
+                onClick={() => setActiveFolderId("")}
+              >
+                All folders
+              </button>
+              {folders.map((folder) => (
+                <button
+                  key={folder.id}
+                  className="tag-chip"
+                  type="button"
+                  data-active={activeFolderId === folder.id}
+                  onClick={() => setActiveFolderId(activeFolderId === folder.id ? "" : folder.id)}
+                  style={{
+                    borderColor: activeFolderId === folder.id ? folder.color : undefined,
+                    color: activeFolderId === folder.id ? folder.color : undefined,
+                    background: activeFolderId === folder.id ? `${folder.color}18` : undefined,
+                  }}
+                >
+                  {folder.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {tags.length > 0 ? (
+            <div className="popup-filter-strip" aria-label="Tag filters">
+              <button
+                className="tag-chip"
+                type="button"
+                data-active={!activeTagId}
+                onClick={() => setActiveTagId("")}
+              >
+                All tags
+              </button>
+              {tags.map((tag) => (
+                <button
+                  key={tag.id}
+                  className="tag-chip"
+                  type="button"
+                  data-active={activeTagId === tag.id}
+                  onClick={() => setActiveTagId(activeTagId === tag.id ? "" : tag.id)}
+                  style={{
+                    borderColor: activeTagId === tag.id ? tag.color : undefined,
+                    color: activeTagId === tag.id ? tag.color : undefined,
+                    background: activeTagId === tag.id ? `${tag.color}18` : undefined,
+                  }}
+                >
+                  {tag.name}
+                </button>
+              ))}
+            </div>
           ) : null}
         </div>
       ) : null}

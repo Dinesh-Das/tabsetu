@@ -38,6 +38,7 @@ try {
 
   const list = document.getElementById("tabs");
   const copyButton = document.getElementById("copy-links");
+  const openAllButton = document.getElementById("open-all");
   if (list) {
     snapshot.tabs.forEach((tab) => {
       const item = document.createElement("li");
@@ -59,6 +60,12 @@ try {
     window.setTimeout(() => {
       copyButton.textContent = "Copy links";
     }, 1400);
+  });
+
+  openAllButton?.addEventListener("click", () => {
+    snapshot.tabs.forEach((tab, index) => {
+      window.open(tab.url, index === 0 ? "_blank" : `tabsetu-share-${index}`, "noopener,noreferrer");
+    });
   });
 } catch (error) {
   renderError(error instanceof Error ? error.message : "Unknown share error.");

@@ -6,12 +6,13 @@ import {
   FolderOpen,
   Heart,
   Layers,
+  Paintbrush,
   Plus,
   Tag,
 } from "lucide-react";
 import { BottomSheet } from "@/components/mobile/MobileUI";
 import type { Session, ToastMessage } from "@/types";
-import { closeTabs, collectTabsForSession, chromeTabToTabItem } from "@/lib/tabHelpers";
+import { closeTabs, collectTabsForSession, chromeTabToTabItemWithFavicon } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
 import { useGroupStore } from "@/store/groupStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -36,8 +37,11 @@ function defaultSessionName(closeAfterSaving: boolean): string {
   })}`;
 }
 
+const SESSION_COLORS = ["#14b8a6", "#1677ee", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+
 export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onCollapseSaved }: Props) {
   const createSession = useSessionStore((state) => state.createSession);
+  const updateSession = useSessionStore((state) => state.updateSession);
   const folders = useFolderStore((state) => state.folders);
   const createFolder = useFolderStore((state) => state.createFolder);
   const tags = useTagStore((state) => state.tags);
@@ -50,6 +54,7 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
   const [folderId, setFolderId] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [groupId, setGroupId] = useState("");
+  const [sessionColor, setSessionColor] = useState<string | null>(null);
   const [includePinned, setIncludePinned] = useState(mode === "save" ? true : settings.collapseIncludesPinned);
   const [closeAfterSave, setCloseAfterSave] = useState(mode === "collapse");
   const [tabCount, setTabCount] = useState(0);
@@ -161,14 +166,22 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
         return;
       }
 
+      const savedTabs = await Promise.all(
+        tabs.map((tab, index) => chromeTabToTabItemWithFavicon(tab, index)),
+      );
+
       const session = createSession(
         defaultSessionName(closeAfterSave),
         selectedFolder ? `Saved to ${selectedFolder.name}` : "",
-        tabs.map(chromeTabToTabItem),
+        savedTabs,
         folderId || null,
         selectedTagIds,
         groupId || null,
       );
+
+      if (sessionColor) {
+        updateSession(session.id, { color: sessionColor });
+      }
 
       if (closeAfterSave) {
         const windowId = tabs[0]?.windowId ?? null;
@@ -321,6 +334,9 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
           </button>
           {groupsOpen ? (
             <>
+              <div className="save-sheet-helper">
+                Groups are optional workspaces above folders. Leave this empty if folders are enough.
+              </div>
               <button
                 className="mobile-accordion-row"
                 type="button"
@@ -368,6 +384,37 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
               )}
             </>
           ) : null}
+        </section>
+
+        <section className="mobile-accordion save-sheet-tags">
+          <div className="mobile-accordion-header">
+            <span>
+              <Paintbrush size={18} />
+              Color label
+            </span>
+            <span style={{ fontSize: 12, color: "var(--mobile-muted)", textTransform: "none" }}>Optional</span>
+          </div>
+          <div className="mobile-color-row">
+            <button
+              className="mobile-color-dot"
+              type="button"
+              data-active={!sessionColor || undefined}
+              onClick={() => setSessionColor(null)}
+              title="No color"
+              style={{ background: "#e6e9ef" }}
+            />
+            {SESSION_COLORS.map((color) => (
+              <button
+                key={color}
+                className="mobile-color-dot"
+                type="button"
+                data-active={sessionColor === color || undefined}
+                onClick={() => setSessionColor(color)}
+                title={color}
+                style={{ background: color }}
+              />
+            ))}
+          </div>
         </section>
 
         {!usesSelectedTabs ? (

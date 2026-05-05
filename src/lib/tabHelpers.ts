@@ -74,6 +74,54 @@ export function chromeTabToTabItem(tab: chrome.tabs.Tab, position = 0): TabItem 
   };
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunks: string[] = [];
+  const chunkSize = 0x8000;
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    chunks.push(String.fromCharCode(...chunk));
+  }
+
+  return btoa(chunks.join(""));
+}
+
+export async function fetchFavIconDataUrl(url: string | null | undefined): Promise<string | null> {
+  if (!url) {
+    return null;
+  }
+
+  if (url.startsWith("data:image/")) {
+    return url;
+  }
+
+  if (isRestrictedUrl(url)) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      return null;
+    }
+
+    const contentType = response.headers.get("content-type") || "image/png";
+    const buffer = await response.arrayBuffer();
+    return `data:${contentType};base64,${arrayBufferToBase64(buffer)}`;
+  } catch {
+    return null;
+  }
+}
+
+export async function chromeTabToTabItemWithFavicon(tab: chrome.tabs.Tab, position = 0): Promise<TabItem> {
+  const base = chromeTabToTabItem(tab, position);
+  return {
+    ...base,
+    favIconDataUrl: await fetchFavIconDataUrl(tab.favIconUrl),
+  };
+}
+
 export async function getCurrentTabs(): Promise<chrome.tabs.Tab[]> {
   return chrome.tabs.query({ currentWindow: true });
 }

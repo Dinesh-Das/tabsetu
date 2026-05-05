@@ -138,6 +138,7 @@ export interface Settings {
   };
   fuzzySearchThreshold: number;
   autoArchiveDays: 30 | 60 | 90 | null;
+  hasCompletedOnboarding: boolean;
 }
 
 export interface StorageData {

@@ -1,17 +1,17 @@
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, FileText, Layers, Pin, Settings, Upload } from "lucide-react";
+import { Archive, Bell, FileText, Layers, Pin, Settings, Upload } from "lucide-react";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
 import EntityEditorModal from "@/components/shared/EntityEditorModal";
 import { useFolderStore } from "@/store/folderStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useTagStore } from "@/store/tagStore";
 
-type DashView = "sessions" | "notes" | "settings" | "importexport";
+export type DesktopSidebarView = "sessions" | "notes" | "reminders" | "settings" | "importexport";
 
 interface Props {
-  view: DashView;
-  setView: (view: DashView) => void;
+  view: DesktopSidebarView;
+  setView: (view: DesktopSidebarView) => void;
 }
 
 const FOLDER_COLORS = [
@@ -82,6 +82,14 @@ export default function Sidebar({ view, setView }: Props) {
   const activeSessions = sessions.filter((session) => !session.isArchived);
   const pinnedSessions = sessions.filter((session) => session.isPinned && !session.isArchived);
   const archivedSessions = sessions.filter((session) => session.isArchived);
+  const activeReminders = sessions.reduce(
+    (count, session) =>
+      count +
+      session.tabs.filter(
+        (tab) => !tab.reminderDismissed && (tab.reminderAt || tab.reminderSnoozedUntil),
+      ).length,
+    0,
+  );
 
   return (
     <aside
@@ -254,6 +262,13 @@ export default function Sidebar({ view, setView }: Props) {
           active={view === "notes"}
           onClick={() => setView("notes")}
           Icon={FileText}
+        />
+        <NavItem
+          label="Reminders"
+          active={view === "reminders"}
+          onClick={() => setView("reminders")}
+          Icon={Bell}
+          count={activeReminders}
         />
         <NavItem
           label="Import and export"

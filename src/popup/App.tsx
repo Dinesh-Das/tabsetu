@@ -10,6 +10,7 @@ import {
 import type { Session, ToastMessage, UndoCollapseBuffer } from "@/types";
 import { loadUndoBuffer, saveUndoBuffer } from "@/lib/storage";
 import { filterCapturableTabs } from "@/lib/popupTabs";
+import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
 import { getCurrentTabs } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
 import { useGroupStore } from "@/store/groupStore";
@@ -23,7 +24,9 @@ import MobileFoldersScreen from "@/dashboard/components/MobileFoldersScreen";
 import MobileHomeScreen from "@/dashboard/components/MobileHomeScreen";
 import MobileNotesScreen from "@/dashboard/components/MobileNotesScreen";
 import MobileSchedulesScreen from "@/dashboard/components/MobileSchedulesScreen";
+import RemindersPage from "@/dashboard/pages/RemindersPage";
 import CurrentTabs from "./components/CurrentTabs";
+import Onboarding from "./components/Onboarding";
 import SaveModal from "./components/SaveModal";
 import Toast from "./components/Toast";
 
@@ -41,6 +44,8 @@ function titleForView(view: PopupView): string {
       return "Folders";
     case "schedules":
       return "Schedules";
+    case "reminders":
+      return "Reminders";
     case "notes":
       return "Notes";
     case "capture":
@@ -68,6 +73,7 @@ export default function PopupApp() {
   const [selectedTabIds, setSelectedTabIds] = useState<number[]>([]);
   const [saveModalState, setSaveModalState] = useState<SaveModalState | null>(null);
   const [currentTabCount, setCurrentTabCount] = useState(0);
+  const [isBootstrapped, setIsBootstrapped] = useState(false);
 
   useEffect(() => {
     document.body.classList.add("is-popup-root");
@@ -75,6 +81,7 @@ export default function PopupApp() {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
     void Promise.all([
       loadSessions(),
       loadFolders(),
@@ -84,11 +91,19 @@ export default function PopupApp() {
       loadNotes(),
       loadShareLinks(),
       loadSettings(),
-    ]);
+    ]).finally(() => {
+      if (mounted) {
+        setIsBootstrapped(true);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
   }, [loadFolders, loadGroups, loadNotes, loadSchedules, loadSessions, loadSettings, loadShareLinks, loadTags]);
 
   useEffect(() => {
-    document.documentElement.className = "light";
+    applyTheme(settings.theme);
+    return subscribeToSystemTheme(settings.theme, () => applyTheme("system"));
   }, [settings.theme]);
 
   useEffect(() => {
@@ -199,6 +214,14 @@ export default function PopupApp() {
         openSaveModal("save", selectedTabIds);
       }
 
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setView("home");
+        window.setTimeout(() => {
+          window.dispatchEvent(new Event("tabsetu:focus-home-search"));
+        }, 0);
+      }
+
       if (event.key === "Escape" && saveModalState) {
         setSaveModalState(null);
       }
@@ -274,9 +297,12 @@ export default function PopupApp() {
       ) : null}
       {view === "folders" ? <MobileFoldersScreen addToast={addToast} /> : null}
       {view === "schedules" ? <MobileSchedulesScreen addToast={addToast} /> : null}
+      {view === "reminders" ? <RemindersPage addToast={addToast} /> : null}
       {view === "notes" ? <MobileNotesScreen addToast={addToast} /> : null}
 
       <Toast toasts={toasts} />
+
+      {isBootstrapped && !settings.hasCompletedOnboarding ? <Onboarding /> : null}
 
       {saveModalState ? (
         <SaveModal

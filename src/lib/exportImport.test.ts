@@ -120,6 +120,7 @@ describe("exportImport", () => {
         },
         fuzzySearchThreshold: 0.32,
         autoArchiveDays: null,
+        hasCompletedOnboarding: true,
       },
     };
 

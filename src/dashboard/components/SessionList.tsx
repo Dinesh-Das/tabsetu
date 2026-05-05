@@ -2,16 +2,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArrowUpRight,
+  CheckSquare,
   Copy,
+  FolderInput,
   FolderOpen,
   PackagePlus,
   Pin,
+  Square,
   Trash2,
+  X,
 } from "lucide-react";
 import HighlightedText from "@/components/shared/HighlightedText";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatScheduleLabel } from "@/lib/format";
 import { buildSessionListItems } from "@/lib/sessionQuery";
 import { getDomainLabel, openSessionTabs } from "@/lib/sessionBrowser";
 import type { Session, SortOption, ToastMessage } from "@/types";
@@ -19,6 +23,7 @@ import { useFolderStore } from "@/store/folderStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useTagStore } from "@/store/tagStore";
+import { useScheduleStore } from "@/store/scheduleStore";
 import SaveModal from "@/popup/components/SaveModal";
 import SearchBar from "@/popup/components/SearchBar";
 
@@ -39,14 +44,20 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
   const duplicateSession = useSessionStore((state) => state.duplicateSession);
   const pinSession = useSessionStore((state) => state.pinSession);
   const archiveSession = useSessionStore((state) => state.archiveSession);
+  const setSessionFolder = useSessionStore((state) => state.setSessionFolder);
   const recordOpened = useSessionStore((state) => state.recordOpened);
   const folders = useFolderStore((state) => state.folders);
   const tags = useTagStore((state) => state.tags);
+  const schedules = useScheduleStore((state) => state.schedules);
   const settings = useSettingsStore((state) => state.settings);
 
   const [query, setQuery] = useState("");
   const [saveModalMode, setSaveModalMode] = useState<"save" | "collapse" | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Session | null>(null);
+  const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkFolderId, setBulkFolderId] = useState("");
   const deferredQuery = useDebouncedValue(query, 150);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -75,6 +86,28 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
     }),
     [sessions],
   );
+
+  const visibleSessionIds = useMemo(
+    () => filteredItems.map((item) => item.session.id),
+    [filteredItems],
+  );
+
+  const selectedSessions = useMemo(
+    () => sessions.filter((session) => selectedIds.includes(session.id)),
+    [selectedIds, sessions],
+  );
+
+  const schedulesBySessionId = useMemo(() => {
+    const map = new Map<string, typeof schedules>();
+    for (const schedule of schedules.filter((item) => item.enabled)) {
+      map.set(schedule.sessionId, [...(map.get(schedule.sessionId) ?? []), schedule]);
+    }
+    return map;
+  }, [schedules]);
+
+  useEffect(() => {
+    setSelectedIds((current) => current.filter((id) => sessions.some((session) => session.id === id)));
+  }, [sessions]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -127,6 +160,69 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
     addToast("success", `Deleted "${session.name}".`);
   };
 
+  const toggleSelectMode = () => {
+    setSelectMode((current) => !current);
+    setSelectedIds([]);
+    setBulkFolderId("");
+  };
+
+  const toggleSelected = (sessionId: string) => {
+    setSelectedIds((current) =>
+      current.includes(sessionId)
+        ? current.filter((id) => id !== sessionId)
+        : [...current, sessionId],
+    );
+  };
+
+  const selectAllVisible = () => {
+    setSelectedIds((current) => {
+      const visible = new Set(visibleSessionIds);
+      const allVisibleSelected = visibleSessionIds.length > 0 && visibleSessionIds.every((id) => current.includes(id));
+      if (allVisibleSelected) {
+        return current.filter((id) => !visible.has(id));
+      }
+
+      return [...new Set([...current, ...visibleSessionIds])];
+    });
+  };
+
+  const clearBulkSelection = () => {
+    setSelectedIds([]);
+    setBulkFolderId("");
+  };
+
+  const handleBulkMove = () => {
+    selectedIds.forEach((id) => setSessionFolder(id, bulkFolderId || null));
+    addToast("success", `Moved ${selectedIds.length} ${selectedIds.length === 1 ? "session" : "sessions"}.`);
+    clearBulkSelection();
+  };
+
+  const handleBulkArchive = () => {
+    const shouldUnarchive = selectedSessions.length > 0 && selectedSessions.every((session) => session.isArchived);
+    selectedIds.forEach((id) => archiveSession(id, !shouldUnarchive));
+    addToast("success", shouldUnarchive ? "Restored selected sessions." : "Archived selected sessions.");
+    clearBulkSelection();
+  };
+
+  const deleteSelectedSessions = () => {
+    selectedIds.forEach(deleteSession);
+    addToast("success", `Deleted ${selectedIds.length} ${selectedIds.length === 1 ? "session" : "sessions"}.`);
+    if (selectedSessionId && selectedIds.includes(selectedSessionId)) {
+      onSelect(null);
+    }
+    clearBulkSelection();
+    setPendingBulkDelete(false);
+  };
+
+  const handleBulkDelete = () => {
+    if (settings.confirmBeforeDelete) {
+      setPendingBulkDelete(true);
+      return;
+    }
+
+    deleteSelectedSessions();
+  };
+
   return (
     <section style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div
@@ -144,10 +240,16 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
               Save, search, reopen, and refine every browsing workflow from one place.
             </p>
           </div>
-          <button className="btn btn-primary" onClick={() => setSaveModalMode("save")}>
-            <PackagePlus size={16} />
-            Save current window
-          </button>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button className="btn btn-secondary" type="button" onClick={toggleSelectMode}>
+              {selectMode ? <X size={15} /> : <CheckSquare size={15} />}
+              {selectMode ? "Cancel select" : "Select"}
+            </button>
+            <button className="btn btn-primary" onClick={() => setSaveModalMode("save")}>
+              <PackagePlus size={16} />
+              Save current window
+            </button>
+          </div>
         </div>
 
         <div className="stats-grid" style={{ marginTop: 18 }}>
@@ -192,6 +294,66 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
             <option value="tabCount">Sort by tab count</option>
           </select>
         </div>
+
+        {selectMode ? (
+          <div className="bulk-action-bar">
+            <button className="btn btn-secondary" type="button" onClick={selectAllVisible}>
+              {visibleSessionIds.length > 0 && visibleSessionIds.every((id) => selectedIds.includes(id))
+                ? <CheckSquare size={14} />
+                : <Square size={14} />}
+              {visibleSessionIds.length > 0 && visibleSessionIds.every((id) => selectedIds.includes(id))
+                ? "Unselect visible"
+                : "Select visible"}
+            </button>
+            <span className="badge badge-subtle">{selectedIds.length} selected</span>
+            <select
+              className="input"
+              value={bulkFolderId}
+              onChange={(event) => setBulkFolderId(event.target.value)}
+              style={{ width: 190 }}
+              disabled={selectedIds.length === 0}
+            >
+              <option value="">Move to no folder</option>
+              {folders.map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  Move to {folder.name}
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              disabled={selectedIds.length === 0}
+              onClick={handleBulkMove}
+            >
+              <FolderInput size={14} />
+              Move
+            </button>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              disabled={selectedIds.length === 0}
+              onClick={handleBulkArchive}
+            >
+              <Archive size={14} />
+              {selectedSessions.length > 0 && selectedSessions.every((session) => session.isArchived)
+                ? "Restore"
+                : "Archive"}
+            </button>
+            <button
+              className="btn btn-danger"
+              type="button"
+              disabled={selectedIds.length === 0}
+              onClick={handleBulkDelete}
+            >
+              <Trash2 size={14} />
+              Delete
+            </button>
+            <button className="btn btn-ghost" type="button" onClick={clearBulkSelection}>
+              Clear
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
@@ -231,8 +393,16 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
                 key={session.id}
                 className="session-card"
                 data-active={active}
+                data-selected={selectedIds.includes(session.id) || undefined}
                 data-card-style={settings.sessionCardStyle}
-                onClick={() => onSelect(session.id)}
+                onClick={() => {
+                  if (selectMode) {
+                    toggleSelected(session.id);
+                    return;
+                  }
+
+                  onSelect(session.id);
+                }}
                 style={{
                   padding:
                     settings.sessionCardStyle === "compact"
@@ -243,8 +413,33 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
                 }}
               >
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  {selectMode ? (
+                    <button
+                      className="btn btn-ghost btn-icon bulk-card-check"
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleSelected(session.id);
+                      }}
+                      title={selectedIds.includes(session.id) ? "Unselect session" : "Select session"}
+                    >
+                      {selectedIds.includes(session.id) ? <CheckSquare size={16} /> : <Square size={16} />}
+                    </button>
+                  ) : null}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {session.color ? (
+                        <span
+                          aria-hidden
+                          style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: 999,
+                            background: session.color,
+                            boxShadow: `0 0 0 4px ${session.color}22`,
+                          }}
+                        />
+                      ) : null}
                       {session.isPinned ? <Pin size={14} color="var(--color-accent)" /> : null}
                       <h3
                         style={{
@@ -295,10 +490,17 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
                     </span>
                   ))}
                   {session.note ? <span className="badge badge-subtle">Has notes</span> : null}
+                  {schedulesBySessionId.get(session.id)?.[0] ? (
+                    <span className="badge badge-subtle">
+                      Next: {formatScheduleLabel(schedulesBySessionId.get(session.id)![0].type)} at{" "}
+                      {schedulesBySessionId.get(session.id)![0].time}
+                    </span>
+                  ) : null}
                 </div>
 
                 <div style={{ display: "flex", gap: 8, marginTop: 16, alignItems: "center" }}>
                   <span className="metric-pill">{session.tabs.length} tabs</span>
+                  <span className="metric-pill">{session.openCount} opens</span>
                   <span className="metric-pill">Updated {formatDateTime(session.updatedAt)}</span>
                 </div>
 
@@ -422,6 +624,17 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
             addToast("success", `Deleted "${pendingDelete.name}".`);
             setPendingDelete(null);
           }}
+        />
+      ) : null}
+
+      {pendingBulkDelete ? (
+        <ConfirmDialog
+          title="Delete selected sessions?"
+          message={`${selectedIds.length} ${selectedIds.length === 1 ? "session" : "sessions"} will be removed from TabSetu.`}
+          confirmLabel="Delete selected"
+          danger
+          onClose={() => setPendingBulkDelete(false)}
+          onConfirm={deleteSelectedSessions}
         />
       ) : null}
     </section>
