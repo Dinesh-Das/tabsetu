@@ -1,8 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { FolderOpen, Tag, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  FolderOpen,
+  Heart,
+  Layers,
+  Plus,
+  Tag,
+} from "lucide-react";
+import { BottomSheet } from "@/components/mobile/MobileUI";
 import type { Session, ToastMessage } from "@/types";
 import { closeTabs, collectTabsForSession, chromeTabToTabItem } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
+import { useGroupStore } from "@/store/groupStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useTagStore } from "@/store/tagStore";
@@ -15,34 +26,43 @@ interface Props {
   onCollapseSaved?: (payload: { session: Session; windowId: number | null }) => void;
 }
 
+function defaultSessionName(closeAfterSaving: boolean): string {
+  const label = closeAfterSaving ? "Collapsed tabs" : "Saved tabs";
+  return `${label} ${new Date().toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+}
+
 export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onCollapseSaved }: Props) {
   const createSession = useSessionStore((state) => state.createSession);
   const folders = useFolderStore((state) => state.folders);
+  const createFolder = useFolderStore((state) => state.createFolder);
   const tags = useTagStore((state) => state.tags);
+  const createTag = useTagStore((state) => state.createTag);
+  const groups = useGroupStore((state) => state.groups);
+  const createGroup = useGroupStore((state) => state.createGroup);
   const settings = useSettingsStore((state) => state.settings);
 
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const usesSelectedTabs = selectedTabIds.length > 0;
   const [folderId, setFolderId] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [groupId, setGroupId] = useState("");
   const [includePinned, setIncludePinned] = useState(mode === "save" ? true : settings.collapseIncludesPinned);
+  const [closeAfterSave, setCloseAfterSave] = useState(mode === "collapse");
   const [tabCount, setTabCount] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
-
-  const usesSelectedTabs = selectedTabIds.length > 0;
-  const closeAfterSaving = mode === "collapse";
-
-  useEffect(() => {
-    const label = closeAfterSaving ? "Collapse" : "Session";
-    setName(
-      `${label} ${new Date().toLocaleString([], {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })}`,
-    );
-  }, [closeAfterSaving]);
+  const [foldersOpen, setFoldersOpen] = useState(true);
+  const [tagsOpen, setTagsOpen] = useState(true);
+  const [groupsOpen, setGroupsOpen] = useState(false);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [creatingTag, setCreatingTag] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [newTagName, setNewTagName] = useState("");
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -61,17 +81,14 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
     };
   }, [includePinned, selectedTabIds, usesSelectedTabs]);
 
-  const summaryText = useMemo(() => {
-    if (usesSelectedTabs) {
-      return `Saving ${tabCount} selected ${tabCount === 1 ? "tab" : "tabs"}.`;
-    }
+  const sheetTitle = useMemo(() => {
+    const count = tabCount || selectedTabIds.length || 1;
+    return mode === "collapse" || closeAfterSave
+      ? `Save ${count} ${count === 1 ? "tab" : "tabs"}`
+      : `Save ${count} ${count === 1 ? "tab" : "tabs"}`;
+  }, [closeAfterSave, mode, selectedTabIds.length, tabCount]);
 
-    if (closeAfterSaving) {
-      return `Saving and closing ${tabCount} ${tabCount === 1 ? "tab" : "tabs"} from this window.`;
-    }
-
-    return `Saving ${tabCount} ${tabCount === 1 ? "tab" : "tabs"} from this window.`;
-  }, [closeAfterSaving, tabCount, usesSelectedTabs]);
+  const selectedFolder = folders.find((folder) => folder.id === folderId) ?? null;
 
   const toggleTag = (tagId: string) => {
     setSelectedTagIds((current) =>
@@ -79,6 +96,55 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
         ? current.filter((existing) => existing !== tagId)
         : [...current, tagId],
     );
+  };
+
+  const handleCreateFolder = () => {
+    const name = newFolderName.trim();
+    if (!name) {
+      addToast("info", "Name the folder first.");
+      return;
+    }
+
+    createFolder(name, "#1677ee", "folder");
+    const created = useFolderStore.getState().folders.slice(-1)[0];
+    if (created) {
+      setFolderId(created.id);
+    }
+    setNewFolderName("");
+    setCreatingFolder(false);
+    addToast("success", `Created folder "${name}".`);
+  };
+
+  const handleCreateTag = () => {
+    const name = newTagName.trim();
+    if (!name) {
+      addToast("info", "Name the tag first.");
+      return;
+    }
+
+    createTag(name, "#1677ee");
+    const created = useTagStore.getState().tags.slice(-1)[0];
+    if (created) {
+      setSelectedTagIds((current) => [...current, created.id]);
+    }
+    setNewTagName("");
+    setCreatingTag(false);
+    addToast("success", `Created tag "${name}".`);
+  };
+
+  const handleCreateGroup = () => {
+    const name = newGroupName.trim();
+    if (!name) {
+      addToast("info", "Name the group first.");
+      return;
+    }
+
+    const created = createGroup(name, "#1677ee");
+    setGroupId(created.id);
+    setNewGroupName("");
+    setCreatingGroup(false);
+    setGroupsOpen(true);
+    addToast("success", `Created group "${name}".`);
   };
 
   const handleSave = async () => {
@@ -92,156 +158,240 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
 
       if (tabs.length === 0) {
         addToast("error", "No valid tabs are available for this action.");
-        setIsSaving(false);
         return;
       }
 
       const session = createSession(
-        name,
-        description,
+        defaultSessionName(closeAfterSave),
+        selectedFolder ? `Saved to ${selectedFolder.name}` : "",
         tabs.map(chromeTabToTabItem),
         folderId || null,
         selectedTagIds,
+        groupId || null,
       );
 
-      if (closeAfterSaving) {
+      if (closeAfterSave) {
         const windowId = tabs[0]?.windowId ?? null;
         await closeTabs(tabs);
         onCollapseSaved?.({ session, windowId });
-        addToast("success", `Collapsed ${tabs.length} tabs into "${session.name}".`);
+        addToast("success", `Saved and closed ${tabs.length} ${tabs.length === 1 ? "tab" : "tabs"}.`);
       } else {
-        addToast("success", `Saved "${session.name}" with ${tabs.length} tabs.`);
+        addToast("success", `Saved ${tabs.length} ${tabs.length === 1 ? "tab" : "tabs"} to TabSetu.`);
       }
 
       onClose();
     } catch {
-      addToast("error", "TabNest could not save that session.");
+      addToast("error", "TabSetu could not save that session.");
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="modal animate-scale-in" style={{ maxWidth: 400 }}>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            void handleSave();
-          }}
+    <BottomSheet
+      title={sheetTitle}
+      subtitle="Organize before saving"
+      onClose={onClose}
+      footer={
+        <button
+          className="mobile-primary-button save-sheet-primary"
+          type="button"
+          disabled={isSaving || tabCount === 0}
+          onClick={() => void handleSave()}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-            <div>
-              <h3 style={{ fontSize: 18 }}>{closeAfterSaving ? "Collapse current window" : "Save session"}</h3>
-              <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--color-text-muted)" }}>
-                {closeAfterSaving ? "Capture the session, then clear the clutter." : "Turn your current tabs into a reusable workspace."}
-              </p>
-            </div>
-            <button className="btn btn-ghost btn-icon" type="button" onClick={onClose} title="Close">
-              <X size={16} />
-            </button>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div>
-              <label className="label">Session name</label>
-              <input
-                className="input"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Untitled Session"
-                autoFocus
-              />
-            </div>
-
-            <div>
-              <label className="label">Description</label>
-              <textarea
-                className="input"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="What are these tabs for?"
-              />
-            </div>
-
-            {!usesSelectedTabs ? (
-              <label className="toggle-row">
+          {closeAfterSave ? `Save and close ${tabCount || ""} tabs` : `Save ${tabCount || ""} tabs`}
+        </button>
+      }
+    >
+      <div className="save-sheet-stack">
+        <section className="mobile-accordion">
+          <button className="mobile-accordion-header" type="button" onClick={() => setFoldersOpen((open) => !open)}>
+            <span>Folders</span>
+            {foldersOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          </button>
+          {foldersOpen ? (
+            <>
+              <button
+                className="mobile-accordion-row"
+                type="button"
+                data-active={!folderId || undefined}
+                onClick={() => setFolderId("")}
+              >
                 <span>
-                  <strong style={{ display: "block", marginBottom: 2 }}>Include pinned tabs</strong>
-                  <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                    Pinned tabs stay open by default during collapse.
-                  </span>
+                  <Heart size={18} />
+                  Favourites (0)
                 </span>
-                <input
-                  type="checkbox"
-                  checked={includePinned}
-                  onChange={(event) => setIncludePinned(event.target.checked)}
-                />
-              </label>
-            ) : null}
-
-            {folders.length > 0 ? (
-              <div>
-                <label className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <FolderOpen size={14} />
-                  Folder
-                </label>
-                <select className="input" value={folderId} onChange={(event) => setFolderId(event.target.value)}>
-                  <option value="">No folder</option>
-                  {folders.map((folder) => (
-                    <option key={folder.id} value={folder.id}>
-                      {folder.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-
-            {tags.length > 0 ? (
-              <div>
-                <label className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <Tag size={14} />
-                  Tags
-                </label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {tags.map((tag) => {
-                    const active = selectedTagIds.includes(tag.id);
-                    return (
-                      <button
-                        key={tag.id}
-                        className="tag-chip"
-                        type="button"
-                        data-active={active}
-                        style={{
-                          borderColor: active ? tag.color : "var(--color-border)",
-                          color: active ? tag.color : "var(--color-text-secondary)",
-                          background: active ? `${tag.color}22` : "transparent",
-                        }}
-                        onClick={() => toggleTag(tag.id)}
-                      >
-                        {tag.name}
-                      </button>
-                    );
-                  })}
+                {!folderId ? <Check size={17} /> : null}
+              </button>
+              {folders.map((folder) => (
+                <button
+                  className="mobile-accordion-row"
+                  type="button"
+                  key={folder.id}
+                  data-active={folderId === folder.id || undefined}
+                  onClick={() => setFolderId(folder.id)}
+                >
+                  <span>
+                    <FolderOpen size={18} color={folder.color} />
+                    {folder.name}
+                  </span>
+                  {folderId === folder.id ? <Check size={17} /> : null}
+                </button>
+              ))}
+              {creatingFolder ? (
+                <div className="save-sheet-create-row">
+                  <input
+                    className="mobile-input"
+                    value={newFolderName}
+                    onChange={(event) => setNewFolderName(event.target.value)}
+                    placeholder="Folder name"
+                    autoFocus
+                  />
+                  <button className="mobile-primary-button" type="button" onClick={handleCreateFolder}>
+                    Add
+                  </button>
                 </div>
-              </div>
-            ) : null}
+              ) : (
+                <button className="mobile-accordion-row" type="button" onClick={() => setCreatingFolder(true)}>
+                  <span>
+                    <Plus size={18} />
+                    Create folder
+                  </span>
+                </button>
+              )}
+            </>
+          ) : null}
+        </section>
 
-            <div className="card-raised" style={{ padding: 12, fontSize: 12, color: "var(--color-text-secondary)" }}>
-              {summaryText}
+        <section className="mobile-accordion">
+          <button className="mobile-accordion-header" type="button" onClick={() => setTagsOpen((open) => !open)}>
+            <span>Tags</span>
+            {tagsOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          </button>
+          {tagsOpen ? (
+            <div className="save-sheet-tags">
+              {tags.length > 0 ? (
+                <div className="mobile-chip-row">
+                  {tags.map((tag) => (
+                    <button
+                      className="mobile-chip"
+                      type="button"
+                      key={tag.id}
+                      data-active={selectedTagIds.includes(tag.id) || undefined}
+                      onClick={() => toggleTag(tag.id)}
+                    >
+                      <Tag size={14} />
+                      {tag.name}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {creatingTag ? (
+                <div className="save-sheet-create-row">
+                  <input
+                    className="mobile-input"
+                    value={newTagName}
+                    onChange={(event) => setNewTagName(event.target.value)}
+                    placeholder="Tag name"
+                    autoFocus
+                  />
+                  <button className="mobile-primary-button" type="button" onClick={handleCreateTag}>
+                    Add
+                  </button>
+                </div>
+              ) : (
+                <button className="mobile-accordion-row save-sheet-create-button" type="button" onClick={() => setCreatingTag(true)}>
+                  <span>
+                    <Tag size={18} />
+                    Create tag
+                  </span>
+                </button>
+              )}
             </div>
-          </div>
+          ) : null}
+        </section>
 
-          <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
-            <button className="btn btn-secondary" type="button" style={{ flex: 1 }} onClick={onClose} disabled={isSaving}>
-              Cancel
-            </button>
-            <button className="btn btn-primary" type="submit" style={{ flex: 1.4 }} disabled={isSaving}>
-              {closeAfterSaving ? "Save and close tabs" : "Save session"}
-            </button>
+        <section className="mobile-accordion">
+          <button className="mobile-accordion-header" type="button" onClick={() => setGroupsOpen((open) => !open)}>
+            <span>
+              <Layers size={18} />
+              Group
+            </span>
+            {groupsOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          </button>
+          {groupsOpen ? (
+            <>
+              <button
+                className="mobile-accordion-row"
+                type="button"
+                data-active={!groupId || undefined}
+                onClick={() => setGroupId("")}
+              >
+                <span>No group</span>
+                {!groupId ? <Check size={17} /> : null}
+              </button>
+              {groups.map((group) => (
+                <button
+                  className="mobile-accordion-row"
+                  type="button"
+                  key={group.id}
+                  data-active={groupId === group.id || undefined}
+                  onClick={() => setGroupId(group.id)}
+                >
+                  <span>
+                    <Layers size={18} color={group.color} />
+                    {group.name}
+                  </span>
+                  {groupId === group.id ? <Check size={17} /> : null}
+                </button>
+              ))}
+              {creatingGroup ? (
+                <div className="save-sheet-create-row">
+                  <input
+                    className="mobile-input"
+                    value={newGroupName}
+                    onChange={(event) => setNewGroupName(event.target.value)}
+                    placeholder="Group name"
+                    autoFocus
+                  />
+                  <button className="mobile-primary-button" type="button" onClick={handleCreateGroup}>
+                    Add
+                  </button>
+                </div>
+              ) : (
+                <button className="mobile-accordion-row" type="button" onClick={() => setCreatingGroup(true)}>
+                  <span>
+                    <Plus size={18} />
+                    Create group
+                  </span>
+                </button>
+              )}
+            </>
+          ) : null}
+        </section>
+
+        {!usesSelectedTabs ? (
+          <div className="save-sheet-option-row">
+            <span>Include pinned tabs</span>
+            <button
+              className="mobile-switch"
+              type="button"
+              data-active={includePinned || undefined}
+              onClick={() => setIncludePinned((current) => !current)}
+            />
           </div>
-        </form>
+        ) : null}
+
+        <div className="save-sheet-option-row">
+          <span>Close tabs after saving</span>
+          <button
+            className="mobile-switch"
+            type="button"
+            data-active={closeAfterSave || undefined}
+            onClick={() => setCloseAfterSave((current) => !current)}
+          />
+        </div>
       </div>
-    </div>
+    </BottomSheet>
   );
 }

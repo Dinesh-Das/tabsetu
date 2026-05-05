@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TabSetu - Mobile Home</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container": "#eeeeee",
+                        "secondary": "#5d5e66",
+                        "on-primary-fixed": "#1c1b1b",
+                        "on-primary": "#ffffff",
+                        "on-secondary-container": "#63646c",
+                        "inverse-primary": "#c8c6c5",
+                        "on-tertiary-fixed-variant": "#454749",
+                        "on-primary-container": "#858383",
+                        "secondary-fixed-dim": "#c6c5cf",
+                        "error-container": "#ffdad6",
+                        "on-secondary-fixed": "#1a1b22",
+                        "secondary-container": "#e3e1ec",
+                        "primary": "#000000",
+                        "on-surface": "#1a1c1c",
+                        "error": "#ba1a1a",
+                        "primary-container": "#1c1b1b",
+                        "on-secondary-fixed-variant": "#46464e",
+                        "tertiary-container": "#1a1c1e",
+                        "background": "#f9f9f9",
+                        "surface-dim": "#dadada",
+                        "outline-variant": "#c4c7c7",
+                        "on-tertiary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "surface": "#f9f9f9",
+                        "surface-bright": "#f9f9f9",
+                        "on-primary-fixed-variant": "#474646",
+                        "secondary-fixed": "#e3e1ec",
+                        "outline": "#747878",
+                        "on-secondary": "#ffffff",
+                        "surface-tint": "#5f5e5e",
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-surface": "#2f3131",
+                        "primary-fixed": "#e5e2e1",
+                        "on-background": "#1a1c1c",
+                        "inverse-on-surface": "#f0f1f1",
+                        "surface-variant": "#e2e2e2",
+                        "surface-container-highest": "#e2e2e2",
+                        "on-tertiary-fixed": "#1a1c1e",
+                        "primary-fixed-dim": "#c8c6c5",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#000000",
+                        "tertiary-fixed": "#e2e2e5",
+                        "tertiary-fixed-dim": "#c6c6c9",
+                        "on-tertiary-container": "#838487",
+                        "surface-container-high": "#e8e8e8",
+                        "surface-container-low": "#f3f3f3",
+                        "on-surface-variant": "#444748"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xl": "64px",
+                        "gutter": "24px",
+                        "xs": "4px",
+                        "md": "24px",
+                        "sm": "12px",
+                        "lg": "40px",
+                        "base": "8px",
+                        "margin": "32px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "display": ["Inter"],
+                        "body-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "label-sm": ["10px", {"lineHeight": "1", "fontWeight": "500"}],
+                        "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "headline-lg": ["30px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-sm": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* Setup for glassmorphism ambient background */
+        body {
+            background-color: #f9f9f9;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(226, 226, 226, 0.4) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(243, 243, 243, 0.8) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+        
+        /* Hide scrollbar for clean aesthetic */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+        
+        /* Safe area padding for mobile bottoms */
+        .pb-safe-offset-2 {
+            padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md text-on-surface antialiased min-h-screen pb-24 pt-16 flex flex-col items-center">
+<!-- Mobile Container (Max-width for aesthetics on larger screens, full width on mobile) -->
+<div class="w-full max-w-md bg-surface/30 min-h-screen relative shadow-[0_0_50px_rgba(0,0,0,0.02)] border-x border-white/40">
+<!-- TopAppBar (From JSON) -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-white/70 backdrop-blur-2xl border-white/40 shadow-[0_4px_30px_rgba(0,0,0,0.05)] transition-colors">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[28px]" data-icon="tab_group">tab_group</span>
+<h1 class="font-headline-md text-headline-md text-primary font-bold tracking-tight">TabSetu</h1>
+</div>
+<div class="h-9 w-9 rounded-full bg-surface-container-high border border-white/60 shadow-[0_2px_8px_rgba(0,0,0,0.05)] flex items-center justify-center overflow-hidden cursor-pointer hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-secondary text-lg">person</span>
+</div>
+</header>
+<!-- Search & Filter Bar (Sticky) -->
+<div class="px-6 py-4 sticky top-16 z-40 bg-surface/60 backdrop-blur-xl border-b border-white/30">
+<div class="flex gap-sm items-center">
+<div class="flex-1 flex items-center bg-white/80 border border-white/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] rounded-full px-4 h-11 backdrop-blur-2xl focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+<span class="material-symbols-outlined text-outline text-[20px] mr-2">search</span>
+<input class="bg-transparent border-none outline-none w-full font-body-sm text-body-sm text-on-surface placeholder:text-outline-variant" placeholder="Search open tabs..." type="text"/>
+</div>
+<button class="w-11 h-11 flex items-center justify-center bg-white/80 border border-white/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] rounded-full backdrop-blur-2xl text-primary hover:bg-white active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[20px]">tune</span>
+</button>
+</div>
+</div>
+<!-- Main Content Canvas -->
+<main class="px-6 pt-4 pb-8 flex flex-col gap-6">
+<!-- Contextual Header -->
+<div class="flex justify-between items-end px-1">
+<h2 class="font-headline-md text-headline-md text-primary tracking-tight">Active Session</h2>
+<div class="px-3 py-1 rounded-full bg-surface-container-high border border-white/50 flex items-center gap-1 shadow-[0_1px_4px_rgba(0,0,0,0.02)]">
+<span class="w-1.5 h-1.5 rounded-full bg-primary block"></span>
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-widest">5 Tabs</span>
+</div>
+</div>
+<!-- Bento Grid for Tabs -->
+<div class="grid grid-cols-2 gap-4">
+<!-- Tab Card 1 -->
+<article class="flex flex-col bg-white/50 backdrop-blur-2xl border border-white/70 shadow-[0_4px_24px_rgba(0,0,0,0.04)] rounded-xl overflow-hidden active:scale-[0.98] transition-transform cursor-pointer group hover:bg-white/70">
+<div class="h-28 bg-surface-container relative overflow-hidden">
+<img class="w-full h-full object-cover opacity-80 mix-blend-multiply group-hover:scale-105 transition-transform duration-500" data-alt="A clean, minimalist digital workspace featuring a modern code editor interface displaying complex syntax on a subtle gray background. The scene is illuminated by soft, high-key lighting, emphasizing a bright, organized light-mode aesthetic. The color palette relies heavily on stark whites, deep charcoal grays, and precise, crisp typographic elements, conveying a sense of high-end productivity and technical lucidity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCka81Sie-w2jlMWXztpdNvU0F7jCRDT14HKTkHIOI4dLxvw4hN4-tgWpgsmkjFNlOH3twSAEmwlaeFyxr_QiTkJ4e0DPHj-h0vCLhDhOG6acdBScbUY2INWIyNipLYF88M4M35XgmsqB2chH6x8Ex8jKd_52czqwqHA1hyBdEG-kFggQB0cQYOKohYgeNAmPOSiebAELNVf-C7P6qoLkqRqsFygvEtSLWjNNAMKO18KcoN2uZZ70XTm3a_m9XgO-kdu_-qxmazZAs"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent"></div>
+</div>
+<div class="p-3 flex items-start gap-2 bg-white/40 border-t border-white/30 backdrop-blur-md h-[68px]">
+<div class="w-6 h-6 rounded border border-white/60 bg-white/80 flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-primary">terminal</span>
+</div>
+<div class="flex flex-col overflow-hidden">
+<span class="font-label-md text-label-md text-primary truncate">API Documentation</span>
+<span class="font-label-sm text-label-sm text-outline truncate mt-0.5 normal-case">developer.api.com</span>
+</div>
+</div>
+</article>
+<!-- Tab Card 2 -->
+<article class="flex flex-col bg-white/50 backdrop-blur-2xl border border-white/70 shadow-[0_4px_24px_rgba(0,0,0,0.04)] rounded-xl overflow-hidden active:scale-[0.98] transition-transform cursor-pointer group hover:bg-white/70">
+<div class="h-28 bg-surface-container relative overflow-hidden">
+<img class="w-full h-full object-cover opacity-80 mix-blend-multiply group-hover:scale-105 transition-transform duration-500" data-alt="A sophisticated abstract digital composition featuring smooth, fluid geometric shapes rendered in pristine white and soft, pale gray tones. The forms interlock in a highly organized, minimal layout. Lighting is extremely diffused, creating a frosted glass or 'glassmorphism' effect with subtle specular highlights on the edges. The overall mood is incredibly calm, intelligent, and unobtrusive." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAW01ot8ByMFzaJQ9CHp5gi5Bhwps5AWhiCpnWzVdfvZezxYZy_u3XpKsoA1zJqWrrS-f45VOMsCCb4k5p10aT2v8CMTMZwqrYwMbsbNNvMqFHFIBlk9kS2Swg3xZYSUiJLW_QbJ79AfPdptiJqF_mykDDaGEBbE_FkfoIQQBz-64ZQ_78J-heYEZsB14pVtzv6XeBJOdfQetSKBjRSDfle8jbjEExabZ-2gM_F2w1GPGJ_XamqSyJVCgHeZRgLo_hnxfipJ2qliSI"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent"></div>
+</div>
+<div class="p-3 flex items-start gap-2 bg-white/40 border-t border-white/30 backdrop-blur-md h-[68px]">
+<div class="w-6 h-6 rounded border border-white/60 bg-white/80 flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-primary">design_services</span>
+</div>
+<div class="flex flex-col overflow-hidden">
+<span class="font-label-md text-label-md text-primary truncate">Design System 2.0</span>
+<span class="font-label-sm text-label-sm text-outline truncate mt-0.5 normal-case">figma.com/file</span>
+</div>
+</div>
+</article>
+<!-- Tab Card 3 -->
+<article class="flex flex-col bg-white/50 backdrop-blur-2xl border border-white/70 shadow-[0_4px_24px_rgba(0,0,0,0.04)] rounded-xl overflow-hidden active:scale-[0.98] transition-transform cursor-pointer group hover:bg-white/70">
+<div class="h-28 bg-surface-container relative overflow-hidden">
+<img class="w-full h-full object-cover opacity-80 mix-blend-multiply group-hover:scale-105 transition-transform duration-500" data-alt="A minimal, high-fidelity rendering of a clean data analytics dashboard. The interface is primarily white with translucent, frosted glass panels layered over a subtle light gray background. Extremely fine, 1px white borders define the modules. The data visualization uses strict monochrome shades—charcoals and silvers—eschewing bright colors to maintain an atmosphere of extreme calm and organized intelligence." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBZVQ6T1dlLafYTmGLohOhQgRr4PaDG0AXZjrEHffuzVlll6CpK-uYarryL86BzeRqW-_cwGSv5AtvA3G0mNgqNU0frHyXeeEQW8my4Kw1sUJUo1l8J0p88X9pb9ms0ucmbgWqwcX3iOIjSCp2G2qVnlJu2QAAok-pQ-IN5UpKI0u-dn16oMCTWo_vAjs5LaUrmIuX-IHaIsT2kqt8Xg5thrp1qrDR2iWM4t8WyCuMRQkgFHfqYMz3le7xyONT_sMIfPmd1Kwk0srw"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent"></div>
+</div>
+<div class="p-3 flex items-start gap-2 bg-white/40 border-t border-white/30 backdrop-blur-md h-[68px]">
+<div class="w-6 h-6 rounded border border-white/60 bg-white/80 flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-primary">monitoring</span>
+</div>
+<div class="flex flex-col overflow-hidden">
+<span class="font-label-md text-label-md text-primary truncate">Q3 Analytics Repo</span>
+<span class="font-label-sm text-label-sm text-outline truncate mt-0.5 normal-case">analytics.hub.net</span>
+</div>
+</div>
+</article>
+<!-- Tab Card 4 -->
+<article class="flex flex-col bg-white/50 backdrop-blur-2xl border border-white/70 shadow-[0_4px_24px_rgba(0,0,0,0.04)] rounded-xl overflow-hidden active:scale-[0.98] transition-transform cursor-pointer group hover:bg-white/70">
+<div class="h-28 bg-surface-container relative overflow-hidden flex items-center justify-center">
+<div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-surface-variant to-surface-container"></div>
+<span class="material-symbols-outlined text-[32px] text-outline-variant relative z-10">description</span>
+</div>
+<div class="p-3 flex items-start gap-2 bg-white/40 border-t border-white/30 backdrop-blur-md h-[68px]">
+<div class="w-6 h-6 rounded border border-white/60 bg-white/80 flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-primary">docs</span>
+</div>
+<div class="flex flex-col overflow-hidden">
+<span class="font-label-md text-label-md text-primary truncate">Project Briefing</span>
+<span class="font-label-sm text-label-sm text-outline truncate mt-0.5 normal-case">docs.google.com</span>
+</div>
+</div>
+</article>
+<!-- Action Card (New Tab) -->
+<article class="flex flex-col bg-transparent border-2 border-dashed border-outline-variant/40 rounded-xl overflow-hidden active:scale-[0.98] transition-transform cursor-pointer hover:bg-white/30 hover:border-outline/50 items-center justify-center h-[180px]">
+<div class="w-12 h-12 rounded-full bg-surface-container-high border border-white/60 flex items-center justify-center shadow-sm mb-2">
+<span class="material-symbols-outlined text-secondary text-[24px]">add</span>
+</div>
+<span class="font-label-md text-label-md text-secondary">New Tab</span>
+</article>
+</div>
+</main>
+<!-- BottomNavBar (From JSON) - Mobile Only Shell -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pt-2 pb-safe-offset-2 bg-white/80 backdrop-blur-3xl shadow-[0_-4px_30px_rgba(0,0,0,0.03)] md:hidden">
+<!-- Active: Home -->
+<button class="flex flex-col items-center justify-center w-[72px] py-2 rounded-xl text-zinc-900 font-bold active:scale-90 duration-150 relative">
+<!-- Soft highlight behind active icon -->
+<div class="absolute top-1 w-12 h-8 bg-black/5 rounded-full z-0"></div>
+<span class="material-symbols-outlined text-[24px] relative z-10" data-icon="home" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-label-sm text-label-sm tracking-wide uppercase mt-1 relative z-10">Home</span>
+</button>
+<!-- Inactive: Folders -->
+<button class="flex flex-col items-center justify-center w-[72px] py-2 rounded-xl text-zinc-400 hover:bg-zinc-100/50 transition-all active:scale-90 duration-150 group">
+<span class="material-symbols-outlined text-[24px] group-hover:text-primary transition-colors" data-icon="folder_open">folder_open</span>
+<span class="font-label-sm text-label-sm tracking-wide uppercase mt-1 group-hover:text-primary transition-colors">Folders</span>
+</button>
+<!-- Inactive: Schedules -->
+<button class="flex flex-col items-center justify-center w-[72px] py-2 rounded-xl text-zinc-400 hover:bg-zinc-100/50 transition-all active:scale-90 duration-150 group">
+<span class="material-symbols-outlined text-[24px] group-hover:text-primary transition-colors" data-icon="calendar_today">calendar_today</span>
+<span class="font-label-sm text-label-sm tracking-wide uppercase mt-1 group-hover:text-primary transition-colors">Schedules</span>
+</button>
+<!-- Inactive: Notes -->
+<button class="flex flex-col items-center justify-center w-[72px] py-2 rounded-xl text-zinc-400 hover:bg-zinc-100/50 transition-all active:scale-90 duration-150 group">
+<span class="material-symbols-outlined text-[24px] group-hover:text-primary transition-colors" data-icon="description">description</span>
+<span class="font-label-sm text-label-sm tracking-wide uppercase mt-1 group-hover:text-primary transition-colors">Notes</span>
+</button>
+</nav>
+</div>
+</body></html>

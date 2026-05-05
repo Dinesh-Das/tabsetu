@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TabSetu Mobile Extension</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container": "#eeeeee",
+                        "secondary": "#5d5e66",
+                        "on-primary-fixed": "#1c1b1b",
+                        "on-primary": "#ffffff",
+                        "on-secondary-container": "#63646c",
+                        "inverse-primary": "#c8c6c5",
+                        "on-tertiary-fixed-variant": "#454749",
+                        "on-primary-container": "#858383",
+                        "secondary-fixed-dim": "#c6c5cf",
+                        "error-container": "#ffdad6",
+                        "on-secondary-fixed": "#1a1b22",
+                        "secondary-container": "#e3e1ec",
+                        "primary": "#000000",
+                        "on-surface": "#1a1c1c",
+                        "error": "#ba1a1a",
+                        "primary-container": "#1c1b1b",
+                        "on-secondary-fixed-variant": "#46464e",
+                        "tertiary-container": "#1a1c1e",
+                        "background": "#f9f9f9",
+                        "surface-dim": "#dadada",
+                        "outline-variant": "#c4c7c7",
+                        "on-tertiary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "surface": "#f9f9f9",
+                        "surface-bright": "#f9f9f9",
+                        "on-primary-fixed-variant": "#474646",
+                        "secondary-fixed": "#e3e1ec",
+                        "outline": "#747878",
+                        "on-secondary": "#ffffff",
+                        "surface-tint": "#5f5e5e",
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-surface": "#2f3131",
+                        "primary-fixed": "#e5e2e1",
+                        "on-background": "#1a1c1c",
+                        "inverse-on-surface": "#f0f1f1",
+                        "surface-variant": "#e2e2e2",
+                        "surface-container-highest": "#e2e2e2",
+                        "on-tertiary-fixed": "#1a1c1e",
+                        "primary-fixed-dim": "#c8c6c5",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#000000",
+                        "tertiary-fixed": "#e2e2e5",
+                        "tertiary-fixed-dim": "#c6c6c9",
+                        "on-tertiary-container": "#838487",
+                        "surface-container-high": "#e8e8e8",
+                        "surface-container-low": "#f3f3f3",
+                        "on-surface-variant": "#444748"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xl": "64px",
+                        "gutter": "24px",
+                        "xs": "4px",
+                        "md": "24px",
+                        "sm": "12px",
+                        "lg": "40px",
+                        "base": "8px",
+                        "margin": "32px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "display": ["Inter"],
+                        "body-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "label-sm": ["10px", {"lineHeight": "1", "fontWeight": "500"}],
+                        "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "headline-lg": ["30px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-sm": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            /* Simulating a mobile extension popup environment on desktop, full width on mobile */
+            background-color: #e5e5e5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        #extension-root {
+            width: 100%;
+            max-width: 400px;
+            height: 100vh;
+            max-height: 800px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background-image: linear-gradient(to bottom right, #f9f9f9, #e8e8e8);
+        }
+        @media (min-width: 450px) {
+            #extension-root {
+                height: 85vh;
+                border-radius: 24px;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                border: 1px solid rgba(255,255,255,0.8);
+            }
+        }
+
+        /* Custom Checkbox Styling for Monochrome Theme */
+        .custom-checkbox {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 1.5px solid var(--tw-colors-outline-variant);
+            border-radius: 4px;
+            background-color: var(--tw-colors-surface-container-lowest);
+            display: grid;
+            place-content: center;
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+        }
+        .custom-checkbox::before {
+            content: "";
+            width: 10px;
+            height: 10px;
+            transform: scale(0);
+            transition: 0.12s transform ease-in-out;
+            box-shadow: inset 1em 1em var(--tw-colors-on-primary);
+            background-color: var(--tw-colors-on-primary);
+            transform-origin: center;
+            clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+        }
+        .custom-checkbox:checked {
+            background-color: var(--tw-colors-primary);
+            border-color: var(--tw-colors-primary);
+        }
+        .custom-checkbox:checked::before {
+            transform: scale(1);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="antialiased text-primary">
+<div class="bg-background" id="extension-root">
+<!-- TopAppBar (Shared Component Translated) -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-white/70 backdrop-blur-2xl text-zinc-900 font-['Inter'] antialiased tracking-tight shadow-[0_4px_30px_rgba(0,0,0,0.05)] border-b border-white/40 absolute">
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">tab_group</span>
+<h1 class="text-xl font-bold tracking-tighter text-zinc-900">TabSetu</h1>
+</div>
+<div class="flex items-center">
+<span class="font-label-md text-label-md text-secondary bg-surface-container-high px-sm py-xs rounded-full border border-white/50">
+                    49 tabs left
+                </span>
+</div>
+</header>
+<!-- Main Scrollable Canvas -->
+<main class="flex-1 overflow-y-auto pt-[80px] pb-[140px] px-sm">
+<!-- Section Header -->
+<div class="flex justify-between items-center px-sm mb-sm mt-xs">
+<h2 class="font-label-md text-label-md text-secondary uppercase tracking-wider">Select Tabs</h2>
+<span class="font-label-sm text-label-sm text-outline">(0 selected)</span>
+</div>
+<!-- Tab List (Glassmorphism Modules) -->
+<div class="flex flex-col gap-base">
+<!-- Tab Item 1 -->
+<div class="bg-white/60 backdrop-blur-xl border border-white/40 rounded-xl p-sm flex items-center gap-sm shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-colors hover:bg-white/80 cursor-pointer">
+<input class="custom-checkbox flex-shrink-0" id="tab1" type="checkbox"/>
+<div class="w-8 h-8 rounded-lg bg-surface-container-lowest border border-surface-variant flex items-center justify-center flex-shrink-0 overflow-hidden">
+<img alt="Favicon" class="w-full h-full object-cover" data-alt="A macro photograph of a sleek, minimalist mechanical keyboard keycap, bathed in soft, high-key white lighting. The environment reflects a clean, modern workspace aesthetic typical of productivity tools. A subtle depth of field highlights the sharp edge of the keycap against a creamy, blurred background, evoking a sense of premium digital lucidity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZQFz5oDz5adhJEOa_peyzCznXzloa6KQSKTIO0CpniDw01B1OkFuU8UtLpc-g173wBi4z_npvQgE0CIBc1bb6HYT25HwED_zCPzKa5QEfwO6MAYqYTc-R7dG0bZ1ij7iVFlr_MAmFaBmdX1blsU4eK3KZzyToTCRAOOHcDBolYd7sfhG5MIWydrZDmxrnv-E_TLQVJyq-_SM4PFZT6aDBjfvc-U_WO8-5brrb3gGZtYYrVGfdPPRgTqrS45C2ymMwhc4jED05z74"/>
+</div>
+<div class="flex-1 min-w-0">
+<label class="font-body-sm text-body-sm text-primary block truncate cursor-pointer" for="tab1">Design System - Figma</label>
+<span class="font-label-sm text-label-sm text-secondary block truncate">figma.com</span>
+</div>
+<button class="w-8 h-8 rounded-full flex items-center justify-center text-outline hover:text-primary hover:bg-surface-container-high transition-colors flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<!-- Tab Item 2 -->
+<div class="bg-white/60 backdrop-blur-xl border border-white/40 rounded-xl p-sm flex items-center gap-sm shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-colors hover:bg-white/80 cursor-pointer">
+<input class="custom-checkbox flex-shrink-0" id="tab2" type="checkbox"/>
+<div class="w-8 h-8 rounded-lg bg-surface-container-lowest border border-surface-variant flex items-center justify-center flex-shrink-0 overflow-hidden">
+<img alt="Favicon" class="w-full h-full object-cover" data-alt="A highly detailed close-up of computer code displayed on a high-resolution monitor. The text is crisp and geometric, glowing slightly against a dark, minimalist background. Soft ambient light from the screen illuminates the surrounding bezel, capturing the essence of focused, high-end software development." src="https://lh3.googleusercontent.com/aida-public/AB6AXuApv8xgF2ALMkaajRNBFVEp9klaKMtLk601ZaFdzRle8QS8C4s90M6ocMHTRg8v18zzFXh1EOHWW_q2DUYJwDy3isLDOg76EvSBspuaomkWrNZ0sxilre3f2P_BowLaFfS-llUtE7u5xxjxyHviosA-sqaYciH1QlIauL9I3KnzHNQbHlBfAw_90bi6ibR3JgY4IWDwcevWNoHGJ2C-GjxHe1LCx7nlUDP1uh5ziJK4eEsT2gf0FM7QJDSjujr32y8VS6FCyhgYDd4"/>
+</div>
+<div class="flex-1 min-w-0">
+<label class="font-body-sm text-body-sm text-primary block truncate cursor-pointer" for="tab2">Update navigation logic · Pull Request #42</label>
+<span class="font-label-sm text-label-sm text-secondary block truncate">github.com</span>
+</div>
+<button class="w-8 h-8 rounded-full flex items-center justify-center text-outline hover:text-primary hover:bg-surface-container-high transition-colors flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<!-- Tab Item 3 -->
+<div class="bg-white/60 backdrop-blur-xl border border-white/40 rounded-xl p-sm flex items-center gap-sm shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-colors hover:bg-white/80 cursor-pointer">
+<input class="custom-checkbox flex-shrink-0" id="tab3" type="checkbox"/>
+<div class="w-8 h-8 rounded-lg bg-surface-container-lowest border border-surface-variant flex items-center justify-center flex-shrink-0 overflow-hidden bg-white">
+<span class="material-symbols-outlined text-secondary text-[20px]">description</span>
+</div>
+<div class="flex-1 min-w-0">
+<label class="font-body-sm text-body-sm text-primary block truncate cursor-pointer" for="tab3">Q3 Planning Notes</label>
+<span class="font-label-sm text-label-sm text-secondary block truncate">notion.so</span>
+</div>
+<button class="w-8 h-8 rounded-full flex items-center justify-center text-outline hover:text-primary hover:bg-surface-container-high transition-colors flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<!-- Tab Item 4 -->
+<div class="bg-white/60 backdrop-blur-xl border border-white/40 rounded-xl p-sm flex items-center gap-sm shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-colors hover:bg-white/80 cursor-pointer">
+<input class="custom-checkbox flex-shrink-0" id="tab4" type="checkbox"/>
+<div class="w-8 h-8 rounded-lg bg-surface-container-lowest border border-surface-variant flex items-center justify-center flex-shrink-0 overflow-hidden bg-white">
+<span class="material-symbols-outlined text-secondary text-[20px]">calendar_today</span>
+</div>
+<div class="flex-1 min-w-0">
+<label class="font-body-sm text-body-sm text-primary block truncate cursor-pointer" for="tab4">Weekly Sync</label>
+<span class="font-label-sm text-label-sm text-secondary block truncate">calendar.google.com</span>
+</div>
+<button class="w-8 h-8 rounded-full flex items-center justify-center text-outline hover:text-primary hover:bg-surface-container-high transition-colors flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<!-- Tab Item 5 -->
+<div class="bg-white/60 backdrop-blur-xl border border-white/40 rounded-xl p-sm flex items-center gap-sm shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-colors hover:bg-white/80 cursor-pointer">
+<input class="custom-checkbox flex-shrink-0" id="tab5" type="checkbox"/>
+<div class="w-8 h-8 rounded-lg bg-surface-container-lowest border border-surface-variant flex items-center justify-center flex-shrink-0 overflow-hidden bg-white">
+<span class="material-symbols-outlined text-secondary text-[20px]">search</span>
+</div>
+<div class="flex-1 min-w-0">
+<label class="font-body-sm text-body-sm text-primary block truncate cursor-pointer" for="tab5">Tailwind CSS Documentation</label>
+<span class="font-label-sm text-label-sm text-secondary block truncate">tailwindcss.com</span>
+</div>
+<button class="w-8 h-8 rounded-full flex items-center justify-center text-outline hover:text-primary hover:bg-surface-container-high transition-colors flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+</div>
+</main>
+<!-- Footer Action Area (Custom Contextual Shell) -->
+<footer class="absolute bottom-0 w-full z-50 bg-white/80 backdrop-blur-3xl border-t border-white/40 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] px-md py-sm flex flex-col gap-sm pb-safe">
+<div class="flex justify-center w-full">
+<button class="font-label-md text-label-md text-secondary hover:text-primary transition-colors py-xs flex items-center gap-xs">
+<span class="material-symbols-outlined text-[16px]">unfold_less</span>
+                    Collapse all 17 tabs
+                </button>
+</div>
+<div class="flex gap-sm w-full">
+<button class="flex-1 bg-white/50 border border-white/80 hover:bg-white/80 text-primary font-label-md text-label-md uppercase tracking-wider py-sm px-md rounded-lg backdrop-blur-md shadow-sm transition-all text-center">
+                    Quick Save
+                </button>
+<button class="flex-1 bg-primary text-on-primary font-label-md text-label-md uppercase tracking-wider py-sm px-md rounded-lg shadow-md hover:bg-surface-tint transition-all text-center">
+                    Select Tabs
+                </button>
+</div>
+</footer>
+</div>
+</body></html>

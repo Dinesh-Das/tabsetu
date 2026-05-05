@@ -2,11 +2,16 @@ export interface TabItem {
   id: string;
   title: string;
   url: string;
-  favIconUrl: string;
+  favIconUrl: string | null;
+  favIconDataUrl: string | null;
   pinned: boolean;
-  windowId?: number;
+  windowId: number | null;
   note: string;
+  reminderAt: number | null;
+  reminderSnoozedUntil: number | null;
+  reminderDismissed: boolean;
   position: number;
+  openCount: number;
   createdAt: number;
   lastOpenedAt: number | null;
 }
@@ -16,11 +21,13 @@ export interface Session {
   name: string;
   description: string;
   folderId: string | null;
+  groupId: string | null;
   tagIds: string[];
   tabs: TabItem[];
   note: string;
   color: string | null;
   icon: string | null;
+  openCount: number;
   createdAt: number;
   updatedAt: number;
   lastOpenedAt: number | null;
@@ -46,6 +53,14 @@ export interface Tag {
   createdAt: number;
 }
 
+export interface Group {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type ScheduleType = "once" | "daily" | "weekly" | "weekdays" | "custom";
 
 export interface Schedule {
@@ -56,8 +71,43 @@ export interface Schedule {
   daysOfWeek: number[];
   date: string | null;
   enabled: boolean;
+  lastFiredAt: number | null;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface StandaloneNote {
+  id: string;
+  title: string;
+  content: string;
+  isPinned: boolean;
+  color: string | null;
+  tagIds: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ShareLink {
+  id: string;
+  sessionId: string;
+  type: "text" | "markdown" | "encoded-url" | "hosted";
+  encodedData: string | null;
+  hostedUrl: string | null;
+  slug: string | null;
+  expiresAt: number | null;
+  viewCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AIShareConfig {
+  defaultProvider: "chatgpt" | "claude" | "gemini" | "custom";
+  customProviderUrl: string;
+  customPromptTemplate: string;
+  includeUrls: boolean;
+  includeTitles: boolean;
+  includeNotes: boolean;
+  promptPreamble: string;
 }
 
 export interface Settings {
@@ -66,6 +116,17 @@ export interface Settings {
   openInNewWindow: boolean;
   confirmBeforeDelete: boolean;
   schedulesEnabled: boolean;
+  remindersEnabled: boolean;
+  searchOverlayEnabled: boolean;
+  searchOverlayShortcut: string;
+  quickInfoEnabled: boolean;
+  quickInfoDelayMs: 200 | 400 | 700;
+  aiEnabled: boolean;
+  defaultAIProvider: "chatgpt" | "claude" | "gemini" | "custom";
+  customAIProviderUrl: string;
+  customAIPromptTemplate: string;
+  exportIncludeNotes: boolean;
+  version: string;
   dashboardLayout: "split" | "focus";
   sessionCardStyle: "compact" | "comfortable" | "grid";
   searchScopes: {
@@ -83,7 +144,11 @@ export interface StorageData {
   sessions: Session[];
   folders: Folder[];
   tags: Tag[];
+  groups: Group[];
   schedules: Schedule[];
+  standaloneNotes: StandaloneNote[];
+  shareLinks: ShareLink[];
+  aiConfig: AIShareConfig;
   settings: Settings;
 }
 
@@ -107,4 +172,12 @@ export interface UndoCollapseBuffer {
   windowId: number | null;
   createdAt: number;
   expiresAt: number;
+}
+
+export interface ShareSnapshot {
+  v: 1;
+  name: string;
+  description: string;
+  tabs: Array<{ title: string; url: string }>;
+  createdAt: number;
 }

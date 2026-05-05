@@ -1,12 +1,12 @@
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, Layers, Pin, Settings, Upload } from "lucide-react";
+import { Archive, FileText, Layers, Pin, Settings, Upload } from "lucide-react";
 import EntityEditorModal from "@/components/shared/EntityEditorModal";
 import { useFolderStore } from "@/store/folderStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useTagStore } from "@/store/tagStore";
 
-type DashView = "sessions" | "settings" | "importexport";
+type DashView = "sessions" | "notes" | "settings" | "importexport";
 
 interface Props {
   view: DashView;
@@ -100,7 +100,7 @@ export default function Sidebar({ view, setView }: Props) {
           </div>
           <div>
             <div style={{ fontFamily: "var(--font-heading)", fontSize: 20, fontWeight: 700 }}>
-              TabNest
+              TabSetu
             </div>
             <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
               Built to outlast tab chaos.
@@ -248,6 +248,12 @@ export default function Sidebar({ view, setView }: Props) {
       </div>
 
       <div style={{ padding: 12, borderTop: "1px solid var(--color-border)" }}>
+        <NavItem
+          label="Notes"
+          active={view === "notes"}
+          onClick={() => setView("notes")}
+          Icon={FileText}
+        />
         <NavItem
           label="Import and export"
           active={view === "importexport"}

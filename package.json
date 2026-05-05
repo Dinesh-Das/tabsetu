@@ -1,7 +1,7 @@
 {
-  "name": "tabnest",
+  "name": "tabsetu",
   "version": "1.0.0",
-  "description": "TabNest - Save your tabs. Clear your mind.",
+  "description": "TabSetu - Save your tabs. Clear your mind.",
   "type": "module",
   "private": true,
   "scripts": {

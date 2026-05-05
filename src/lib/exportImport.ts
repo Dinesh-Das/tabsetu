@@ -1,5 +1,5 @@
 import { normalizeImportedStorageData, normalizeStorageData } from "@/lib/storage";
-import type { Session, StorageData } from "@/types";
+import type { AIShareConfig, Session, StorageData } from "@/types";
 
 function downloadFile(content: string, fileName: string, mimeType: string): void {
   const blob = new Blob([content], { type: mimeType });
@@ -20,13 +20,16 @@ export interface StorageSummary {
   tabs: number;
   folders: number;
   tags: number;
+  groups: number;
   schedules: number;
+  notes: number;
+  shareLinks: number;
 }
 
 export function exportJSON(data: StorageData): void {
   downloadFile(
     JSON.stringify(data, null, 2),
-    `tabnest-backup-${new Date().toISOString().split("T")[0]}.json`,
+    `tabsetu-backup-${new Date().toISOString().split("T")[0]}.json`,
     "application/json",
   );
 }
@@ -37,7 +40,10 @@ export function summarizeStorageData(data: StorageData): StorageSummary {
     tabs: data.sessions.reduce((total, session) => total + session.tabs.length, 0),
     folders: data.folders.length,
     tags: data.tags.length,
+    groups: data.groups.length,
     schedules: data.schedules.length,
+    notes: data.standaloneNotes.length,
+    shareLinks: data.shareLinks.length,
   };
 }
 
@@ -95,7 +101,11 @@ export function mergeStorageData(current: StorageData, imported: StorageData): S
     sessions: mergeById(current.sessions, imported.sessions, chooseSessionWinner),
     folders: mergeById(current.folders, imported.folders, chooseMostRecent),
     tags: mergeById(current.tags, imported.tags, chooseMostRecent),
+    groups: mergeById(current.groups, imported.groups, chooseMostRecent),
     schedules: mergeById(current.schedules, imported.schedules, chooseMostRecent),
+    standaloneNotes: mergeById(current.standaloneNotes, imported.standaloneNotes, chooseMostRecent),
+    shareLinks: mergeById(current.shareLinks, imported.shareLinks, chooseMostRecent),
+    aiConfig: current.aiConfig,
     settings: current.settings,
   });
 }
@@ -182,11 +192,25 @@ export function copyLinksToClipboard(session: Session): string {
   return session.tabs.map((tab) => `${tab.title}\n${tab.url}`).join("\n\n");
 }
 
-export function generateAIPrompt(session: Session): string {
-  const links = session.tabs.map((tab) => `- ${tab.title}: ${tab.url}`).join("\n");
+export function generateAIPrompt(session: Session, config?: Partial<AIShareConfig>): string {
+  const includeTitles = config?.includeTitles ?? true;
+  const includeUrls = config?.includeUrls ?? true;
+  const includeNotes = config?.includeNotes ?? true;
+  const links = session.tabs
+    .map((tab) => {
+      const pieces = [
+        includeTitles ? tab.title : "",
+        includeUrls ? tab.url : "",
+        includeNotes && tab.note ? `Note: ${tab.note}` : "",
+      ].filter(Boolean);
+      return `- ${pieces.join(" - ")}`;
+    })
+    .join("\n");
 
   return [
+    config?.promptPreamble?.trim(),
     `Analyze this browser session called "${session.name}".`,
+    includeNotes && session.note ? `Session note: ${session.note}` : "",
     "1. Summarize the likely purpose in 2 to 3 sentences.",
     "2. Group the links by topic or task.",
     "3. Suggest 3 to 5 tags.",
@@ -194,5 +218,5 @@ export function generateAIPrompt(session: Session): string {
     "",
     "Links:",
     links,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }

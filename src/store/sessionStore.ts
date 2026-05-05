@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { Session, SortOption, TabItem, ViewFilter } from "@/types";
 import { loadStorage, saveSessions } from "@/lib/storage";
-import { cloneTabItem, generateId } from "@/lib/tabHelpers";
+import { clampText, cloneTabItem, generateId, sanitizeLabel, stripHtml } from "@/lib/tabHelpers";
 
 interface SessionState {
   sessions: Session[];
@@ -17,11 +17,13 @@ interface SessionState {
     tabs: TabItem[],
     folderId?: string | null,
     tagIds?: string[],
+    groupId?: string | null,
   ) => Session;
   updateSession: (id: string, updates: Partial<Session>) => void;
   updateSessionNote: (id: string, note: string) => void;
   setSessionFolder: (id: string, folderId: string | null) => void;
   setSessionTags: (id: string, tagIds: string[]) => void;
+  setSessionGroup: (id: string, groupId: string | null) => void;
   deleteSession: (id: string) => void;
   duplicateSession: (id: string) => void;
   renameSession: (id: string, name: string) => void;
@@ -30,10 +32,12 @@ interface SessionState {
   addTabToSession: (sessionId: string, tab: TabItem) => boolean;
   removeTabFromSession: (sessionId: string, tabId: string) => void;
   updateTabNote: (sessionId: string, tabId: string, note: string) => void;
+  updateTabReminder: (sessionId: string, tabId: string, reminderAt: number | null) => void;
   recordOpened: (id: string) => void;
   recordTabOpened: (sessionId: string, tabId: string) => void;
   unassignFolder: (folderId: string) => void;
   removeTagReferences: (tagId: string) => void;
+  removeGroupReferences: (groupId: string) => void;
   applyAutoArchive: (days: 30 | 60 | 90 | null) => void;
   setSortBy: (sort: SortOption) => void;
   setViewFilter: (filter: ViewFilter) => void;
@@ -114,19 +118,21 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
-  createSession: (name, description, tabs, folderId = null, tagIds = []) => {
+  createSession: (name, description, tabs, folderId = null, tagIds = [], groupId = null) => {
     const createdAt = Date.now();
     const normalizedTabs = reindexTabs(tabs);
     const session: Session = {
       id: generateId("session"),
-      name: name.trim() || "Untitled Session",
-      description: description.trim(),
+      name: sanitizeLabel(name, "Untitled Session", 100),
+      description: clampText(stripHtml(description), 300),
       folderId,
+      groupId,
       tagIds,
       tabs: normalizedTabs,
       note: "",
       color: null,
       icon: null,
+      openCount: 0,
       createdAt,
       updatedAt: createdAt,
       lastOpenedAt: null,
@@ -141,10 +147,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   updateSession: (id, updates) => {
+    const sanitizedUpdates: Partial<Session> = {
+      ...updates,
+      ...(typeof updates.name === "string"
+        ? { name: sanitizeLabel(updates.name, "Untitled Session", 100) }
+        : {}),
+      ...(typeof updates.description === "string"
+        ? { description: clampText(stripHtml(updates.description), 300) }
+        : {}),
+      ...(typeof updates.note === "string" ? { note: clampText(stripHtml(updates.note), 5000) } : {}),
+    };
     const sessions = get().sessions.map((session) =>
       session.id === id
         ? touchSession(session, {
-            ...updates,
+            ...sanitizedUpdates,
             tabs: updates.tabs ? reindexTabs(updates.tabs) : session.tabs,
           })
         : session,
@@ -155,7 +171,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   updateSessionNote: (id, note) => {
     const sessions = get().sessions.map((session) =>
-      session.id === id ? touchSession(session, { note }) : session,
+      session.id === id ? touchSession(session, { note: clampText(stripHtml(note), 5000) }) : session,
     );
     set({ sessions });
     persistSessions(sessions);
@@ -177,6 +193,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     persistSessions(sessions);
   },
 
+  setSessionGroup: (id, groupId) => {
+    const sessions = get().sessions.map((session) =>
+      session.id === id ? touchSession(session, { groupId }) : session,
+    );
+    set({ sessions });
+    persistSessions(sessions);
+  },
+
   deleteSession: (id) => {
     const sessions = get().sessions.filter((session) => session.id !== id);
     set({ sessions });
@@ -193,11 +217,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const copy: Session = {
       ...original,
       id: generateId("session"),
-      name: `${original.name} Copy`,
+      name: sanitizeLabel(`${original.name} Copy`, "Session Copy", 100),
       tabs: reindexTabs(original.tabs.map(cloneTabItem)),
       createdAt,
       updatedAt: createdAt,
       lastOpenedAt: null,
+      openCount: 0,
       version: 1,
     };
     const sessions = [copy, ...get().sessions];
@@ -206,7 +231,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   renameSession: (id, name) => {
-    const trimmedName = name.trim();
+    const trimmedName = sanitizeLabel(name, "", 100);
     if (!trimmedName) {
       return;
     }
@@ -272,7 +297,30 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const sessions = get().sessions.map((session) =>
       session.id === sessionId
         ? touchSession(session, {
-            tabs: session.tabs.map((tab) => (tab.id === tabId ? { ...tab, note } : tab)),
+            tabs: session.tabs.map((tab) =>
+              tab.id === tabId ? { ...tab, note: clampText(stripHtml(note), 2000) } : tab,
+            ),
+          })
+        : session,
+    );
+    set({ sessions });
+    persistSessions(sessions);
+  },
+
+  updateTabReminder: (sessionId, tabId, reminderAt) => {
+    const sessions = get().sessions.map((session) =>
+      session.id === sessionId
+        ? touchSession(session, {
+            tabs: session.tabs.map((tab) =>
+              tab.id === tabId
+                ? {
+                    ...tab,
+                    reminderAt,
+                    reminderSnoozedUntil: null,
+                    reminderDismissed: false,
+                  }
+                : tab,
+            ),
           })
         : session,
     );
@@ -286,9 +334,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       session.id === id
         ? {
             ...session,
+            openCount: (session.openCount ?? 0) + 1,
             lastOpenedAt: openedAt,
             updatedAt: openedAt,
-            tabs: session.tabs.map((tab) => ({ ...tab, lastOpenedAt: openedAt })),
+            tabs: session.tabs.map((tab) => ({
+              ...tab,
+              openCount: (tab.openCount ?? 0) + 1,
+              lastOpenedAt: openedAt,
+            })),
             version: bumpSessionVersion(session.version),
           }
         : session,
@@ -306,7 +359,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             lastOpenedAt: openedAt,
             updatedAt: openedAt,
             tabs: session.tabs.map((tab) =>
-              tab.id === tabId ? { ...tab, lastOpenedAt: openedAt } : tab,
+              tab.id === tabId
+                ? { ...tab, openCount: (tab.openCount ?? 0) + 1, lastOpenedAt: openedAt }
+                : tab,
             ),
             version: bumpSessionVersion(session.version),
           }
@@ -335,6 +390,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             }),
           }
         : session,
+    );
+    set({ sessions });
+    persistSessions(sessions);
+  },
+
+  removeGroupReferences: (groupId) => {
+    const sessions = get().sessions.map((session) =>
+      session.groupId === groupId ? touchSession(session, { groupId: null }) : session,
     );
     set({ sessions });
     persistSessions(sessions);

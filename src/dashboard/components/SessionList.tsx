@@ -176,7 +176,7 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
               onChange={setQuery}
               placeholder="Search sessions, links, notes, folders, or tags..."
               inputRef={searchRef}
-              inputId="tabnest-dashboard-search"
+              inputId="tabsetu-dashboard-search"
             />
           </div>
           <select
@@ -199,7 +199,7 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
           <div className="empty-state">
             <h3>No sessions found</h3>
             <p>
-              Save your current window or widen the search. TabNest will keep the structure ready.
+              Save your current window or widen the search. TabSetu will keep the structure ready.
             </p>
           </div>
         ) : null}
@@ -337,7 +337,7 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
                   </div>
                 )}
 
-                <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+                <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
                   <button
                     className="btn btn-primary"
                     style={{ flex: 1 }}
@@ -351,6 +351,7 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
                   </button>
                   <button
                     className="btn btn-secondary"
+                    style={{ flex: "1 1 118px" }}
                     onClick={(event) => {
                       event.stopPropagation();
                       void handleOpen(session, true);
@@ -409,7 +410,7 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
       {pendingDelete ? (
         <ConfirmDialog
           title="Delete session?"
-          message={`"${pendingDelete.name}" will be removed from TabNest.`}
+          message={`"${pendingDelete.name}" will be removed from TabSetu.`}
           confirmLabel="Delete session"
           danger
           onClose={() => setPendingDelete(null)}

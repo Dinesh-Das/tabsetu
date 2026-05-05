@@ -4,7 +4,7 @@ import { loadStorage, saveSchedules } from "@/lib/storage";
 import { generateId } from "@/lib/tabHelpers";
 
 function alarmName(scheduleId: string): string {
-  return `tabnest-alarm-${scheduleId}`;
+  return `schedule_${scheduleId}`;
 }
 
 function getNextTriggerMinutes(schedule: Schedule): number {
@@ -40,7 +40,12 @@ function registerAlarm(schedule: Schedule): void {
 }
 
 async function replaceBrowserAlarms(schedules: Schedule[], schedulesEnabled: boolean): Promise<void> {
-  await chrome.alarms.clearAll();
+  const alarms = await chrome.alarms.getAll();
+  await Promise.all(
+    alarms
+      .filter((alarm) => alarm.name.startsWith("schedule_"))
+      .map((alarm) => chrome.alarms.clear(alarm.name)),
+  );
 
   if (!schedulesEnabled) {
     return;
@@ -52,7 +57,7 @@ async function replaceBrowserAlarms(schedules: Schedule[], schedulesEnabled: boo
 interface ScheduleState {
   schedules: Schedule[];
   load: () => Promise<void>;
-  createSchedule: (schedule: Omit<Schedule, "id" | "createdAt" | "updatedAt">) => void;
+  createSchedule: (schedule: Omit<Schedule, "id" | "createdAt" | "updatedAt" | "lastFiredAt">) => void;
   updateSchedule: (id: string, updates: Partial<Schedule>) => void;
   deleteSchedule: (id: string) => void;
   toggleSchedule: (id: string, enabled: boolean) => void;
@@ -77,6 +82,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     const schedule: Schedule = {
       ...partial,
       id: generateId("schedule"),
+      lastFiredAt: null,
       createdAt,
       updatedAt: createdAt,
     };

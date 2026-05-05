@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Settings } from '@/types';
-import { loadStorage, saveSettings } from '@/lib/storage';
+import { DEFAULT_SETTINGS, loadStorage, saveSettings } from '@/lib/storage';
 
 interface SettingsState {
   settings: Settings;
@@ -9,24 +9,7 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  settings: {
-    theme: 'dark',
-    collapseIncludesPinned: false,
-    openInNewWindow: false,
-    confirmBeforeDelete: true,
-    schedulesEnabled: true,
-    dashboardLayout: 'split',
-    sessionCardStyle: 'comfortable',
-    searchScopes: {
-      sessions: true,
-      tabs: true,
-      notes: true,
-      tags: true,
-      folders: true,
-    },
-    fuzzySearchThreshold: 0.32,
-    autoArchiveDays: null,
-  },
+  settings: DEFAULT_SETTINGS,
 
   load: async () => {
     const data = await loadStorage();
@@ -36,6 +19,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   updateSettings: (updates) => {
     const settings = { ...get().settings, ...updates };
     set({ settings });
-    saveSettings(settings);
+    void saveSettings(settings);
   },
 }));

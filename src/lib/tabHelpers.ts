@@ -5,20 +5,51 @@ const RESTRICTED_PREFIXES = [
   "chrome-extension://",
   "edge://",
   "about:",
+  "devtools://",
+  "file://",
   "data:",
   "javascript:",
 ];
 
 export function generateId(prefix = "id"): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const uuid =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+  return `${prefix}-${uuid}`;
 }
 
 export function isRestrictedUrl(url: string): boolean {
-  return RESTRICTED_PREFIXES.some((prefix) => url.startsWith(prefix));
+  const normalizedUrl = url.trim().toLowerCase();
+  return RESTRICTED_PREFIXES.some((prefix) => normalizedUrl.startsWith(prefix));
 }
 
-export function sanitizeLabel(value: string | undefined, fallback: string): string {
-  return value?.trim() ? value.trim() : fallback;
+export function stripHtml(value: string): string {
+  return value
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function clampText(value: string, maxLength: number): string {
+  return value.length > maxLength ? value.slice(0, maxLength).trimEnd() : value;
+}
+
+export function sanitizeLabel(value: string | undefined, fallback: string, maxLength = 200): string {
+  const sanitized = clampText(stripHtml(value ?? ""), maxLength);
+  return sanitized || fallback;
+}
+
+export function isValidUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return Boolean(parsed.protocol && parsed.hostname) && !isRestrictedUrl(url);
+  } catch {
+    return false;
+  }
 }
 
 export function chromeTabToTabItem(tab: chrome.tabs.Tab, position = 0): TabItem {
@@ -28,11 +59,16 @@ export function chromeTabToTabItem(tab: chrome.tabs.Tab, position = 0): TabItem 
     id: generateId("tab"),
     title: sanitizeLabel(tab.title, "Untitled Tab"),
     url: tab.url ?? "",
-    favIconUrl: tab.favIconUrl ?? "",
+    favIconUrl: tab.favIconUrl ?? null,
+    favIconDataUrl: null,
     pinned: tab.pinned ?? false,
-    windowId: tab.windowId,
+    windowId: tab.windowId ?? null,
     note: "",
+    reminderAt: null,
+    reminderSnoozedUntil: null,
+    reminderDismissed: false,
     position,
+    openCount: 0,
     createdAt,
     lastOpenedAt: null,
   };
@@ -50,7 +86,7 @@ export async function getActiveTab(): Promise<chrome.tabs.Tab | null> {
 async function requestPreferredBrowserTab(): Promise<chrome.tabs.Tab | null> {
   try {
     const response = await chrome.runtime.sendMessage({
-      type: "tabnest:get-preferred-browser-tab",
+      type: "tabsetu:get-preferred-browser-tab",
     });
 
     if (!response || typeof response !== "object") {
@@ -97,6 +133,10 @@ export async function collectTabsForSession(options?: {
       return false;
     }
 
+    if (!isValidUrl(tab.url)) {
+      return false;
+    }
+
     if (selectedIds.size > 0 && (!tab.id || !selectedIds.has(tab.id))) {
       return false;
     }
@@ -123,6 +163,7 @@ export function cloneTabItem(tab: TabItem): TabItem {
     ...tab,
     id: generateId("tab"),
     createdAt: Date.now(),
+    openCount: 0,
     lastOpenedAt: null,
   };
 }

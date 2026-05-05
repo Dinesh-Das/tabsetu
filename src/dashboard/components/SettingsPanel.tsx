@@ -6,9 +6,11 @@ import EntityEditorModal from "@/components/shared/EntityEditorModal";
 import { exportJSON } from "@/lib/exportImport";
 import { clearAllData, loadStorage } from "@/lib/storage";
 import { useFolderStore } from "@/store/folderStore";
+import { useNotesStore } from "@/store/notesStore";
 import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useShareStore } from "@/store/shareStore";
 import { useTagStore } from "@/store/tagStore";
 
 interface Props {
@@ -59,6 +61,10 @@ export default function SettingsPanel({ addToast }: Props) {
   const importTags = useTagStore((state) => state.importTags);
   const schedules = useScheduleStore((state) => state.schedules);
   const importSchedules = useScheduleStore((state) => state.importSchedules);
+  const standaloneNotes = useNotesStore((state) => state.standaloneNotes);
+  const importNotes = useNotesStore((state) => state.importNotes);
+  const shareLinks = useShareStore((state) => state.shareLinks);
+  const importShareLinks = useShareStore((state) => state.importShareLinks);
   const syncAlarms = useScheduleStore((state) => state.syncAlarms);
 
   const [storageBytes, setStorageBytes] = useState(0);
@@ -72,12 +78,12 @@ export default function SettingsPanel({ addToast }: Props) {
     chrome.storage.local.getBytesInUse(null, (bytes) => {
       setStorageBytes(bytes);
     });
-  }, [sessions.length, folders.length, tags.length, schedules.length, settings]);
+  }, [sessions.length, folders.length, tags.length, schedules.length, standaloneNotes.length, shareLinks.length, settings]);
 
   const handleExport = async () => {
     const data = await loadStorage();
     exportJSON(data);
-    addToast("success", "Downloaded a full TabNest backup.");
+    addToast("success", "Downloaded a full TabSetu backup.");
   };
 
   const handleReset = async () => {
@@ -89,8 +95,36 @@ export default function SettingsPanel({ addToast }: Props) {
     importFolders(data.folders);
     importTags(data.tags);
     importSchedules(data.schedules);
+    importNotes(data.standaloneNotes);
+    importShareLinks(data.shareLinks);
     updateSettings(data.settings);
-    addToast("success", "TabNest has been reset to a clean state.");
+    addToast("success", "TabSetu has been reset to a clean state.");
+  };
+
+  const syncReminderAlarms = async (enabled: boolean) => {
+    const alarms = await chrome.alarms.getAll();
+    await Promise.all(
+      alarms
+        .filter((alarm) => alarm.name.startsWith("reminder_"))
+        .map((alarm) => chrome.alarms.clear(alarm.name)),
+    );
+
+    if (!enabled) {
+      return;
+    }
+
+    sessions.forEach((session) => {
+      session.tabs.forEach((tab) => {
+        const dueAt = tab.reminderSnoozedUntil ?? tab.reminderAt;
+        if (!dueAt || tab.reminderDismissed) {
+          return;
+        }
+
+        chrome.alarms.create(`reminder_${tab.id}`, {
+          when: Math.max(dueAt, Date.now() + 1000),
+        });
+      });
+    });
   };
 
   const storageUsageMb = storageBytes / (1024 * 1024);
@@ -102,7 +136,7 @@ export default function SettingsPanel({ addToast }: Props) {
         <div className="panel-header">
           <div>
             <h1>Settings</h1>
-            <p>Shape how TabNest saves, opens, searches, and manages your browsing workflows.</p>
+            <p>Shape how TabSetu saves, opens, searches, and manages your browsing workflows.</p>
           </div>
           <button className="btn btn-secondary" onClick={() => void handleExport()}>
             <Download size={16} />
@@ -191,6 +225,39 @@ export default function SettingsPanel({ addToast }: Props) {
                   void syncAlarms(checked);
                 }}
               />
+              <ToggleRow
+                label="Enable tab reminders"
+                description="Use Chrome alarms and notifications for per-tab follow-ups."
+                checked={settings.remindersEnabled}
+                onChange={(checked) => {
+                  updateSettings({ remindersEnabled: checked });
+                  void syncReminderAlarms(checked);
+                }}
+              />
+              <ToggleRow
+                label="Enable global search overlay"
+                description="Use the extension shortcut to search TabSetu from regular web pages."
+                checked={settings.searchOverlayEnabled}
+                onChange={(checked) => updateSettings({ searchOverlayEnabled: checked })}
+              />
+              <ToggleRow
+                label="Enable quick info cards"
+                description="Show rich context when hovering saved tab chips."
+                checked={settings.quickInfoEnabled}
+                onChange={(checked) => updateSettings({ quickInfoEnabled: checked })}
+              />
+              <ToggleRow
+                label="Enable AI sharing"
+                description="Copy prompts and open the AI provider only when you request it."
+                checked={settings.aiEnabled}
+                onChange={(checked) => updateSettings({ aiEnabled: checked })}
+              />
+              <ToggleRow
+                label="Include notes in exports"
+                description="Applies to AI prompts and share flows by default."
+                checked={settings.exportIncludeNotes}
+                onChange={(checked) => updateSettings({ exportIncludeNotes: checked })}
+              />
             </div>
           </div>
 
@@ -273,6 +340,33 @@ export default function SettingsPanel({ addToast }: Props) {
                 <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 6 }}>
                   Lower values are stricter. Higher values are more forgiving.
                 </div>
+              </div>
+
+              <div>
+                <label className="label">Quick info delay</label>
+                <select
+                  className="input"
+                  value={settings.quickInfoDelayMs}
+                  onChange={(event) =>
+                    updateSettings({
+                      quickInfoDelayMs: Number(event.target.value) as typeof settings.quickInfoDelayMs,
+                    })
+                  }
+                >
+                  <option value="200">Fast - 200ms</option>
+                  <option value="400">Balanced - 400ms</option>
+                  <option value="700">Relaxed - 700ms</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="label">Custom AI provider URL</label>
+                <input
+                  className="input"
+                  value={settings.customAIProviderUrl}
+                  onChange={(event) => updateSettings({ customAIProviderUrl: event.target.value })}
+                  placeholder="https://example.com/new"
+                />
               </div>
 
               <div>
@@ -415,7 +509,7 @@ export default function SettingsPanel({ addToast }: Props) {
           </div>
           <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 14 }}>
             Current footprint: {sessions.length} sessions, {folders.length} folders, {tags.length} tags,{" "}
-            {schedules.length} schedules.
+            {schedules.length} schedules, {standaloneNotes.length} notes, {shareLinks.length} share links.
           </div>
         </div>
       </div>

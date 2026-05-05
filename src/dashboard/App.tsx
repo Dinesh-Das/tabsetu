@@ -1,56 +1,77 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { Download, MoreHorizontal, Settings } from "lucide-react";
+import { MobileAppShell, MobileIconButton, type MobileNavView } from "@/components/mobile/MobileUI";
 import type { ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
+import { useGroupStore } from "@/store/groupStore";
+import { useNotesStore } from "@/store/notesStore";
 import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useShareStore } from "@/store/shareStore";
 import { useTagStore } from "@/store/tagStore";
 import DashToast from "./components/DashToast";
 import ImportExportPanel from "./components/ImportExportPanel";
-import SessionDetail from "./components/SessionDetail";
-import SessionList from "./components/SessionList";
+import MobileFoldersScreen from "./components/MobileFoldersScreen";
+import MobileHomeScreen from "./components/MobileHomeScreen";
+import MobileNotesScreen from "./components/MobileNotesScreen";
+import MobileSchedulesScreen from "./components/MobileSchedulesScreen";
 import SettingsPanel from "./components/SettingsPanel";
-import Sidebar from "./components/Sidebar";
 
-type DashView = "sessions" | "settings" | "importexport";
+type DashView = MobileNavView | "settings" | "importexport";
+
+function isMobileNavView(view: DashView): view is MobileNavView {
+  return view === "home" || view === "folders" || view === "schedules" || view === "notes";
+}
+
+function titleForView(view: DashView): string {
+  switch (view) {
+    case "folders":
+      return "Folders";
+    case "schedules":
+      return "Schedules";
+    case "notes":
+      return "Notes";
+    case "settings":
+      return "Settings";
+    case "importexport":
+      return "Backup";
+    case "home":
+    default:
+      return "TabSetu";
+  }
+}
 
 export default function DashboardApp() {
   const loadSessions = useSessionStore((state) => state.load);
-  const sessions = useSessionStore((state) => state.sessions);
   const loadFolders = useFolderStore((state) => state.load);
+  const loadGroups = useGroupStore((state) => state.load);
   const loadTags = useTagStore((state) => state.load);
   const loadSchedules = useScheduleStore((state) => state.load);
+  const loadNotes = useNotesStore((state) => state.load);
+  const loadShareLinks = useShareStore((state) => state.load);
   const loadSettings = useSettingsStore((state) => state.load);
-  const settings = useSettingsStore((state) => state.settings);
 
-  const [view, setView] = useState<DashView>("sessions");
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [view, setView] = useState<DashView>("home");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   useEffect(() => {
-    void Promise.all([loadSessions(), loadFolders(), loadTags(), loadSchedules(), loadSettings()]);
-  }, [loadFolders, loadSchedules, loadSessions, loadSettings, loadTags]);
+    void Promise.all([
+      loadSessions(),
+      loadFolders(),
+      loadGroups(),
+      loadTags(),
+      loadSchedules(),
+      loadNotes(),
+      loadShareLinks(),
+      loadSettings(),
+    ]);
+  }, [loadFolders, loadGroups, loadNotes, loadSchedules, loadSessions, loadSettings, loadShareLinks, loadTags]);
 
   useEffect(() => {
-    const root = document.documentElement;
-    if (settings.theme === "system") {
-      root.className = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-      return;
-    }
-
-    root.className = settings.theme;
-  }, [settings.theme]);
-
-  useEffect(() => {
-    if (selectedSessionId && !sessions.some((session) => session.id === selectedSessionId)) {
-      setSelectedSessionId(null);
-    }
-  }, [selectedSessionId, sessions]);
-
-  const selectedSession = useMemo(
-    () => sessions.find((session) => session.id === selectedSessionId) ?? null,
-    [selectedSessionId, sessions],
-  );
+    document.documentElement.className = "light";
+  }, []);
 
   const addToast = (type: ToastMessage["type"], message: string) => {
     const id = `toast-${Date.now()}`;
@@ -60,48 +81,44 @@ export default function DashboardApp() {
     }, 3400);
   };
 
-  return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        width: "100vw",
-        overflow: "hidden",
-        background: "var(--color-bg)",
-      }}
-    >
-      <Sidebar view={view} setView={setView} />
+  const activeNavView = isMobileNavView(view) ? view : "home";
 
-      <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
-        {view === "sessions" ? (
-          <>
-            <SessionList
-              selectedSessionId={selectedSessionId}
-              onSelect={setSelectedSessionId}
-              addToast={addToast}
-            />
-            {selectedSession && settings.dashboardLayout === "split" ? (
-              <SessionDetail
-                session={selectedSession}
-                onClose={() => setSelectedSessionId(null)}
-                addToast={addToast}
-              />
-            ) : null}
-            {selectedSession && settings.dashboardLayout === "focus" ? (
-              <div className="detail-overlay">
-                <SessionDetail
-                  session={selectedSession}
-                  onClose={() => setSelectedSessionId(null)}
-                  addToast={addToast}
-                />
+  return (
+    <div className="mobile-dashboard-stage">
+      <MobileAppShell
+        activeView={activeNavView}
+        onViewChange={(nextView) => {
+          setView(nextView);
+          setMenuOpen(false);
+        }}
+        title={titleForView(view)}
+        trailing={
+          <div className="dashboard-top-actions">
+            <MobileIconButton title="More" onClick={() => setMenuOpen((open) => !open)}>
+              <MoreHorizontal size={18} />
+            </MobileIconButton>
+            {menuOpen ? (
+              <div className="dashboard-overflow-menu">
+                <button type="button" onClick={() => { setView("settings"); setMenuOpen(false); }}>
+                  <Settings size={16} />
+                  Settings
+                </button>
+                <button type="button" onClick={() => { setView("importexport"); setMenuOpen(false); }}>
+                  <Download size={16} />
+                  Import / Export
+                </button>
               </div>
             ) : null}
-          </>
-        ) : null}
-
+          </div>
+        }
+      >
+        {view === "home" ? <MobileHomeScreen addToast={addToast} /> : null}
+        {view === "folders" ? <MobileFoldersScreen addToast={addToast} /> : null}
+        {view === "schedules" ? <MobileSchedulesScreen addToast={addToast} /> : null}
+        {view === "notes" ? <MobileNotesScreen addToast={addToast} /> : null}
         {view === "settings" ? <SettingsPanel addToast={addToast} /> : null}
         {view === "importexport" ? <ImportExportPanel addToast={addToast} /> : null}
-      </div>
+      </MobileAppShell>
 
       <DashToast toasts={toasts} />
     </div>

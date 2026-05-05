@@ -1,54 +1,99 @@
-import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, Layers } from "lucide-react";
-import type { ToastMessage, UndoCollapseBuffer } from "@/types";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useEffect, useState } from "react";
+import { ListChecks } from "lucide-react";
+import {
+  MobileAppShell,
+  MobileFrame,
+  MobileIconButton,
+  MobileTopBar,
+  type MobileNavView,
+} from "@/components/mobile/MobileUI";
+import type { Session, ToastMessage, UndoCollapseBuffer } from "@/types";
 import { loadUndoBuffer, saveUndoBuffer } from "@/lib/storage";
+import { filterCapturableTabs } from "@/lib/popupTabs";
+import { getCurrentTabs } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
+import { useGroupStore } from "@/store/groupStore";
+import { useNotesStore } from "@/store/notesStore";
+import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useShareStore } from "@/store/shareStore";
 import { useTagStore } from "@/store/tagStore";
+import MobileFoldersScreen from "@/dashboard/components/MobileFoldersScreen";
+import MobileHomeScreen from "@/dashboard/components/MobileHomeScreen";
+import MobileNotesScreen from "@/dashboard/components/MobileNotesScreen";
+import MobileSchedulesScreen from "@/dashboard/components/MobileSchedulesScreen";
 import CurrentTabs from "./components/CurrentTabs";
 import SaveModal from "./components/SaveModal";
-import SavedSessions from "./components/SavedSessions";
-import SearchBar from "./components/SearchBar";
 import Toast from "./components/Toast";
 
-type PopupView = "sessions" | "current";
 type SaveMode = "save" | "collapse";
+type PopupView = MobileNavView | "capture";
 
 interface SaveModalState {
   mode: SaveMode;
   selectedTabIds: number[];
 }
 
+function titleForView(view: PopupView): string {
+  switch (view) {
+    case "folders":
+      return "Folders";
+    case "schedules":
+      return "Schedules";
+    case "notes":
+      return "Notes";
+    case "capture":
+      return "Select Tabs";
+    case "home":
+    default:
+      return "TabSetu";
+  }
+}
+
 export default function PopupApp() {
   const loadSessions = useSessionStore((state) => state.load);
+  const sessions = useSessionStore((state) => state.sessions);
   const loadFolders = useFolderStore((state) => state.load);
+  const loadGroups = useGroupStore((state) => state.load);
   const loadTags = useTagStore((state) => state.load);
+  const loadSchedules = useScheduleStore((state) => state.load);
+  const loadNotes = useNotesStore((state) => state.load);
+  const loadShareLinks = useShareStore((state) => state.load);
   const loadSettings = useSettingsStore((state) => state.load);
   const settings = useSettingsStore((state) => state.settings);
 
-  const [view, setView] = useState<PopupView>("sessions");
-  const [query, setQuery] = useState("");
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [view, setView] = useState<PopupView>("home");
   const [selectedTabIds, setSelectedTabIds] = useState<number[]>([]);
   const [saveModalState, setSaveModalState] = useState<SaveModalState | null>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const debouncedQuery = useDebouncedValue(query, 150);
+  const [currentTabCount, setCurrentTabCount] = useState(0);
 
   useEffect(() => {
-    void Promise.all([loadSessions(), loadFolders(), loadTags(), loadSettings()]);
-  }, [loadFolders, loadSessions, loadSettings, loadTags]);
+    document.body.classList.add("is-popup-root");
+    return () => document.body.classList.remove("is-popup-root");
+  }, []);
 
   useEffect(() => {
-    const root = document.documentElement;
-    if (settings.theme === "system") {
-      root.className = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-      return;
-    }
+    void Promise.all([
+      loadSessions(),
+      loadFolders(),
+      loadTags(),
+      loadGroups(),
+      loadSchedules(),
+      loadNotes(),
+      loadShareLinks(),
+      loadSettings(),
+    ]);
+  }, [loadFolders, loadGroups, loadNotes, loadSchedules, loadSessions, loadSettings, loadShareLinks, loadTags]);
 
-    root.className = settings.theme;
+  useEffect(() => {
+    document.documentElement.className = "light";
   }, [settings.theme]);
+
+  useEffect(() => {
+    void getCurrentTabs().then((tabs) => setCurrentTabCount(filterCapturableTabs(tabs).length));
+  }, []);
 
   const addToast = (
     type: ToastMessage["type"],
@@ -63,11 +108,6 @@ export default function PopupApp() {
         setToasts((current) => current.filter((item) => item.id !== id));
       }, toast.durationMs ?? 3200);
     }
-  };
-
-  const openDashboard = () => {
-    chrome.runtime.openOptionsPage();
-    window.close();
   };
 
   const openSaveModal = (mode: SaveMode, ids: number[] = []) => {
@@ -100,7 +140,7 @@ export default function PopupApp() {
       }
       addToast("success", `Restored ${buffer.tabs.length} tabs from "${buffer.sessionName}".`);
     } catch {
-      addToast("error", "TabNest could not restore the collapsed tabs.");
+      addToast("error", "TabSetu could not restore the collapsed tabs.");
     }
   };
 
@@ -120,6 +160,23 @@ export default function PopupApp() {
     );
   };
 
+  const handleCollapseSaved = ({ session, windowId }: { session: Session; windowId: number | null }) => {
+    const createdAt = Date.now();
+    const buffer: UndoCollapseBuffer = {
+      sessionId: session.id,
+      sessionName: session.name,
+      tabs: session.tabs,
+      windowId,
+      createdAt,
+      expiresAt: createdAt + 10000,
+    };
+    void saveUndoBuffer(buffer);
+    window.setTimeout(() => {
+      void saveUndoBuffer(null);
+    }, 10000);
+    showUndoToast(buffer);
+  };
+
   useEffect(() => {
     void loadUndoBuffer().then((buffer) => {
       if (buffer) {
@@ -130,126 +187,96 @@ export default function PopupApp() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        searchRef.current?.focus();
-        searchRef.current?.select();
-      }
-
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "c") {
         event.preventDefault();
+        setView("capture");
         openSaveModal("collapse");
       }
 
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "s") {
         event.preventDefault();
+        setView("capture");
         openSaveModal("save", selectedTabIds);
       }
 
-      if (event.key === "Escape") {
-        if (saveModalState) {
-          setSaveModalState(null);
-        } else if (query) {
-          setQuery("");
-        }
+      if (event.key === "Escape" && saveModalState) {
+        setSaveModalState(null);
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [query, saveModalState, selectedTabIds]);
+  }, [saveModalState, selectedTabIds]);
+
+  const appTrailing = (
+    <div className="popup-top-actions">
+      <MobileIconButton title="Select current tabs" onClick={() => setView("capture")}>
+        <ListChecks size={18} />
+      </MobileIconButton>
+    </div>
+  );
+
+  if (view === "capture") {
+    return (
+      <MobileFrame className="mobile-popup-frame">
+        <MobileTopBar
+          title={titleForView(view)}
+          subtitle={`${currentTabCount} current tabs`}
+          showBack
+          onBack={() => setView("home")}
+          trailing={<span />}
+        />
+
+        <CurrentTabs
+          query=""
+          selectedIds={selectedTabIds}
+          setSelectedIds={setSelectedTabIds}
+          addToast={addToast}
+          onSaveSelected={(ids) => openSaveModal("save", ids)}
+          onSaveAll={() => openSaveModal("save")}
+          onCollapseCurrent={() => openSaveModal("collapse")}
+          onTabCountChange={setCurrentTabCount}
+        />
+
+        {saveModalState ? (
+          <SaveModal
+            mode={saveModalState.mode}
+            selectedTabIds={saveModalState.selectedTabIds}
+            onClose={() => setSaveModalState(null)}
+            addToast={addToast}
+            onCollapseSaved={handleCollapseSaved}
+          />
+        ) : null}
+
+        <Toast toasts={toasts} />
+      </MobileFrame>
+    );
+  }
 
   return (
-    <div
-      style={{
-        width: 420,
-        minHeight: 580,
-        maxHeight: 640,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        background: "var(--color-bg)",
-      }}
+    <MobileAppShell
+      className="mobile-popup-frame"
+      activeView={view}
+      onViewChange={setView}
+      title={titleForView(view)}
+      subtitle={view === "home" ? `${sessions.length} saved sessions` : undefined}
+      trailing={appTrailing}
     >
-      <div
-        style={{
-          padding: "14px 16px 10px",
-          borderBottom: "1px solid var(--color-border)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexShrink: 0,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 10,
-              background: "linear-gradient(135deg, var(--color-accent), #33d5f5)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 12px 24px rgba(0, 179, 216, 0.2)",
-            }}
-          >
-            <Layers size={16} color="#fff" />
-          </div>
-          <div>
-            <div style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 16 }}>
-              TabNest
-            </div>
-            <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
-              Save your tabs. Clear your mind.
-            </div>
-          </div>
-        </div>
-        <button className="btn btn-ghost btn-icon" onClick={openDashboard} title="Open dashboard">
-          <LayoutDashboard size={16} />
-        </button>
-      </div>
+      {view === "home" ? (
+        <MobileHomeScreen
+          addToast={addToast}
+          onCollapseSaved={handleCollapseSaved}
+          onSelectTabs={() => setView("capture")}
+          onQuickSave={() => openSaveModal("save")}
+          onCollapseCurrent={() => openSaveModal("collapse")}
+          currentTabCount={currentTabCount}
+        />
+      ) : null}
+      {view === "folders" ? <MobileFoldersScreen addToast={addToast} /> : null}
+      {view === "schedules" ? <MobileSchedulesScreen addToast={addToast} /> : null}
+      {view === "notes" ? <MobileNotesScreen addToast={addToast} /> : null}
 
-      <div style={{ padding: "12px 16px 0", flexShrink: 0 }}>
-        <SearchBar value={query} onChange={setQuery} inputRef={searchRef} inputId="tabnest-popup-search" />
-      </div>
-
-      <div style={{ display: "flex", gap: 6, padding: "10px 16px 0", flexShrink: 0 }}>
-        {(["sessions", "current"] as PopupView[]).map((item) => {
-          const active = view === item;
-          return (
-            <button
-              key={item}
-              onClick={() => setView(item)}
-              className={active ? "btn btn-primary" : "btn btn-secondary"}
-              style={{ flex: 1, justifyContent: "center" }}
-            >
-              {item === "sessions" ? "Saved sessions" : "Current tabs"}
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        {view === "sessions" ? (
-          <SavedSessions
-            query={debouncedQuery}
-            addToast={addToast}
-            onSaveNew={() => openSaveModal("save")}
-            keyboardActive={saveModalState === null}
-          />
-        ) : (
-          <CurrentTabs
-            query={debouncedQuery}
-            selectedIds={selectedTabIds}
-            setSelectedIds={setSelectedTabIds}
-            addToast={addToast}
-            onSaveSelected={(ids) => openSaveModal("save", ids)}
-            onSaveAll={() => openSaveModal("save")}
-            onCollapseCurrent={() => openSaveModal("collapse")}
-          />
-        )}
-      </div>
+      <Toast toasts={toasts} />
 
       {saveModalState ? (
         <SaveModal
@@ -257,26 +284,9 @@ export default function PopupApp() {
           selectedTabIds={saveModalState.selectedTabIds}
           onClose={() => setSaveModalState(null)}
           addToast={addToast}
-          onCollapseSaved={({ session, windowId }) => {
-            const createdAt = Date.now();
-            const buffer: UndoCollapseBuffer = {
-              sessionId: session.id,
-              sessionName: session.name,
-              tabs: session.tabs,
-              windowId,
-              createdAt,
-              expiresAt: createdAt + 10000,
-            };
-            void saveUndoBuffer(buffer);
-            window.setTimeout(() => {
-              void saveUndoBuffer(null);
-            }, 10000);
-            showUndoToast(buffer);
-          }}
+          onCollapseSaved={handleCollapseSaved}
         />
       ) : null}
-
-      <Toast toasts={toasts} />
-    </div>
+    </MobileAppShell>
   );
 }

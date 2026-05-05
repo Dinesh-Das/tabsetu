@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Bell,
   CalendarClock,
   ClipboardCopy,
   ExternalLink,
@@ -7,6 +8,7 @@ import {
   Link2,
   Plus,
   Save,
+  Share2,
   Sparkles,
   Trash2,
   X,
@@ -27,6 +29,7 @@ import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useTagStore } from "@/store/tagStore";
+import ShareSessionModal from "./ShareSessionModal";
 
 interface Props {
   session: Session;
@@ -44,7 +47,7 @@ const DAY_OPTIONS = [
   { label: "S", value: 6 },
 ];
 
-type ScheduleDraft = Omit<Schedule, "id" | "createdAt" | "updatedAt">;
+type ScheduleDraft = Omit<Schedule, "id" | "createdAt" | "updatedAt" | "lastFiredAt">;
 
 function defaultScheduleDraft(sessionId: string): ScheduleDraft {
   return {
@@ -68,6 +71,16 @@ function scheduleDraftFromSchedule(schedule: Schedule): ScheduleDraft {
   };
 }
 
+function toDateTimeInputValue(value: number | null): string {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+}
+
 export default function SessionDetail({ session, onClose, addToast }: Props) {
   const folders = useFolderStore((state) => state.folders);
   const tags = useTagStore((state) => state.tags);
@@ -85,6 +98,7 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
   const addTabToSession = useSessionStore((state) => state.addTabToSession);
   const removeTabFromSession = useSessionStore((state) => state.removeTabFromSession);
   const updateTabNote = useSessionStore((state) => state.updateTabNote);
+  const updateTabReminder = useSessionStore((state) => state.updateTabReminder);
   const recordOpened = useSessionStore((state) => state.recordOpened);
   const recordTabOpened = useSessionStore((state) => state.recordTabOpened);
 
@@ -97,6 +111,7 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
   const [scheduleDraft, setScheduleDraft] = useState(defaultScheduleDraft(session.id));
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   useEffect(() => {
     setName(session.name);
@@ -160,6 +175,24 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
 
     recordTabOpened(session.id, tabId);
     addToast("success", `Opened ${tab.title}.`);
+  };
+
+  const handleTabReminder = async (tabId: string, value: string) => {
+    const reminderAt = value ? new Date(value).getTime() : null;
+    updateTabReminder(session.id, tabId, reminderAt);
+
+    if (!settings.remindersEnabled) {
+      addToast("info", "Reminders are disabled in Settings.");
+      return;
+    }
+
+    await chrome.alarms.clear(`reminder_${tabId}`);
+    if (reminderAt && reminderAt > Date.now()) {
+      chrome.alarms.create(`reminder_${tabId}`, { when: reminderAt });
+      addToast("success", "Reminder scheduled.");
+    } else {
+      addToast("success", "Reminder cleared.");
+    }
   };
 
   const handleAddActiveTab = async () => {
@@ -263,7 +296,7 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
           <div>
             <h2 style={{ fontSize: 24, lineHeight: 1.1 }}>{session.name}</h2>
             <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--color-text-muted)" }}>
-              Created {formatDateTime(session.createdAt)} · Opened {formatDateTime(session.lastOpenedAt)}
+              Created {formatDateTime(session.createdAt)} - Opened {formatDateTime(session.lastOpenedAt)}
             </p>
           </div>
           <button className="btn btn-ghost btn-icon" onClick={onClose} title="Close detail panel">
@@ -287,6 +320,10 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
             }}
           >
             Duplicate
+          </button>
+          <button className="btn btn-secondary" onClick={() => setShowShareModal(true)}>
+            <Share2 size={15} />
+            Share
           </button>
           <button className="btn btn-secondary" onClick={() => void handleAddActiveTab()}>
             <Plus size={15} />
@@ -635,6 +672,29 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
                     placeholder="Add context for this link"
                   />
                 </div>
+                <div style={{ marginTop: 12 }}>
+                  <label className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Bell size={14} />
+                    Reminder
+                  </label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      className="input"
+                      type="datetime-local"
+                      value={toDateTimeInputValue(tab.reminderAt)}
+                      onChange={(event) => void handleTabReminder(tab.id, event.target.value)}
+                    />
+                    {tab.reminderAt ? (
+                      <button
+                        className="btn btn-secondary"
+                        type="button"
+                        onClick={() => void handleTabReminder(tab.id, "")}
+                      >
+                        Clear
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -665,7 +725,7 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
       {showDeleteConfirm ? (
         <ConfirmDialog
           title="Delete session?"
-          message={`"${session.name}" will be removed from TabNest.`}
+          message={`"${session.name}" will be removed from TabSetu.`}
           confirmLabel="Delete session"
           danger
           onClose={() => setShowDeleteConfirm(false)}
@@ -675,6 +735,14 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
             onClose();
             addToast("success", `Deleted "${session.name}".`);
           }}
+        />
+      ) : null}
+
+      {showShareModal ? (
+        <ShareSessionModal
+          session={session}
+          onClose={() => setShowShareModal(false)}
+          addToast={addToast}
         />
       ) : null}
     </aside>

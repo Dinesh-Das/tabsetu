@@ -6,7 +6,7 @@ import { formatDateTime } from "@/lib/format";
 import { buildSessionListItems } from "@/lib/sessionQuery";
 import { getDomainLabel, openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
 import { chromeTabToTabItem, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
-import type { Session, ToastMessage } from "@/types";
+import type { Session, TabItem, ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -35,7 +35,9 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
   const [activeFolderId, setActiveFolderId] = useState("");
   const [activeTagId, setActiveTagId] = useState("");
   const [keyboardIndex, setKeyboardIndex] = useState(0);
+  const [quickInfo, setQuickInfo] = useState<{ tab: TabItem; x: number; y: number } | null>(null);
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const quickInfoTimer = useRef<number | null>(null);
 
   useEffect(() => {
     if (activeFolderId && !folders.some((folder) => folder.id === activeFolderId)) {
@@ -48,6 +50,14 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
       setActiveTagId("");
     }
   }, [activeTagId, tags]);
+
+  useEffect(() => {
+    return () => {
+      if (quickInfoTimer.current) {
+        window.clearTimeout(quickInfoTimer.current);
+      }
+    };
+  }, []);
 
   const visibleItems = useMemo(
     () =>
@@ -135,6 +145,32 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
     addToast("success", `Added ${activeTab.title ?? "the current tab"} to "${session.name}".`);
   };
 
+  const showQuickInfo = (tab: TabItem, x: number, y: number) => {
+    if (!settings.quickInfoEnabled) {
+      return;
+    }
+
+    if (quickInfoTimer.current) {
+      window.clearTimeout(quickInfoTimer.current);
+    }
+
+    const delay = settings.quickInfoDelayMs ?? 400;
+    quickInfoTimer.current = window.setTimeout(() => {
+      setQuickInfo({
+        tab,
+        x: Math.min(x + 14, window.innerWidth - 310),
+        y: Math.min(y + 14, window.innerHeight - 190),
+      });
+    }, delay);
+  };
+
+  const hideQuickInfo = () => {
+    if (quickInfoTimer.current) {
+      window.clearTimeout(quickInfoTimer.current);
+    }
+    window.setTimeout(() => setQuickInfo(null), 120);
+  };
+
   useEffect(() => {
     if (!listKeyboardActive || visibleItems.length === 0) {
       return;
@@ -165,7 +201,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
       const tagName = activeElement?.tagName ?? "";
       const isSearchInput =
         activeElement instanceof HTMLInputElement &&
-        activeElement.id === "tabnest-popup-search";
+        activeElement.id === "tabsetu-popup-search";
       const blocksKeyboardListControl =
         tagName === "TEXTAREA" ||
         tagName === "SELECT" ||
@@ -283,12 +319,12 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
         {visibleItems.length === 0 ? (
           <div style={{ textAlign: "center", padding: "44px 18px", color: "var(--color-text-muted)" }}>
             <div style={{ fontSize: 16, fontWeight: 600, color: "var(--color-text-secondary)" }}>
-              {query ? "No sessions match that search" : "Your nest is empty"}
+              {query ? "No sessions match that search" : "No saved sessions yet"}
             </div>
             <div style={{ fontSize: 12, marginTop: 6 }}>
               {query
                 ? "Try a different keyword, folder, or tag."
-                : "Save your current tabs and TabNest will keep the workflow ready."}
+                : "Save your current tabs and TabSetu will keep the workflow ready."}
             </div>
           </div>
         ) : null}
@@ -412,6 +448,13 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
                       className="chip-link"
                       type="button"
                       onClick={() => void handleOpenTab(session, tab.id)}
+                      onMouseEnter={(event) => showQuickInfo(tab, event.clientX, event.clientY)}
+                      onMouseLeave={hideQuickInfo}
+                      onFocus={(event) => {
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        showQuickInfo(tab, rect.left, rect.bottom);
+                      }}
+                      onBlur={hideQuickInfo}
                       title={tab.url}
                     >
                       {getDomainLabel(tab.url)}
@@ -423,7 +466,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
                 </div>
               )}
 
-              <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+              <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
                 <button
                   className="btn btn-primary"
                   type="button"
@@ -436,7 +479,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
                 <button
                   className="btn btn-secondary"
                   type="button"
-                  style={{ fontSize: 12 }}
+                  style={{ fontSize: 12, flex: "1 1 118px" }}
                   onClick={() => void handleOpenSession(session, true)}
                 >
                   New window
@@ -444,7 +487,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
                 <button
                   className="btn btn-secondary"
                   type="button"
-                  style={{ fontSize: 12 }}
+                  style={{ fontSize: 12, flex: "1 1 132px" }}
                   onClick={() => void handleAddCurrentTab(session)}
                 >
                   Add current tab
@@ -476,10 +519,60 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
         })}
       </div>
 
+      {quickInfo ? (
+        <div
+          className="card-raised animate-scale-in"
+          style={{
+            position: "fixed",
+            left: quickInfo.x,
+            top: quickInfo.y,
+            zIndex: 20,
+            width: 292,
+            padding: 12,
+            boxShadow: "0 18px 48px rgba(3, 10, 22, 0.28)",
+          }}
+          onMouseEnter={() => {
+            if (quickInfoTimer.current) {
+              window.clearTimeout(quickInfoTimer.current);
+            }
+          }}
+          onMouseLeave={hideQuickInfo}
+        >
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+            {quickInfo.tab.favIconDataUrl || quickInfo.tab.favIconUrl ? (
+              <img
+                src={quickInfo.tab.favIconDataUrl ?? quickInfo.tab.favIconUrl ?? ""}
+                className="favicon"
+                alt=""
+              />
+            ) : (
+              <div className="favicon favicon-fallback" />
+            )}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <strong style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {quickInfo.tab.title}
+              </strong>
+              <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 4, overflowWrap: "anywhere" }}>
+                {quickInfo.tab.url}
+              </div>
+            </div>
+          </div>
+          {quickInfo.tab.note ? (
+            <div style={{ marginTop: 10, fontSize: 12, color: "var(--color-text-secondary)" }}>
+              {quickInfo.tab.note.slice(0, 180)}
+            </div>
+          ) : null}
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            <span className="badge badge-subtle">Opened {formatDateTime(quickInfo.tab.lastOpenedAt)}</span>
+            <span className="badge badge-subtle">{quickInfo.tab.openCount} opens</span>
+          </div>
+        </div>
+      ) : null}
+
       {pendingDelete ? (
         <ConfirmDialog
           title="Delete session?"
-          message={`"${pendingDelete.name}" will be removed from TabNest.`}
+          message={`"${pendingDelete.name}" will be removed from TabSetu.`}
           confirmLabel="Delete session"
           danger
           onClose={() => setPendingDelete(null)}

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "TabNest",
+  "name": "TabSetu",
   "version": "1.0.0",
-  "description": "Save your tabs. Clear your mind. Free, private, and powerful tab session manager.",
+  "description": "Save, organize, and restore browser sessions. Unlimited tabs, folders, and tags. Free forever.",
   "icons": {
     "16":  "icons/icon16.png",
     "32":  "icons/icon32.png",
@@ -17,28 +17,36 @@
       "48":  "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "TabNest"
+    "default_title": "TabSetu"
   },
   "commands": {
-    "_execute_action": {
+    "open-search-overlay": {
       "suggested_key": {
-        "default": "Ctrl+Shift+S",
-        "mac": "Command+Shift+S"
-      }
+        "default": "Ctrl+Shift+F",
+        "mac": "Command+Shift+F"
+      },
+      "description": "Open TabSetu search overlay on the current page"
     },
     "save-current-window": {
       "suggested_key": {
-        "default": "Ctrl+Shift+X",
-        "mac": "Command+Shift+X"
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
       },
-      "description": "Save the current window as a TabNest session"
+      "description": "Save the current window as a TabSetu session"
     },
     "collapse-current-window": {
       "suggested_key": {
         "default": "Ctrl+Shift+C",
         "mac": "Command+Shift+C"
       },
-      "description": "Collapse the current window into a TabNest session"
+      "description": "Collapse the current window into a TabSetu session"
+    },
+    "open-dashboard": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+D",
+        "mac": "Command+Shift+D"
+      },
+      "description": "Open the TabSetu dashboard"
     }
   },
   "background": {
@@ -49,8 +57,11 @@
     "tabs",
     "storage",
     "alarms",
-    "notifications"
+    "notifications",
+    "scripting",
+    "activeTab"
   ],
+  "host_permissions": ["<all_urls>"],
   "options_page": "src/dashboard/index.html",
   "web_accessible_resources": [
     {

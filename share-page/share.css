@@ -1,0 +1,124 @@
+:root {
+  color-scheme: light dark;
+  --bg: #eef4fb;
+  --panel: #ffffff;
+  --text: #10203c;
+  --muted: #5d6f8a;
+  --border: #d5e0ee;
+  --accent: #0f9f87;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Aptos", "Segoe UI", sans-serif;
+  background:
+    linear-gradient(120deg, rgba(15, 159, 135, 0.12), transparent 34%),
+    var(--bg);
+  color: var(--text);
+}
+
+.shell {
+  width: min(880px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 52px 0;
+}
+
+header {
+  margin-bottom: 24px;
+}
+
+.mark {
+  display: inline-flex;
+  margin-bottom: 14px;
+  color: var(--accent);
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(32px, 6vw, 62px);
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+p {
+  margin: 14px 0 0;
+  max-width: 680px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow: 0 24px 64px rgba(16, 32, 60, 0.14);
+  overflow: hidden;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #ffffff;
+  padding: 9px 13px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+ol {
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+}
+
+li {
+  border-radius: 8px;
+  padding: 12px 10px;
+}
+
+li + li {
+  border-top: 1px solid var(--border);
+}
+
+a {
+  display: block;
+  color: var(--text);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101828;
+    --panel: #172033;
+    --text: #f8fbff;
+    --muted: #a9b7cc;
+    --border: #2d3a50;
+    --accent: #14b8a6;
+  }
+}
