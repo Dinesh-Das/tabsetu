@@ -123,4 +123,4 @@ dist
 # Vite / CRXJS build output
 dist-zip/
 
-*.md
+# *.md
