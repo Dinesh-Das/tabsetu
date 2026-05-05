@@ -370,6 +370,23 @@ export default function SettingsPanel({ addToast }: Props) {
               </div>
 
               <div>
+                <label className="label">Custom AI prompt template</label>
+                <textarea
+                  className="input"
+                  value={settings.customAIPromptTemplate}
+                  onChange={(event) => updateSettings({ customAIPromptTemplate: event.target.value })}
+                  placeholder={"Use {{session}} to insert TabSetu's generated session prompt."}
+                />
+                <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 6 }}>
+                  Leave this blank to use the default TabSetu prompt. If you add text here, include
+                  {" "}
+                  <code>{"{{session}}"}</code>
+                  {" "}
+                  where the session context should appear.
+                </div>
+              </div>
+
+              <div>
                 <label className="label">Auto-archive inactive sessions</label>
                 <select
                   className="input"

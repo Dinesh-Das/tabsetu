@@ -17,6 +17,27 @@ interface StoredBrowserTab {
 
 type TrackableTab = chrome.tabs.Tab & { id: number; url: string };
 
+type OverlayPayload = {
+  sessions: Array<{
+    id: string;
+    name: string;
+    description: string;
+    note: string;
+    folderId: string | null;
+    tagIds: string[];
+    tabs: Array<{
+      id: string;
+      title: string;
+      url: string;
+      note: string;
+    }>;
+  }>;
+  folders: Array<{ id: string; name: string }>;
+  tags: Array<{ id: string; name: string }>;
+  standaloneNotes: Array<{ id: string; title: string; content: string }>;
+  searchScopes: Settings["searchScopes"];
+};
+
 function alarmName(scheduleId: string): string {
   return `schedule_${scheduleId}`;
 }
@@ -292,6 +313,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "tabsetu:open-dashboard") {
+    const view = typeof message.view === "string" && message.view.trim() ? `?view=${encodeURIComponent(message.view)}` : "";
+    void chrome.tabs
+      .create({ url: chrome.runtime.getURL(`src/dashboard/index.html${view}`) })
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+
+    return true;
+  }
+
   return undefined;
 });
 
@@ -362,7 +393,7 @@ async function createSessionFromWindow(mode: "save" | "collapse"): Promise<void>
   }
 }
 
-function mountTabSetuSearchOverlay(): void {
+function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
   const hostId = "tabsetu-search-overlay-host";
   const existing = document.getElementById(hostId);
   if (existing?.shadowRoot) {
@@ -448,23 +479,13 @@ function mountTabSetuSearchOverlay(): void {
 
   type OverlayRow = {
     id: string;
-    kind: "session" | "tab";
+    kind: "session" | "tab" | "note";
     title: string;
     subtitle: string;
-    url: string | null;
+    action:
+      | { kind: "url"; url: string }
+      | { kind: "dashboard"; view: "notes" };
     haystack: string;
-  };
-  type StoredFolder = { id: string; name: string };
-  type StoredTag = { id: string; name: string };
-  type StoredTab = { id: string; title?: string; url?: string; note?: string };
-  type StoredSession = {
-    id: string;
-    name?: string;
-    description?: string;
-    note?: string;
-    folderId?: string | null;
-    tagIds?: string[];
-    tabs?: StoredTab[];
   };
 
   const input = shadow.querySelector("input") as HTMLInputElement;
@@ -475,6 +496,13 @@ function mountTabSetuSearchOverlay(): void {
   let selectedIndex = 0;
 
   const removeOverlay = () => host.remove();
+  const scopes = payload.searchScopes ?? {
+    sessions: true,
+    tabs: true,
+    notes: true,
+    tags: true,
+    folders: true,
+  };
   const normalize = (value: unknown) => (typeof value === "string" ? value.toLowerCase() : "");
   const scoreRow = (row: OverlayRow, query: string) => {
     const normalizedQuery = query.toLowerCase().trim();
@@ -522,7 +550,7 @@ function mountTabSetuSearchOverlay(): void {
           <span class="title"></span>
           <span class="meta"></span>
         </span>
-        <span class="kind">${row.kind === "session" ? "Session" : "Tab"}</span>
+        <span class="kind">${row.kind === "session" ? "Session" : row.kind === "tab" ? "Tab" : "Note"}</span>
       `;
       (item.querySelector(".title") as HTMLSpanElement).textContent = row.title;
       (item.querySelector(".meta") as HTMLSpanElement).textContent = row.subtitle;
@@ -549,66 +577,92 @@ function mountTabSetuSearchOverlay(): void {
   };
 
   const openSelected = async (row: OverlayRow | undefined) => {
-    if (!row?.url) {
+    if (!row) {
       return;
     }
-    await chrome.runtime.sendMessage({ type: "tabsetu:open-url", url: row.url });
+
+    if (row.action.kind === "url") {
+      await chrome.runtime.sendMessage({ type: "tabsetu:open-url", url: row.action.url });
+    } else {
+      await chrome.runtime.sendMessage({ type: "tabsetu:open-dashboard", view: row.action.view });
+    }
     removeOverlay();
   };
 
-  chrome.storage.local.get(
-    ["TabSetu_sessions", "TabSetu_folders", "TabSetu_tags", "sessions", "folders", "tags"],
-    (data) => {
-      const sessions = Array.isArray(data.TabSetu_sessions) ? data.TabSetu_sessions : data.sessions;
-      const folders = Array.isArray(data.TabSetu_folders) ? data.TabSetu_folders : data.folders;
-      const tags = Array.isArray(data.TabSetu_tags) ? data.TabSetu_tags : data.tags;
-      const folderList = (Array.isArray(folders) ? folders : []) as StoredFolder[];
-      const tagList = (Array.isArray(tags) ? tags : []) as StoredTag[];
-      const sessionList = (Array.isArray(sessions) ? sessions : []) as StoredSession[];
-      const folderMap = new Map(folderList.map((folder) => [folder.id, folder.name]));
-      const tagMap = new Map(tagList.map((tag) => [tag.id, tag.name]));
+  const folderMap = new Map(payload.folders.map((folder) => [folder.id, folder.name]));
+  const tagMap = new Map(payload.tags.map((tag) => [tag.id, tag.name]));
+  const hasSessionRowFields = scopes.sessions || scopes.notes || scopes.folders || scopes.tags;
 
-      rows = sessionList.flatMap((session) => {
-        const folderName = session.folderId ? folderMap.get(session.folderId) ?? "" : "";
-        const tagNames = Array.isArray(session.tagIds)
-          ? session.tagIds.map((id: string) => tagMap.get(id) ?? "").join(" ")
-          : "";
-        const sessionRow: OverlayRow = {
-          id: session.id,
-          kind: "session",
-          title: session.name || "Untitled Session",
-          subtitle: `${Array.isArray(session.tabs) ? session.tabs.length : 0} tabs ${folderName ? `in ${folderName}` : ""}`.trim(),
-          url: Array.isArray(session.tabs) && session.tabs[0]?.url ? session.tabs[0].url : null,
-          haystack: [
-            normalize(session.name),
-            normalize(session.description),
-            normalize(session.note),
-            normalize(folderName),
-            normalize(tagNames),
-          ].join(" "),
-        };
-        const tabRows: OverlayRow[] = (Array.isArray(session.tabs) ? session.tabs : []).map((tab) => ({
-          id: `${session.id}-${tab.id}`,
-          kind: "tab",
-          title: tab.title || "Untitled Tab",
-          subtitle: [session.name || "Session", tab.url || ""].filter(Boolean).join(" - "),
-          url: tab.url || null,
-          haystack: [
-            normalize(tab.title),
-            normalize(tab.url),
-            normalize(tab.note),
-            normalize(session.name),
-            normalize(session.description),
-            normalize(session.note),
-            normalize(folderName),
-            normalize(tagNames),
-          ].join(" "),
-        }));
-        return [sessionRow, ...tabRows];
-      });
-      updateVisibleRows();
-    },
-  );
+  rows = payload.sessions.flatMap((session) => {
+    const folderName = session.folderId ? folderMap.get(session.folderId) ?? "" : "";
+    const tagNames = session.tagIds.map((id) => tagMap.get(id) ?? "").filter(Boolean).join(" ");
+    const sessionHaystack = [
+      scopes.sessions ? normalize(session.name) : "",
+      scopes.sessions ? normalize(session.description) : "",
+      scopes.notes ? normalize(session.note) : "",
+      scopes.folders ? normalize(folderName) : "",
+      scopes.tags ? normalize(tagNames) : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const sessionRows: OverlayRow[] =
+      hasSessionRowFields && sessionHaystack
+        ? [
+            {
+              id: session.id,
+              kind: "session" as const,
+              title: session.name || "Untitled Session",
+              subtitle: `${session.tabs.length} tabs${folderName ? ` in ${folderName}` : ""}`.trim(),
+              action: { kind: "url" as const, url: session.tabs[0]?.url ?? "" },
+              haystack: sessionHaystack,
+            },
+          ].filter((row) => row.action.url)
+        : [];
+
+    const tabRows: OverlayRow[] = scopes.tabs
+      ? session.tabs
+          .map((tab) => ({
+            id: `${session.id}-${tab.id}`,
+            kind: "tab" as const,
+            title: tab.title || "Untitled Tab",
+            subtitle: [session.name || "Session", tab.url || ""].filter(Boolean).join(" - "),
+            action: { kind: "url" as const, url: tab.url || "" },
+            haystack: [
+              scopes.tabs ? normalize(tab.title) : "",
+              scopes.tabs ? normalize(tab.url) : "",
+              scopes.notes ? normalize(tab.note) : "",
+              scopes.sessions ? normalize(session.name) : "",
+              scopes.sessions ? normalize(session.description) : "",
+              scopes.notes ? normalize(session.note) : "",
+              scopes.folders ? normalize(folderName) : "",
+              scopes.tags ? normalize(tagNames) : "",
+            ]
+              .filter(Boolean)
+              .join(" "),
+          }))
+          .filter((row) => row.action.url && row.haystack)
+      : [];
+
+    return [...sessionRows, ...tabRows];
+  });
+
+  if (scopes.notes) {
+    rows.push(
+      ...payload.standaloneNotes
+        .map((note) => ({
+          id: `note-${note.id}`,
+          kind: "note" as const,
+          title: note.title || "Untitled Note",
+          subtitle: note.content.trim() ? note.content.trim().slice(0, 120) : "Open the Notes view in TabSetu.",
+          action: { kind: "dashboard" as const, view: "notes" as const },
+          haystack: [normalize(note.title), normalize(note.content)].filter(Boolean).join(" "),
+        }))
+        .filter((row) => row.haystack),
+    );
+  }
+
+  updateVisibleRows();
 
   input.addEventListener("input", updateVisibleRows);
   input.addEventListener("keydown", (event) => {
@@ -643,7 +697,8 @@ function mountTabSetuSearchOverlay(): void {
 }
 
 async function openSearchOverlay(): Promise<void> {
-  const { settings } = await loadRuntimeData();
+  const data = await loadStorage();
+  const { settings } = data;
   if (!settings.searchOverlayEnabled) {
     return;
   }
@@ -653,9 +708,35 @@ async function openSearchOverlay(): Promise<void> {
     return;
   }
 
+  const payload: OverlayPayload = {
+    sessions: data.sessions.map((session) => ({
+      id: session.id,
+      name: session.name,
+      description: session.description,
+      note: session.note,
+      folderId: session.folderId,
+      tagIds: session.tagIds,
+      tabs: session.tabs.map((tab) => ({
+        id: tab.id,
+        title: tab.title,
+        url: tab.url,
+        note: tab.note,
+      })),
+    })),
+    folders: data.folders.map((folder) => ({ id: folder.id, name: folder.name })),
+    tags: data.tags.map((tag) => ({ id: tag.id, name: tag.name })),
+    standaloneNotes: data.standaloneNotes.map((note) => ({
+      id: note.id,
+      title: note.title,
+      content: note.content,
+    })),
+    searchScopes: settings.searchScopes,
+  };
+
   await chrome.scripting.executeScript({
     target: { tabId: activeTab.id },
     func: mountTabSetuSearchOverlay,
+    args: [payload],
   });
 }
 

@@ -20,6 +20,19 @@ import SettingsPanel from "./components/SettingsPanel";
 
 type DashView = MobileNavView | "settings" | "importexport";
 
+function getInitialDashView(): DashView {
+  if (typeof window === "undefined") {
+    return "home";
+  }
+
+  const view = new URLSearchParams(window.location.search).get("view");
+  if (view === "home" || view === "folders" || view === "schedules" || view === "notes" || view === "settings" || view === "importexport") {
+    return view;
+  }
+
+  return "home";
+}
+
 function isMobileNavView(view: DashView): view is MobileNavView {
   return view === "home" || view === "folders" || view === "schedules" || view === "notes";
 }
@@ -52,7 +65,7 @@ export default function DashboardApp() {
   const loadShareLinks = useShareStore((state) => state.load);
   const loadSettings = useSettingsStore((state) => state.load);
 
-  const [view, setView] = useState<DashView>("home");
+  const [view, setView] = useState<DashView>(getInitialDashView);
   const [menuOpen, setMenuOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 

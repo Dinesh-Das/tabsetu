@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, ExternalLink, FolderOpen, Pin, Plus, Trash2 } from "lucide-react";
 import HighlightedText from "@/components/shared/HighlightedText";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
+import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
 import { formatDateTime } from "@/lib/format";
 import { buildSessionListItems } from "@/lib/sessionQuery";
 import { getDomainLabel, openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
@@ -25,6 +26,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
   const duplicateSession = useSessionStore((state) => state.duplicateSession);
   const pinSession = useSessionStore((state) => state.pinSession);
   const addTabToSession = useSessionStore((state) => state.addTabToSession);
+  const updateTabNote = useSessionStore((state) => state.updateTabNote);
   const recordOpened = useSessionStore((state) => state.recordOpened);
   const recordTabOpened = useSessionStore((state) => state.recordTabOpened);
   const folders = useFolderStore((state) => state.folders);
@@ -35,9 +37,12 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
   const [activeFolderId, setActiveFolderId] = useState("");
   const [activeTagId, setActiveTagId] = useState("");
   const [keyboardIndex, setKeyboardIndex] = useState(0);
-  const [quickInfo, setQuickInfo] = useState<{ tab: TabItem; x: number; y: number } | null>(null);
+  const [quickInfo, setQuickInfo] = useState<{ sessionId: string; tab: TabItem; x: number; y: number } | null>(null);
+  const [quickInfoDraftNote, setQuickInfoDraftNote] = useState("");
+  const [quickInfoEditing, setQuickInfoEditing] = useState(false);
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const quickInfoTimer = useRef<number | null>(null);
+  const quickInfoShowTimer = useRef<number | null>(null);
+  const quickInfoHideTimer = useRef<number | null>(null);
 
   useEffect(() => {
     if (activeFolderId && !folders.some((folder) => folder.id === activeFolderId)) {
@@ -53,8 +58,11 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
 
   useEffect(() => {
     return () => {
-      if (quickInfoTimer.current) {
-        window.clearTimeout(quickInfoTimer.current);
+      if (quickInfoShowTimer.current) {
+        window.clearTimeout(quickInfoShowTimer.current);
+      }
+      if (quickInfoHideTimer.current) {
+        window.clearTimeout(quickInfoHideTimer.current);
       }
     };
   }, []);
@@ -145,30 +153,63 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
     addToast("success", `Added ${activeTab.title ?? "the current tab"} to "${session.name}".`);
   };
 
-  const showQuickInfo = (tab: TabItem, x: number, y: number) => {
+  const showQuickInfo = (sessionId: string, tab: TabItem, x: number, y: number) => {
     if (!settings.quickInfoEnabled) {
       return;
     }
 
-    if (quickInfoTimer.current) {
-      window.clearTimeout(quickInfoTimer.current);
+    if (quickInfoShowTimer.current) {
+      window.clearTimeout(quickInfoShowTimer.current);
+    }
+    if (quickInfoHideTimer.current) {
+      window.clearTimeout(quickInfoHideTimer.current);
     }
 
     const delay = settings.quickInfoDelayMs ?? 400;
-    quickInfoTimer.current = window.setTimeout(() => {
+    quickInfoShowTimer.current = window.setTimeout(() => {
       setQuickInfo({
+        sessionId,
         tab,
-        x: Math.min(x + 14, window.innerWidth - 310),
-        y: Math.min(y + 14, window.innerHeight - 190),
+        x: Math.min(x + 14, window.innerWidth - 338),
+        y: Math.min(y + 14, window.innerHeight - 276),
       });
+      setQuickInfoDraftNote(tab.note);
+      setQuickInfoEditing(false);
     }, delay);
   };
 
   const hideQuickInfo = () => {
-    if (quickInfoTimer.current) {
-      window.clearTimeout(quickInfoTimer.current);
+    if (quickInfoShowTimer.current) {
+      window.clearTimeout(quickInfoShowTimer.current);
     }
-    window.setTimeout(() => setQuickInfo(null), 120);
+    if (quickInfoHideTimer.current) {
+      window.clearTimeout(quickInfoHideTimer.current);
+    }
+    quickInfoHideTimer.current = window.setTimeout(() => {
+      setQuickInfo(null);
+      setQuickInfoEditing(false);
+    }, 160);
+  };
+
+  const handleQuickInfoSave = () => {
+    if (!quickInfo) {
+      return;
+    }
+
+    updateTabNote(quickInfo.sessionId, quickInfo.tab.id, quickInfoDraftNote);
+    setQuickInfo((current) =>
+      current
+        ? {
+            ...current,
+            tab: {
+              ...current.tab,
+              note: quickInfoDraftNote,
+            },
+          }
+        : null,
+    );
+    setQuickInfoEditing(false);
+    addToast("success", "Saved tab note.");
   };
 
   useEffect(() => {
@@ -186,6 +227,40 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
       behavior: "smooth",
     });
   }, [keyboardIndex, listKeyboardActive, visibleItems]);
+
+  useEffect(() => {
+    if (!quickInfo) {
+      return;
+    }
+
+    const latestSession = sessions.find((session) => session.id === quickInfo.sessionId);
+    const latestTab = latestSession?.tabs.find((tab) => tab.id === quickInfo.tab.id);
+    if (!latestTab) {
+      setQuickInfo(null);
+      setQuickInfoEditing(false);
+      return;
+    }
+
+    if (quickInfo.tab === latestTab) {
+      if (!quickInfoEditing && quickInfoDraftNote !== latestTab.note) {
+        setQuickInfoDraftNote(latestTab.note);
+      }
+      return;
+    }
+
+    setQuickInfo((current) =>
+      current
+        ? {
+            ...current,
+            tab: latestTab,
+          }
+        : null,
+    );
+
+    if (!quickInfoEditing) {
+      setQuickInfoDraftNote(latestTab.note);
+    }
+  }, [quickInfo, quickInfoDraftNote, quickInfoEditing, sessions]);
 
   useEffect(() => {
     if (!listKeyboardActive) {
@@ -448,11 +523,11 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
                       className="chip-link"
                       type="button"
                       onClick={() => void handleOpenTab(session, tab.id)}
-                      onMouseEnter={(event) => showQuickInfo(tab, event.clientX, event.clientY)}
+                      onMouseEnter={(event) => showQuickInfo(session.id, tab, event.clientX, event.clientY)}
                       onMouseLeave={hideQuickInfo}
                       onFocus={(event) => {
                         const rect = event.currentTarget.getBoundingClientRect();
-                        showQuickInfo(tab, rect.left, rect.bottom);
+                        showQuickInfo(session.id, tab, rect.left, rect.bottom);
                       }}
                       onBlur={hideQuickInfo}
                       title={tab.url}
@@ -527,13 +602,16 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
             left: quickInfo.x,
             top: quickInfo.y,
             zIndex: 20,
-            width: 292,
+            width: 320,
             padding: 12,
             boxShadow: "0 18px 48px rgba(3, 10, 22, 0.28)",
           }}
           onMouseEnter={() => {
-            if (quickInfoTimer.current) {
-              window.clearTimeout(quickInfoTimer.current);
+            if (quickInfoShowTimer.current) {
+              window.clearTimeout(quickInfoShowTimer.current);
+            }
+            if (quickInfoHideTimer.current) {
+              window.clearTimeout(quickInfoHideTimer.current);
             }
           }}
           onMouseLeave={hideQuickInfo}
@@ -546,7 +624,9 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
                 alt=""
               />
             ) : (
-              <div className="favicon favicon-fallback" />
+              <span className="favicon favicon-fallback">
+                <TabSetuLogo decorative />
+              </span>
             )}
             <div style={{ minWidth: 0, flex: 1 }}>
               <strong style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -557,14 +637,67 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
               </div>
             </div>
           </div>
-          {quickInfo.tab.note ? (
+          {quickInfoEditing ? (
+            <div style={{ marginTop: 10 }}>
+              <label className="label">Tab note</label>
+              <textarea
+                className="input"
+                autoFocus
+                value={quickInfoDraftNote}
+                onChange={(event) => setQuickInfoDraftNote(event.target.value)}
+                placeholder="Add context for this link"
+              />
+            </div>
+          ) : quickInfo.tab.note ? (
             <div style={{ marginTop: 10, fontSize: 12, color: "var(--color-text-secondary)" }}>
               {quickInfo.tab.note.slice(0, 180)}
             </div>
-          ) : null}
+          ) : (
+            <div style={{ marginTop: 10, fontSize: 12, color: "var(--color-text-muted)" }}>
+              No note yet for this tab.
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             <span className="badge badge-subtle">Opened {formatDateTime(quickInfo.tab.lastOpenedAt)}</span>
             <span className="badge badge-subtle">{quickInfo.tab.openCount} opens</span>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              style={{ flex: 1 }}
+              onClick={() => {
+                const session = sessions.find((item) => item.id === quickInfo.sessionId);
+                if (!session) {
+                  return;
+                }
+
+                void handleOpenTab(session, quickInfo.tab.id);
+              }}
+            >
+              Open tab
+            </button>
+            {quickInfoEditing ? (
+              <>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={() => {
+                    setQuickInfoDraftNote(quickInfo.tab.note);
+                    setQuickInfoEditing(false);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button className="btn btn-primary" type="button" onClick={handleQuickInfoSave}>
+                  Save note
+                </button>
+              </>
+            ) : (
+              <button className="btn btn-primary" type="button" onClick={() => setQuickInfoEditing(true)}>
+                {quickInfo.tab.note ? "Edit note" : "Add note"}
+              </button>
+            )}
           </div>
         </div>
       ) : null}

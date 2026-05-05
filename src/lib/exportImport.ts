@@ -26,6 +26,10 @@ export interface StorageSummary {
   shareLinks: number;
 }
 
+export interface SessionExportOptions {
+  includeNotes?: boolean;
+}
+
 export function exportJSON(data: StorageData): void {
   downloadFile(
     JSON.stringify(data, null, 2),
@@ -35,6 +39,12 @@ export function exportJSON(data: StorageData): void {
 }
 
 export function summarizeStorageData(data: StorageData): StorageSummary {
+  const sessionNoteCount = data.sessions.filter((session) => session.note.trim()).length;
+  const tabNoteCount = data.sessions.reduce(
+    (total, session) => total + session.tabs.filter((tab) => tab.note.trim()).length,
+    0,
+  );
+
   return {
     sessions: data.sessions.length,
     tabs: data.sessions.reduce((total, session) => total + session.tabs.length, 0),
@@ -42,7 +52,7 @@ export function summarizeStorageData(data: StorageData): StorageSummary {
     tags: data.tags.length,
     groups: data.groups.length,
     schedules: data.schedules.length,
-    notes: data.standaloneNotes.length,
+    notes: data.standaloneNotes.length + sessionNoteCount + tabNoteCount,
     shareLinks: data.shareLinks.length,
   };
 }
@@ -135,13 +145,14 @@ export function importJSON(file: File): Promise<StorageData> {
   });
 }
 
-export function sessionToMarkdown(session: Session): string {
+export function sessionToMarkdown(session: Session, options?: SessionExportOptions): string {
+  const includeNotes = options?.includeNotes ?? true;
   const lines = [
     `# ${session.name}`,
     session.description ? "" : undefined,
     session.description ? `> ${session.description}` : undefined,
-    session.note ? "" : undefined,
-    session.note ? `Notes: ${session.note}` : undefined,
+    includeNotes && session.note ? "" : undefined,
+    includeNotes && session.note ? `Notes: ${session.note}` : undefined,
     "",
     `Saved: ${new Date(session.createdAt).toLocaleString()}`,
     `Updated: ${new Date(session.updatedAt).toLocaleString()}`,
@@ -149,22 +160,23 @@ export function sessionToMarkdown(session: Session): string {
     "",
     "## Links",
     "",
-    ...session.tabs.map((tab) => `- [${tab.title}](${tab.url})${tab.note ? ` - ${tab.note}` : ""}`),
+    ...session.tabs.map((tab) => `- [${tab.title}](${tab.url})${includeNotes && tab.note ? ` - ${tab.note}` : ""}`),
   ].filter((line): line is string => typeof line === "string");
 
   return lines.join("\n");
 }
 
-export function sessionToPlainText(session: Session): string {
+export function sessionToPlainText(session: Session, options?: SessionExportOptions): string {
+  const includeNotes = options?.includeNotes ?? true;
   const lines = [
     session.name,
     session.description,
-    session.note ? `Notes: ${session.note}` : "",
+    includeNotes && session.note ? `Notes: ${session.note}` : "",
     "",
     ...session.tabs.flatMap((tab) => [
       tab.title,
       tab.url,
-      tab.note ? `Note: ${tab.note}` : "",
+      includeNotes && tab.note ? `Note: ${tab.note}` : "",
       "",
     ]),
   ].filter(Boolean);

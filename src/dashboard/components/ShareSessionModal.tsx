@@ -80,7 +80,7 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
           <button
             className="btn btn-secondary"
             type="button"
-            onClick={() => void copy("plain text", sessionToPlainText(session))}
+            onClick={() => void copy("plain text", sessionToPlainText(session, { includeNotes }))}
           >
             <ClipboardCopy size={14} />
             Copy text
@@ -88,7 +88,7 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
           <button
             className="btn btn-secondary"
             type="button"
-            onClick={() => void copy("Markdown", sessionToMarkdown(session))}
+            onClick={() => void copy("Markdown", sessionToMarkdown(session, { includeNotes }))}
           >
             <Link2 size={14} />
             Copy Markdown

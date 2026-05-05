@@ -6,9 +6,9 @@ import {
   FileText,
   FolderOpen,
   Home,
-  Layers,
   User,
 } from "lucide-react";
+import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
 
 export type MobileNavView = "home" | "folders" | "schedules" | "notes";
 
@@ -39,7 +39,7 @@ export function MobileTopBar({ title = "TabSetu", subtitle, showBack, onBack, tr
           </button>
         ) : (
           <div className="mobile-brand-mark">
-            <Layers size={19} strokeWidth={2.6} />
+            <TabSetuLogo className="mobile-brand-logo" decorative />
           </div>
         )}
       </div>
@@ -233,7 +233,7 @@ export function TabRow({ title, subtitle, favIconUrl, selected, onSelect, showCh
         <span className="mobile-checkbox" data-checked={selected || undefined} aria-hidden />
       ) : null}
       <div className="mobile-favicon">
-        {favIconUrl ? <img src={favIconUrl} alt="" /> : <Layers size={16} />}
+        {favIconUrl ? <img src={favIconUrl} alt="" /> : <TabSetuLogo className="mobile-favicon-logo" decorative />}
       </div>
       {preview ? <div className="mobile-tab-preview">{preview}</div> : null}
       <div className="mobile-tab-copy">

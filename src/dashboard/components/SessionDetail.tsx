@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { Schedule, Session, ToastMessage } from "@/types";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
+import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
 import {
   copyLinksToClipboard,
   downloadMarkdown,
@@ -635,7 +636,9 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
                       }}
                     />
                   ) : (
-                    <div className="favicon favicon-fallback" />
+                    <span className="favicon favicon-fallback">
+                      <TabSetuLogo decorative />
+                    </span>
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600 }}>{tab.title}</div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Archive, FileText, Layers, Pin, Settings, Upload } from "lucide-react";
+import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
 import EntityEditorModal from "@/components/shared/EntityEditorModal";
 import { useFolderStore } from "@/store/folderStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -96,7 +97,7 @@ export default function Sidebar({ view, setView }: Props) {
       <div style={{ padding: "24px 18px 18px", borderBottom: "1px solid var(--color-border)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div className="brand-mark">
-            <Layers size={18} color="#fff" />
+            <TabSetuLogo className="brand-mark-logo" decorative />
           </div>
           <div>
             <div style={{ fontFamily: "var(--font-heading)", fontSize: 20, fontWeight: 700 }}>
