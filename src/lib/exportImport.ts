@@ -1,4 +1,5 @@
 import { normalizeImportedStorageData, normalizeStorageData } from "@/lib/storage";
+import { stripHtml } from "@/lib/tabHelpers";
 import type { AIShareConfig, Session, StorageData } from "@/types";
 
 function downloadFile(content: string, fileName: string, mimeType: string): void {
@@ -228,4 +229,55 @@ export function generateAIPrompt(session: Session, config?: Partial<AIShareConfi
     "Links:",
     links,
   ].filter(Boolean).join("\n");
+}
+
+async function fetchTabPageText(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      return null;
+    }
+
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType && !contentType.toLowerCase().includes("text/html")) {
+      return null;
+    }
+
+    return stripHtml(await response.text());
+  } catch {
+    return null;
+  }
+}
+
+export async function generateAIPromptWithPageText(
+  session: Session,
+  config?: Partial<AIShareConfig>,
+): Promise<string> {
+  const basePrompt = generateAIPrompt(session, config);
+  const pageTexts = await Promise.all(
+    session.tabs.map(async (tab) => ({
+      tab,
+      text: await fetchTabPageText(tab.url),
+    })),
+  );
+
+  const availableTexts = pageTexts.filter((item): item is { tab: Session["tabs"][number]; text: string } =>
+    Boolean(item.text),
+  );
+
+  if (availableTexts.length === 0) {
+    return `${basePrompt}\n\nPage text:\nNo page text could be fetched from the saved URLs. Use the saved titles, URLs, and notes above.`;
+  }
+
+  return [
+    basePrompt,
+    "",
+    "Page text:",
+    ...availableTexts.flatMap((item) => [
+      "",
+      `## ${item.tab.title}`,
+      item.tab.url,
+      item.text,
+    ]),
+  ].join("\n");
 }

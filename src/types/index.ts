@@ -4,6 +4,8 @@ export interface TabItem {
   url: string;
   favIconUrl: string | null;
   favIconDataUrl: string | null;
+  folderId: string | null;
+  tagIds: string[];
   pinned: boolean;
   windowId: number | null;
   note: string;

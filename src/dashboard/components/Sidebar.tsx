@@ -1,8 +1,11 @@
 import { useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Archive, Bell, CalendarDays, FileText, Layers, Pin, Settings, Upload } from "lucide-react";
+import { Archive, Bell, CalendarDays, ExternalLink, FileText, Layers, Pin, Settings, Upload } from "lucide-react";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
+import ThemeToggle from "@/components/shared/ThemeToggle";
 import EntityEditorModal from "@/components/shared/EntityEditorModal";
+import { openSavedTab } from "@/lib/sessionBrowser";
+import type { ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
 import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -13,6 +16,7 @@ export type DesktopSidebarView = "sessions" | "notes" | "reminders" | "schedules
 interface Props {
   view: DesktopSidebarView;
   setView: (view: DesktopSidebarView) => void;
+  addToast: (type: ToastMessage["type"], message: string) => void;
 }
 
 const FOLDER_COLORS = [
@@ -64,7 +68,7 @@ function NavItem({
   );
 }
 
-export default function Sidebar({ view, setView }: Props) {
+export default function Sidebar({ view, setView, addToast }: Props) {
   const sessions = useSessionStore((state) => state.sessions);
   const viewFilter = useSessionStore((state) => state.viewFilter);
   const activeFolderId = useSessionStore((state) => state.activeFolderId);
@@ -72,6 +76,7 @@ export default function Sidebar({ view, setView }: Props) {
   const setViewFilter = useSessionStore((state) => state.setViewFilter);
   const setActiveFolderId = useSessionStore((state) => state.setActiveFolderId);
   const setActiveTagId = useSessionStore((state) => state.setActiveTagId);
+  const recordTabOpened = useSessionStore((state) => state.recordTabOpened);
 
   const folders = useFolderStore((state) => state.folders);
   const createFolder = useFolderStore((state) => state.createFolder);
@@ -92,6 +97,33 @@ export default function Sidebar({ view, setView }: Props) {
       ).length,
     0,
   );
+
+  const openCollectionTabs = async (
+    label: string,
+    predicate: (sessionId: string, tabId: string) => boolean,
+  ): Promise<void> => {
+    const tabs = sessions.filter((session) => !session.isArchived).flatMap((session) =>
+      session.tabs
+        .filter((tab) => predicate(session.id, tab.id))
+        .map((tab) => ({ session, tab })),
+    );
+
+    let openedCount = 0;
+    for (const item of tabs) {
+      const opened = await openSavedTab(item.tab, false);
+      if (opened) {
+        openedCount += 1;
+        recordTabOpened(item.session.id, item.tab.id);
+      }
+    }
+
+    if (openedCount === 0) {
+      addToast("error", `${label} does not have any openable tabs.`);
+      return;
+    }
+
+    addToast("success", `Opened ${openedCount} ${openedCount === 1 ? "tab" : "tabs"} from ${label}.`);
+  };
 
   return (
     <aside
@@ -174,12 +206,17 @@ export default function Sidebar({ view, setView }: Props) {
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {folders.map((folder) => {
               const active = activeFolderId === folder.id && view === "sessions";
-              const count = sessions.filter(
-                (session) => session.folderId === folder.id && !session.isArchived,
-              ).length;
+              const count = sessions.reduce(
+                (total, session) =>
+                  session.isArchived
+                    ? total
+                    : total + session.tabs.filter((tab) => (tab.folderId ?? session.folderId) === folder.id).length,
+                0,
+              );
 
               return (
-                <button
+                <div key={folder.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <button
                   key={folder.id}
                   onClick={() => {
                     setView("sessions");
@@ -210,6 +247,24 @@ export default function Sidebar({ view, setView }: Props) {
                   <span style={{ flex: 1, textAlign: "left" }}>{folder.name}</span>
                   <span className="badge badge-subtle">{count}</span>
                 </button>
+                <button
+                  className="btn btn-ghost btn-icon"
+                  type="button"
+                  title={`Open all tabs in ${folder.name}`}
+                  onClick={() =>
+                    void openCollectionTabs(
+                      folder.name,
+                      (sessionId, tabId) => {
+                        const session = sessions.find((item) => item.id === sessionId);
+                        const tab = session?.tabs.find((item) => item.id === tabId);
+                        return Boolean(session && tab && (tab.folderId ?? session.folderId) === folder.id);
+                      },
+                    )
+                  }
+                >
+                  <ExternalLink size={13} />
+                </button>
+                </div>
               );
             })}
           </div>
@@ -229,12 +284,18 @@ export default function Sidebar({ view, setView }: Props) {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {tags.map((tag) => {
               const active = activeTagId === tag.id && view === "sessions";
-              const count = sessions.filter(
-                (session) => session.tagIds.includes(tag.id) && !session.isArchived,
-              ).length;
+              const count = sessions.reduce(
+                (total, session) =>
+                  session.isArchived
+                    ? total
+                    : total +
+                      session.tabs.filter((tab) => session.tagIds.includes(tag.id) || tab.tagIds.includes(tag.id)).length,
+                0,
+              );
 
               return (
-                <button
+                <div key={tag.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <button
                   key={tag.id}
                   className="tag-chip"
                   data-active={active}
@@ -252,6 +313,24 @@ export default function Sidebar({ view, setView }: Props) {
                   {tag.name}
                   <span style={{ opacity: 0.7 }}>{count}</span>
                 </button>
+                <button
+                  className="btn btn-ghost btn-icon"
+                  type="button"
+                  title={`Open all tabs tagged ${tag.name}`}
+                  onClick={() =>
+                    void openCollectionTabs(
+                      tag.name,
+                      (sessionId, tabId) => {
+                        const session = sessions.find((item) => item.id === sessionId);
+                        const tab = session?.tabs.find((item) => item.id === tabId);
+                        return Boolean(session && tab && (session.tagIds.includes(tag.id) || tab.tagIds.includes(tag.id)));
+                      },
+                    )
+                  }
+                >
+                  <ExternalLink size={13} />
+                </button>
+                </div>
               );
             })}
           </div>
@@ -259,6 +338,9 @@ export default function Sidebar({ view, setView }: Props) {
       </div>
 
       <div style={{ padding: 12, borderTop: "1px solid var(--color-border)" }}>
+        <div style={{ padding: "0 0 10px" }}>
+          <ThemeToggle />
+        </div>
         <NavItem
           label="Notes"
           active={view === "notes"}

@@ -1,6 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Session, StorageData, TabItem } from "@/types";
-import { generateAIPrompt, sessionToMarkdown, sessionToPlainText, summarizeStorageData } from "@/lib/exportImport";
+import {
+  generateAIPrompt,
+  generateAIPromptWithPageText,
+  sessionToMarkdown,
+  sessionToPlainText,
+  summarizeStorageData,
+} from "@/lib/exportImport";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function makeTab(overrides?: Partial<TabItem>): TabItem {
   return {
@@ -9,6 +19,8 @@ function makeTab(overrides?: Partial<TabItem>): TabItem {
     url: "https://example.com/docs",
     favIconUrl: null,
     favIconDataUrl: null,
+    folderId: null,
+    tagIds: [],
     pinned: false,
     windowId: null,
     note: "",
@@ -130,5 +142,21 @@ describe("exportImport", () => {
 
     expect(generateAIPrompt(session)).toContain("Prepare talking points");
     expect(generateAIPrompt(session, { includeNotes: false })).not.toContain("Prepare talking points");
+  });
+
+  it("adds fetched page text to AI prompts when requested", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<() => Promise<Response>>(() =>
+        Promise.resolve(
+          new Response("<html><body><h1>Fetched insight</h1><script>ignored()</script></body></html>", {
+            status: 200,
+            headers: { "content-type": "text/html" },
+          }),
+        ),
+      ),
+    );
+
+    await expect(generateAIPromptWithPageText(makeSession())).resolves.toContain("Fetched insight");
   });
 });

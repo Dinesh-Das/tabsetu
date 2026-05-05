@@ -39,6 +39,8 @@ interface SearchableSession {
   folderName: string;
   tagIds: string[];
   tagNames: string[];
+  tabFolderNames: string[];
+  tabTagNames: string[];
   tabTitles: string[];
   tabUrls: string[];
   tabNotes: string[];
@@ -112,10 +114,12 @@ function buildFuseOptions(
 
   if (scopes.folders) {
     keys.push({ name: "folderName", weight: 0.08 });
+    keys.push({ name: "tabFolderNames", weight: 0.04 });
   }
 
   if (scopes.tags) {
     keys.push({ name: "tagNames", weight: 0.08 });
+    keys.push({ name: "tabTagNames", weight: 0.04 });
   }
 
   if (scopes.tabs) {
@@ -141,6 +145,10 @@ function toSearchableSessions(sessions: Session[], folders: Folder[], tags: Tag[
     folderName: session.folderId ? folderMap.get(session.folderId) ?? "" : "",
     tagIds: session.tagIds,
     tagNames: session.tagIds.map((tagId) => tagMap.get(tagId) ?? "").filter(Boolean),
+    tabFolderNames: session.tabs.map((tab) => (tab.folderId ? folderMap.get(tab.folderId) ?? "" : "")),
+    tabTagNames: session.tabs.map((tab) =>
+      tab.tagIds.map((tagId) => tagMap.get(tagId) ?? "").filter(Boolean).join(" "),
+    ),
     tabTitles: session.tabs.map((tab) => tab.title),
     tabUrls: session.tabs.map((tab) => tab.url),
     tabNotes: session.tabs.map((tab) => tab.note),

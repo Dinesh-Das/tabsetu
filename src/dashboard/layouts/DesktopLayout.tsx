@@ -68,7 +68,7 @@ export default function DesktopLayout({ addToast, initialView }: Props) {
 
   return (
     <div className="desktop-dashboard-layout" data-detail-open={view === "sessions" && Boolean(selectedSession)}>
-      <Sidebar view={view} setView={setView} />
+      <Sidebar view={view} setView={setView} addToast={addToast} />
       <main className="desktop-dashboard-main">
         {view === "sessions" ? (
           <SessionList

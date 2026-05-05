@@ -7,6 +7,7 @@ import {
   MobileTopBar,
   type MobileNavView,
 } from "@/components/mobile/MobileUI";
+import ThemeToggle from "@/components/shared/ThemeToggle";
 import type { Session, ToastMessage, UndoCollapseBuffer } from "@/types";
 import { loadUndoBuffer, saveUndoBuffer } from "@/lib/storage";
 import { filterCapturableTabs } from "@/lib/popupTabs";
@@ -230,6 +231,7 @@ export default function PopupApp() {
 
   const appTrailing = (
     <div className="popup-top-actions">
+      <ThemeToggle compact />
       <MobileIconButton title="Select current tabs" onClick={() => setView("capture")}>
         <ListChecks size={18} />
       </MobileIconButton>

@@ -1571,6 +1571,21 @@ button.mobile-card {
   gap: 4px;
 }
 
+.tab-organization-controls {
+  display: grid;
+  gap: 8px;
+}
+
+.tab-tag-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.tag-chip[data-inherited="true"] {
+  border-style: dashed;
+}
+
 .reminders-empty {
   display: flex;
   align-items: center;
@@ -1680,6 +1695,41 @@ button.mobile-card {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface-raised);
+}
+
+.theme-toggle button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: 700 12px/1 var(--font-body);
+  cursor: pointer;
+}
+
+.theme-toggle button[data-active="true"] {
+  background: var(--color-accent-dim);
+  color: var(--color-accent);
+}
+
+.theme-toggle[data-compact="true"] button {
+  width: 30px;
+  padding: 0;
 }
 
 .popup-filter-chips {

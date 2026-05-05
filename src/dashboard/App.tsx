@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, MoreHorizontal, Settings } from "lucide-react";
 import { MobileAppShell, MobileIconButton, type MobileNavView } from "@/components/mobile/MobileUI";
+import ThemeToggle from "@/components/shared/ThemeToggle";
 import type { ToastMessage } from "@/types";
 import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
 import { useFolderStore } from "@/store/folderStore";
@@ -160,6 +161,7 @@ export default function DashboardApp() {
         title={titleForView(view)}
         trailing={
           <div className="dashboard-top-actions">
+            <ThemeToggle compact />
             <MobileIconButton title="More" onClick={() => setMenuOpen((open) => !open)}>
               <MoreHorizontal size={18} />
             </MobileIconButton>

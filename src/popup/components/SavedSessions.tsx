@@ -60,7 +60,12 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
   );
 
   const availableTags = useMemo(() => {
-    const visibleTagIds = new Set(itemsForTagFilters.flatMap((item) => item.session.tagIds));
+    const visibleTagIds = new Set(
+      itemsForTagFilters.flatMap((item) => [
+        ...item.session.tagIds,
+        ...item.session.tabs.flatMap((tab) => tab.tagIds),
+      ]),
+    );
     return tags.filter((tag) => visibleTagIds.has(tag.id));
   }, [itemsForTagFilters, tags]);
 

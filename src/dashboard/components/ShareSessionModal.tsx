@@ -3,6 +3,7 @@ import { Bot, ClipboardCopy, ExternalLink, Link2 } from "lucide-react";
 import ModalShell from "@/components/shared/ModalShell";
 import {
   generateAIPrompt,
+  generateAIPromptWithPageText,
   sessionToMarkdown,
   sessionToPlainText,
 } from "@/lib/exportImport";
@@ -28,6 +29,7 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
   const settings = useSettingsStore((state) => state.settings);
   const createShareLink = useShareStore((state) => state.createShareLink);
   const [includeNotes, setIncludeNotes] = useState(settings.exportIncludeNotes);
+  const [includePageText, setIncludePageText] = useState(false);
 
   const promptConfig = {
     includeTitles: true,
@@ -42,9 +44,12 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
   };
 
   const openProvider = async (url: string) => {
-    const prompt = settings.customAIPromptTemplate
-      ? settings.customAIPromptTemplate.replace("{{session}}", generateAIPrompt(session, promptConfig))
+    const generatedPrompt = includePageText
+      ? await generateAIPromptWithPageText(session, promptConfig)
       : generateAIPrompt(session, promptConfig);
+    const prompt = settings.customAIPromptTemplate
+      ? settings.customAIPromptTemplate.replace("{{session}}", generatedPrompt)
+      : generatedPrompt;
     await copy("AI prompt", prompt);
     await chrome.tabs.create({ url, active: true });
   };
@@ -73,6 +78,19 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
             type="checkbox"
             checked={includeNotes}
             onChange={(event) => setIncludeNotes(event.target.checked)}
+          />
+        </label>
+        <label className="toggle-row">
+          <span>
+            <strong style={{ display: "block", marginBottom: 4 }}>Include page text</strong>
+            <span style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
+              Best-effort fetch from saved URLs. Pages that require sign-in or block fetches fall back to saved context.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={includePageText}
+            onChange={(event) => setIncludePageText(event.target.checked)}
           />
         </label>
 
@@ -108,7 +126,14 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
           <button
             className="btn btn-secondary"
             type="button"
-            onClick={() => void copy("AI prompt", generateAIPrompt(session, promptConfig))}
+            onClick={() => {
+              void (async () => {
+                const prompt = includePageText
+                  ? await generateAIPromptWithPageText(session, promptConfig)
+                  : generateAIPrompt(session, promptConfig);
+                await copy("AI prompt", prompt);
+              })();
+            }}
           >
             <Bot size={14} />
             Copy AI prompt

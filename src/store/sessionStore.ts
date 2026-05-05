@@ -31,6 +31,8 @@ interface SessionState {
   removeTabFromSession: (sessionId: string, tabId: string) => void;
   updateTabNote: (sessionId: string, tabId: string, note: string) => void;
   updateTabReminder: (sessionId: string, tabId: string, reminderAt: number | null) => void;
+  updateTabFolder: (sessionId: string, tabId: string, folderId: string | null) => void;
+  updateTabTags: (sessionId: string, tabId: string, tagIds: string[]) => void;
   recordOpened: (id: string) => void;
   recordTabOpened: (sessionId: string, tabId: string) => void;
   unassignFolder: (folderId: string) => void;
@@ -316,6 +318,34 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     persistSessions(sessions);
   },
 
+  updateTabFolder: (sessionId, tabId, folderId) => {
+    const sessions = get().sessions.map((session) =>
+      session.id === sessionId
+        ? touchSession(session, {
+            tabs: session.tabs.map((tab) =>
+              tab.id === tabId ? { ...tab, folderId } : tab,
+            ),
+          })
+        : session,
+    );
+    set({ sessions });
+    persistSessions(sessions);
+  },
+
+  updateTabTags: (sessionId, tabId, tagIds) => {
+    const sessions = get().sessions.map((session) =>
+      session.id === sessionId
+        ? touchSession(session, {
+            tabs: session.tabs.map((tab) =>
+              tab.id === tabId ? { ...tab, tagIds } : tab,
+            ),
+          })
+        : session,
+    );
+    set({ sessions });
+    persistSessions(sessions);
+  },
+
   recordOpened: (id) => {
     const openedAt = Date.now();
     const sessions = get().sessions.map((session) =>
@@ -361,8 +391,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   unassignFolder: (folderId) => {
     const sessions = get().sessions.map((session) =>
-      session.folderId === folderId
-        ? touchSession(session, { folderId: null })
+      session.folderId === folderId || session.tabs.some((tab) => tab.folderId === folderId)
+        ? touchSession(session, {
+            folderId: session.folderId === folderId ? null : session.folderId,
+            tabs: session.tabs.map((tab) => ({
+              ...tab,
+              folderId: tab.folderId === folderId ? null : tab.folderId,
+            })),
+          })
         : session,
     );
     set({ sessions });
@@ -371,10 +407,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   removeTagReferences: (tagId) => {
     const sessions = get().sessions.map((session) =>
-      session.tagIds.includes(tagId)
+      session.tagIds.includes(tagId) || session.tabs.some((tab) => tab.tagIds.includes(tagId))
         ? {
             ...touchSession(session, {
               tagIds: session.tagIds.filter((existing) => existing !== tagId),
+              tabs: session.tabs.map((tab) => ({
+                ...tab,
+                tagIds: tab.tagIds.filter((existing) => existing !== tagId),
+              })),
             }),
           }
         : session,

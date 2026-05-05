@@ -171,7 +171,7 @@ export default function MobileHomeScreen({
     const tabsByTagId = new Map<string | null, SavedTab[]>();
 
     for (const savedTab of savedTabs) {
-      const tagIds = savedTab.session.tagIds;
+      const tagIds = [...new Set([...savedTab.session.tagIds, ...savedTab.tab.tagIds])];
       if (tagIds.length === 0) {
         tabsByTagId.set(null, [...(tabsByTagId.get(null) ?? []), savedTab]);
         continue;
@@ -193,7 +193,7 @@ export default function MobileHomeScreen({
   const folderBuckets = useMemo<FolderBucket[]>(() => {
     const foldersById = new Map<string | null, SavedTab[]>();
     for (const savedTab of savedTabs) {
-      const folderId = savedTab.session.folderId ?? null;
+      const folderId = savedTab.tab.folderId ?? savedTab.session.folderId ?? null;
       foldersById.set(folderId, [...(foldersById.get(folderId) ?? []), savedTab]);
     }
 

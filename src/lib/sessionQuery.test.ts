@@ -10,6 +10,8 @@ function createTab(id: string, createdAt: number): TabItem {
     url: `https://${id}.example.com`,
     favIconUrl: null,
     favIconDataUrl: null,
+    folderId: null,
+    tagIds: [],
     pinned: false,
     windowId: null,
     note: "",
@@ -100,5 +102,32 @@ describe("buildSessionListItems", () => {
     });
 
     expect(items.map((item) => item.session.id)).toEqual(["a"]);
+  });
+
+  it("applies folder and tag filters to tab-level organization", () => {
+    const tabOrganizedSession = createSession("tab-level", 400, null, []);
+    tabOrganizedSession.tabs = [
+      {
+        ...tabOrganizedSession.tabs[0],
+        folderId: "folder-work",
+        tagIds: ["tag-focus"],
+      },
+    ];
+
+    const items = buildSessionListItems({
+      sessions: [createSession("session-level", 100, "folder-life", ["tag-later"]), tabOrganizedSession],
+      folders,
+      tags,
+      settings: {
+        searchScopes: DEFAULT_SETTINGS.searchScopes,
+        fuzzySearchThreshold: DEFAULT_SETTINGS.fuzzySearchThreshold,
+      },
+      query: "",
+      sortBy: "updatedAt",
+      folderId: "folder-work",
+      tagId: "tag-focus",
+    });
+
+    expect(items.map((item) => item.session.id)).toEqual(["tab-level"]);
   });
 });

@@ -61,6 +61,8 @@ export function chromeTabToTabItem(tab: chrome.tabs.Tab, position = 0): TabItem 
     url: tab.url ?? "",
     favIconUrl: tab.favIconUrl ?? null,
     favIconDataUrl: null,
+    folderId: null,
+    tagIds: [],
     pinned: tab.pinned ?? false,
     windowId: tab.windowId ?? null,
     note: "",

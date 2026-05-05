@@ -176,6 +176,8 @@ function normalizeTabItem(raw: unknown): TabItem | null {
     url,
     favIconUrl: asNullableString(raw.favIconUrl),
     favIconDataUrl: asNullableString(raw.favIconDataUrl),
+    folderId: raw.folderId == null ? null : asString(raw.folderId) || null,
+    tagIds: asStringArray(raw.tagIds),
     pinned: asBoolean(raw.pinned),
     windowId: typeof raw.windowId === "number" ? raw.windowId : null,
     note: clampText(stripHtml(asString(raw.note)), 2000),
@@ -568,6 +570,11 @@ export function normalizeStorageData(raw: unknown): StorageData {
           ...session,
           folderId: session.folderId && folderIds.has(session.folderId) ? session.folderId : null,
           tagIds: session.tagIds.filter((tagId) => tagIds.has(tagId)),
+          tabs: session.tabs.map((tab) => ({
+            ...tab,
+            folderId: tab.folderId && folderIds.has(tab.folderId) ? tab.folderId : null,
+            tagIds: tab.tagIds.filter((tagId) => tagIds.has(tagId)),
+          })),
         }))
     : [];
 

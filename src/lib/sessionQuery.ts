@@ -66,11 +66,19 @@ function filterSessions(
   }
 
   if (folderId) {
-    visible = visible.filter((session) => session.folderId === folderId);
+    visible = visible.filter(
+      (session) =>
+        session.folderId === folderId ||
+        session.tabs.some((tab) => tab.folderId === folderId),
+    );
   }
 
   if (tagId) {
-    visible = visible.filter((session) => session.tagIds.includes(tagId));
+    visible = visible.filter(
+      (session) =>
+        session.tagIds.includes(tagId) ||
+        session.tabs.some((tab) => tab.tagIds.includes(tagId)),
+    );
   }
 
   return visible;

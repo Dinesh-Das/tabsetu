@@ -33,6 +33,8 @@ function createTabFromUrl(url: string): TabItem {
     url,
     favIconUrl: null,
     favIconDataUrl: null,
+    folderId: null,
+    tagIds: [],
     pinned: false,
     windowId: null,
     note: "",

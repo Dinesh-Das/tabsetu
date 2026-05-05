@@ -451,6 +451,8 @@ function snapshotTabToTabItem(tab: ShareSnapshot["tabs"][number], position: numb
     url,
     favIconUrl: null,
     favIconDataUrl: null,
+    folderId: null,
+    tagIds: [],
     pinned: false,
     windowId: null,
     note: "",

@@ -28,7 +28,7 @@ import {
 import { formatDateTime, formatScheduleLabel } from "@/lib/format";
 import { formatReminderDate, oneHourFromNow, tomorrowAtNine } from "@/lib/reminders";
 import { copyTextToClipboard, getDomainLabel, openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
-import { chromeTabToTabItemWithFavicon, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
+import { chromeTabToTabItemWithFavicon, cloneTabItem, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
 import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -84,6 +84,14 @@ function toDateTimeInputValue(value: number | null): string {
   const date = new Date(value);
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
   return date.toISOString().slice(0, 16);
+}
+
+function toLocalDateInputValue(value: number): string {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 interface ReminderPickerProps {
@@ -161,12 +169,15 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
   const syncAlarms = useScheduleStore((state) => state.syncAlarms);
 
   const updateSession = useSessionStore((state) => state.updateSession);
+  const createSession = useSessionStore((state) => state.createSession);
   const duplicateSession = useSessionStore((state) => state.duplicateSession);
   const deleteSession = useSessionStore((state) => state.deleteSession);
   const addTabToSession = useSessionStore((state) => state.addTabToSession);
   const removeTabFromSession = useSessionStore((state) => state.removeTabFromSession);
   const updateTabNote = useSessionStore((state) => state.updateTabNote);
   const updateTabReminder = useSessionStore((state) => state.updateTabReminder);
+  const updateTabFolder = useSessionStore((state) => state.updateTabFolder);
+  const updateTabTags = useSessionStore((state) => state.updateTabTags);
   const recordOpened = useSessionStore((state) => state.recordOpened);
   const recordTabOpened = useSessionStore((state) => state.recordTabOpened);
 
@@ -219,6 +230,18 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
     );
   };
 
+  const toggleTabTag = (tabId: string, tagId: string) => {
+    const tab = session.tabs.find((item) => item.id === tabId);
+    if (!tab) {
+      return;
+    }
+
+    const nextTagIds = tab.tagIds.includes(tagId)
+      ? tab.tagIds.filter((existing) => existing !== tagId)
+      : [...tab.tagIds, tagId];
+    updateTabTags(session.id, tabId, nextTagIds);
+  };
+
   const handleOpenSession = async (openInNewWindow = settings.openInNewWindow) => {
     const opened = await openSessionTabs(session, openInNewWindow);
     if (opened === 0) {
@@ -267,6 +290,28 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
 
     await chrome.alarms.create(`reminder_${tabId}`, { when: reminderAt });
     addToast("success", "Reminder scheduled.");
+  };
+
+  const createOneTimeScheduleForTab = (tab: Session["tabs"][number]) => {
+    const scheduledAt = tomorrowAtNine();
+    const date = new Date(scheduledAt);
+    const scheduleSession = createSession(
+      `Scheduled: ${tab.title}`,
+      `Auto-open schedule for ${tab.url}`,
+      [cloneTabItem(tab)],
+      tab.folderId ?? session.folderId,
+      [...new Set([...session.tagIds, ...tab.tagIds])],
+    );
+
+    createSchedule({
+      sessionId: scheduleSession.id,
+      type: "once",
+      time: date.toTimeString().slice(0, 5),
+      daysOfWeek: [],
+      date: toLocalDateInputValue(scheduledAt),
+      enabled: true,
+    });
+    addToast("success", `Scheduled "${tab.title}" for tomorrow at 9 AM.`);
   };
 
   const handleAddActiveTab = async () => {
@@ -819,6 +864,9 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
                     <button className="btn btn-secondary" onClick={() => void handleOpenTab(tab.id)}>
                       Open
                     </button>
+                    <button className="btn btn-secondary" onClick={() => createOneTimeScheduleForTab(tab)}>
+                      Schedule
+                    </button>
                     <button
                       className="btn btn-ghost btn-icon"
                       style={{ color: "var(--color-danger)" }}
@@ -840,6 +888,48 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
                     onBlur={() => updateTabNote(session.id, tab.id, tabDraftNotes[tab.id] ?? "")}
                     placeholder="Add context for this link"
                   />
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <label className="label">Tab organization</label>
+                  <div className="tab-organization-controls">
+                    <select
+                      className="input"
+                      value={tab.folderId ?? ""}
+                      onChange={(event) => updateTabFolder(session.id, tab.id, event.target.value || null)}
+                      aria-label={`Folder for ${tab.title}`}
+                    >
+                      <option value="">Use session folder</option>
+                      {folders.map((folder) => (
+                        <option key={folder.id} value={folder.id}>
+                          {folder.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="tab-tag-chip-row" aria-label={`Tags for ${tab.title}`}>
+                      {tags.map((tag) => {
+                        const active = tab.tagIds.includes(tag.id);
+                        const inherited = !active && session.tagIds.includes(tag.id);
+                        return (
+                          <button
+                            key={tag.id}
+                            className="tag-chip"
+                            type="button"
+                            data-active={active || undefined}
+                            data-inherited={inherited || undefined}
+                            onClick={() => toggleTabTag(tab.id, tag.id)}
+                            style={{
+                              borderColor: active ? tag.color : undefined,
+                              color: active ? tag.color : undefined,
+                              background: active ? `${tag.color}22` : undefined,
+                            }}
+                            title={inherited ? "Inherited from session" : `Toggle ${tag.name}`}
+                          >
+                            {tag.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
                 <div style={{ marginTop: 12 }}>
                   <label className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}>

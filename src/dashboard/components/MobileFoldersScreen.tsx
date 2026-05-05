@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   ChevronLeft,
   Edit3,
+  ExternalLink,
   FolderOpen,
   Heart,
   MoreHorizontal,
@@ -61,6 +62,14 @@ function tabPreview(tab: TabItem) {
       )}
     </div>
   );
+}
+
+function tabBelongsToFolder(session: Session, tab: TabItem, folderId: string): boolean {
+  return (tab.folderId ?? session.folderId) === folderId;
+}
+
+function tabBelongsToTag(session: Session, tab: TabItem, tagId: string): boolean {
+  return session.tagIds.includes(tagId) || tab.tagIds.includes(tagId);
 }
 
 function TagEditor({ tag, onClose, addToast }: TagEditorProps) {
@@ -217,8 +226,11 @@ export default function MobileFoldersScreen({ addToast }: Props) {
   const folderCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const session of sessions) {
-      if (session.folderId) {
-        counts.set(session.folderId, (counts.get(session.folderId) ?? 0) + session.tabs.length);
+      for (const tab of session.tabs) {
+        const folderId = tab.folderId ?? session.folderId;
+        if (folderId) {
+          counts.set(folderId, (counts.get(folderId) ?? 0) + 1);
+        }
       }
     }
     return counts;
@@ -229,6 +241,12 @@ export default function MobileFoldersScreen({ addToast }: Props) {
     for (const session of sessions) {
       for (const tagId of session.tagIds) {
         counts.set(tagId, (counts.get(tagId) ?? 0) + session.tabs.length);
+      }
+
+      for (const tab of session.tabs) {
+        for (const tagId of tab.tagIds.filter((id) => !session.tagIds.includes(id))) {
+          counts.set(tagId, (counts.get(tagId) ?? 0) + 1);
+        }
       }
     }
     return counts;
@@ -242,19 +260,36 @@ export default function MobileFoldersScreen({ addToast }: Props) {
   const visibleFolders = folders.filter((folder) => folder.name.toLowerCase().includes(normalizedQuery));
   const visibleTags = tags.filter((tag) => tag.name.toLowerCase().includes(normalizedQuery));
 
-  const activeSessions = useMemo(() => {
+  const activeSavedTabs = useMemo(() => {
     if (!activeCollection) {
       return [];
     }
 
-    if (activeCollection.type === "folder") {
-      return sessions.filter((session) => session.folderId === activeCollection.id);
-    }
-
-    return sessions.filter((session) => session.tagIds.includes(activeCollection.id));
+    return sessions.flatMap((session) =>
+      session.tabs
+        .filter((tab) =>
+          activeCollection.type === "folder"
+            ? tabBelongsToFolder(session, tab, activeCollection.id)
+            : tabBelongsToTag(session, tab, activeCollection.id),
+        )
+        .map((tab) => ({ session, tab })),
+    );
   }, [activeCollection, sessions]);
 
-  const activeTabCount = activeSessions.reduce((total, session) => total + session.tabs.length, 0);
+  const activeSessions = useMemo(() => {
+    const grouped = new Map<string, { session: Session; tabs: TabItem[] }>();
+    for (const savedTab of activeSavedTabs) {
+      const current = grouped.get(savedTab.session.id);
+      if (current) {
+        current.tabs.push(savedTab.tab);
+      } else {
+        grouped.set(savedTab.session.id, { session: savedTab.session, tabs: [savedTab.tab] });
+      }
+    }
+    return [...grouped.values()];
+  }, [activeSavedTabs]);
+
+  const activeTabCount = activeSavedTabs.length;
 
   const handleOpenTab = async (session: Session, tab: TabItem) => {
     const opened = await openSavedTab(tab, false);
@@ -265,6 +300,38 @@ export default function MobileFoldersScreen({ addToast }: Props) {
 
     recordTabOpened(session.id, tab.id);
   };
+
+  const handleOpenTabs = async (tabs: Array<{ session: Session; tab: TabItem }>, label: string) => {
+    let openedCount = 0;
+    for (const savedTab of tabs) {
+      const opened = await openSavedTab(savedTab.tab, false);
+      if (opened) {
+        openedCount += 1;
+        recordTabOpened(savedTab.session.id, savedTab.tab.id);
+      }
+    }
+
+    if (openedCount === 0) {
+      addToast("error", `${label} does not have any openable tabs.`);
+      return;
+    }
+
+    addToast("success", `Opened ${openedCount} ${openedCount === 1 ? "tab" : "tabs"} from ${label}.`);
+  };
+
+  const tabsForFolder = (folderId: string): Array<{ session: Session; tab: TabItem }> =>
+    sessions.flatMap((session) =>
+      session.tabs
+        .filter((tab) => tabBelongsToFolder(session, tab, folderId))
+        .map((tab) => ({ session, tab })),
+    );
+
+  const tabsForTag = (tagId: string): Array<{ session: Session; tab: TabItem }> =>
+    sessions.flatMap((session) =>
+      session.tabs
+        .filter((tab) => tabBelongsToTag(session, tab, tagId))
+        .map((tab) => ({ session, tab })),
+    );
 
   if (activeCollection) {
     return (
@@ -277,6 +344,15 @@ export default function MobileFoldersScreen({ addToast }: Props) {
             <strong>{activeCollection.name}</strong>
             <span>{activeTabCount} tabs</span>
           </div>
+          <button
+            className="mobile-secondary-button"
+            type="button"
+            disabled={activeSavedTabs.length === 0}
+            onClick={() => void handleOpenTabs(activeSavedTabs, activeCollection.name)}
+          >
+            <ExternalLink size={16} />
+            Open All
+          </button>
         </div>
 
         {activeSessions.length === 0 ? (
@@ -289,9 +365,9 @@ export default function MobileFoldersScreen({ addToast }: Props) {
         ) : (
           <div className="collection-detail-list">
             {activeSessions.map((session) => (
-              <GlassCard className="collection-session-card" key={session.id}>
+              <GlassCard className="collection-session-card" key={session.session.id}>
                 <div className="collection-session-heading">
-                  <strong>{session.name}</strong>
+                  <strong>{session.session.name}</strong>
                   <span>{session.tabs.length} tabs</span>
                 </div>
                 <div className="mobile-list mobile-session-tabs home-compact-tabs">
@@ -303,7 +379,7 @@ export default function MobileFoldersScreen({ addToast }: Props) {
                       favIconUrl={tab.favIconDataUrl ?? tab.favIconUrl}
                       preview={tabPreview(tab)}
                       showCheckbox={false}
-                      onSelect={() => void handleOpenTab(session, tab)}
+                      onSelect={() => void handleOpenTab(session.session, tab)}
                     />
                   ))}
                 </div>
@@ -359,6 +435,12 @@ export default function MobileFoldersScreen({ addToast }: Props) {
             <MobileIconButton title="Edit folder" onClick={() => setEditor({ type: "folder", item: folder })}>
               <Edit3 size={17} />
             </MobileIconButton>
+            <MobileIconButton
+              title={`Open all tabs in ${folder.name}`}
+              onClick={() => void handleOpenTabs(tabsForFolder(folder.id), folder.name)}
+            >
+              <ExternalLink size={17} />
+            </MobileIconButton>
             <MobileIconButton title="Delete folder" danger onClick={() => setPendingDelete({ type: "folder", item: folder })}>
               <Trash2 size={17} />
             </MobileIconButton>
@@ -390,6 +472,12 @@ export default function MobileFoldersScreen({ addToast }: Props) {
             </button>
             <MobileIconButton title="Edit tag" onClick={() => setEditor({ type: "tag", item: tag })}>
               <Edit3 size={17} />
+            </MobileIconButton>
+            <MobileIconButton
+              title={`Open all tabs tagged ${tag.name}`}
+              onClick={() => void handleOpenTabs(tabsForTag(tag.id), tag.name)}
+            >
+              <ExternalLink size={17} />
             </MobileIconButton>
             <MobileIconButton title="Delete tag" danger onClick={() => setPendingDelete({ type: "tag", item: tag })}>
               <Trash2 size={17} />
