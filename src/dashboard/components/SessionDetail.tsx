@@ -28,6 +28,7 @@ import {
 import { formatDateTime, formatScheduleLabel } from "@/lib/format";
 import { formatReminderDate, oneHourFromNow, tomorrowAtNine } from "@/lib/reminders";
 import { copyTextToClipboard, getDomainLabel, openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
+import { reorderTabsByIndex } from "@/lib/tabOrdering";
 import { chromeTabToTabItemWithFavicon, cloneTabItem, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
 import { useScheduleStore } from "@/store/scheduleStore";
@@ -331,24 +332,12 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
   };
 
   const reorderTabs = (fromIndex: number, toIndex: number): boolean => {
-    const orderedTabs = [...session.tabs].sort((left, right) => left.position - right.position);
-    if (
-      fromIndex < 0 ||
-      toIndex < 0 ||
-      fromIndex >= orderedTabs.length ||
-      toIndex >= orderedTabs.length ||
-      fromIndex === toIndex
-    ) {
+    const reorderedTabs = reorderTabsByIndex(session.tabs, fromIndex, toIndex);
+    if (!reorderedTabs) {
       return false;
     }
 
-    const [movedTab] = orderedTabs.splice(fromIndex, 1);
-    if (!movedTab) {
-      return false;
-    }
-
-    orderedTabs.splice(toIndex, 0, movedTab);
-    updateSession(session.id, { tabs: orderedTabs });
+    updateSession(session.id, { tabs: reorderedTabs });
     return true;
   };
 

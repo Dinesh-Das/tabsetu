@@ -3,6 +3,7 @@ import type { Session, StorageData, TabItem } from "@/types";
 import {
   generateAIPrompt,
   generateAIPromptWithPageText,
+  importFile,
   sessionToMarkdown,
   sessionToPlainText,
   summarizeStorageData,
@@ -55,6 +56,10 @@ function makeSession(overrides?: Partial<Session>): Session {
     isArchived: false,
     ...overrides,
   };
+}
+
+function makeImportFile(name: string, content: string, type: string): File {
+  return new File([content], name, { type });
 }
 
 describe("exportImport", () => {
@@ -158,5 +163,103 @@ describe("exportImport", () => {
     );
 
     await expect(generateAIPromptWithPageText(makeSession())).resolves.toContain("Fetched insight");
+  });
+
+  it("continues to import existing TabSetu JSON backups", async () => {
+    const data = await importFile(
+      makeImportFile(
+        "tabsetu-backup.json",
+        JSON.stringify({ sessions: [makeSession({ id: "imported-session", name: "Imported backup" })] }),
+        "application/json",
+      ),
+    );
+
+    expect(data.sessions.map((session) => session.name)).toEqual(["Imported backup"]);
+    expect(data.sessions[0].tabs[0].note).toBe("Read before standup");
+  });
+
+  it("imports OneTab text with raw URLs, pipe titles, and blank-line sections", async () => {
+    const data = await importFile(
+      makeImportFile(
+        "onetab.txt",
+        [
+          "Research",
+          "Example Docs | https://example.com/docs",
+          "https://openai.com",
+          "",
+          "Reading",
+          "https://developer.mozilla.org | MDN Web Docs",
+        ].join("\n"),
+        "text/plain",
+      ),
+    );
+
+    expect(data.sessions.map((session) => session.name)).toEqual(["Research", "Reading"]);
+    expect(data.sessions[0].tabs.map((tab) => `${tab.position}:${tab.title}:${tab.url}`)).toEqual([
+      "0:Example Docs:https://example.com/docs",
+      "1:openai.com:https://openai.com",
+    ]);
+    expect(data.sessions[1].tabs[0].title).toBe("MDN Web Docs");
+  });
+
+  it("imports HTML anchors and uses nearby headings as session names", async () => {
+    const data = await importFile(
+      makeImportFile(
+        "links.html",
+        [
+          "<!doctype html>",
+          "<html><body>",
+          "<h2>Project Alpha</h2>",
+          "<a href=\"https://alpha.example.com/docs\">Alpha docs</a>",
+          "<h2>Project Beta</h2>",
+          "<section><a href=\"https://beta.example.com/report\">Beta report</a></section>",
+          "</body></html>",
+        ].join(""),
+        "text/html",
+      ),
+    );
+
+    expect(data.sessions.map((session) => session.name)).toEqual(["Project Alpha", "Project Beta"]);
+    expect(data.sessions[0].tabs[0].title).toBe("Alpha docs");
+    expect(data.sessions[1].tabs[0].url).toBe("https://beta.example.com/report");
+  });
+
+  it("imports nested Session Buddy JSON sessions, windows, and tabs", async () => {
+    const data = await importFile(
+      makeImportFile(
+        "session-buddy.json",
+        JSON.stringify({
+          sessions: [
+            {
+              name: "Morning setup",
+              windows: [
+                {
+                  tabs: [
+                    { title: "Dashboard", url: "https://dash.example.com" },
+                    { title: "Mail", url: "https://mail.example.com" },
+                  ],
+                },
+              ],
+            },
+            {
+              title: "Research",
+              tabs: [{ name: "Paper", url: "https://paper.example.com" }],
+            },
+          ],
+        }),
+        "application/json",
+      ),
+    );
+
+    expect(data.sessions.map((session) => session.name)).toEqual(["Morning setup", "Research"]);
+    expect(data.sessions[0].tabs.map((tab) => tab.position)).toEqual([0, 1]);
+    expect(data.sessions[0].tabs.map((tab) => tab.title)).toEqual(["Dashboard", "Mail"]);
+    expect(data.sessions[1].tabs[0].title).toBe("Paper");
+  });
+
+  it("rejects imports when no valid tabs are found", async () => {
+    await expect(
+      importFile(makeImportFile("empty.txt", "not a saved tab export", "text/plain")),
+    ).rejects.toThrow("No valid tabs were found");
   });
 });

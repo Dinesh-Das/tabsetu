@@ -8,7 +8,7 @@ import {
   downloadPlainText,
   exportJSON,
   generateAIPrompt,
-  importJSON,
+  importFile,
   mergeStorageData,
   summarizeStorageData,
 } from "@/lib/exportImport";
@@ -104,7 +104,7 @@ export default function ImportExportPanel({ addToast }: Props) {
     }
 
     try {
-      const imported = await importJSON(file);
+      const imported = await importFile(file);
       setPendingImport({
         fileName: file.name,
         data: imported,
@@ -162,7 +162,8 @@ export default function ImportExportPanel({ addToast }: Props) {
           <div className="card settings-card">
             <h3>Full backup</h3>
             <p style={{ color: "var(--color-text-secondary)", marginTop: 8 }}>
-              JSON exports include sessions, folders, tags, notes, schedules, and settings.
+              JSON exports include sessions, folders, tags, notes, schedules, and settings. Imports also accept
+              OneTab text, OneTab HTML, and Session Buddy exports.
             </p>
             <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
               <button className="btn btn-primary" onClick={() => void handleExportAll()}>
@@ -171,10 +172,10 @@ export default function ImportExportPanel({ addToast }: Props) {
               </button>
               <label className="btn btn-secondary" style={{ cursor: "pointer" }}>
                 <FileUp size={16} />
-                Import JSON
+                Import file
                 <input
                   type="file"
-                  accept="application/json"
+                  accept=".json,.txt,.html,.htm,application/json,text/plain,text/html"
                   style={{ display: "none" }}
                   onChange={(event) => {
                     const file = event.target.files?.[0] ?? null;

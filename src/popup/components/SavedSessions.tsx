@@ -7,7 +7,7 @@ import { formatDateTime } from "@/lib/format";
 import { buildSessionListItems } from "@/lib/sessionQuery";
 import { getDomainLabel, openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
 import { chromeTabToTabItem, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
-import type { Session, TabItem, ToastMessage } from "@/types";
+import type { Session, SortOption, TabItem, ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -18,6 +18,42 @@ interface Props {
   addToast: (type: ToastMessage["type"], message: string) => void;
   onSaveNew: () => void;
   keyboardActive: boolean;
+}
+
+const POPUP_SORT_STORAGE_KEY = "tabsetu.popup.sort";
+const DEFAULT_POPUP_SORT: SortOption = "updatedAt";
+const POPUP_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
+  { value: "updatedAt", label: "Recently updated" },
+  { value: "lastOpenedAt", label: "Recently opened" },
+  { value: "name", label: "Alphabetical" },
+  { value: "tabCount", label: "Tab count" },
+  { value: "createdAt", label: "Recently created" },
+];
+
+function isSortOption(value: string | null): value is SortOption {
+  switch (value) {
+    case "createdAt":
+    case "updatedAt":
+    case "lastOpenedAt":
+    case "name":
+    case "tabCount":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function readStoredPopupSort(): SortOption {
+  if (typeof window === "undefined") {
+    return DEFAULT_POPUP_SORT;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(POPUP_SORT_STORAGE_KEY);
+    return isSortOption(stored) ? stored : DEFAULT_POPUP_SORT;
+  } catch {
+    return DEFAULT_POPUP_SORT;
+  }
 }
 
 export default function SavedSessions({ query, addToast, onSaveNew, keyboardActive }: Props) {
@@ -40,6 +76,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
   const [quickInfo, setQuickInfo] = useState<{ sessionId: string; tab: TabItem; x: number; y: number } | null>(null);
   const [quickInfoDraftNote, setQuickInfoDraftNote] = useState("");
   const [quickInfoEditing, setQuickInfoEditing] = useState(false);
+  const [sortBy, setSortBy] = useState<SortOption>(readStoredPopupSort);
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const quickInfoShowTimer = useRef<number | null>(null);
   const quickInfoHideTimer = useRef<number | null>(null);
@@ -52,11 +89,11 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
         tags,
         settings,
         query,
-        sortBy: "lastOpenedAt",
+        sortBy,
         folderId: activeFolderId || null,
         tagId: null,
       }),
-    [activeFolderId, folders, query, sessions, settings, tags],
+    [activeFolderId, folders, query, sessions, settings, sortBy, tags],
   );
 
   const availableTags = useMemo(() => {
@@ -77,12 +114,20 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
         tags,
         settings,
         query,
-        sortBy: "lastOpenedAt",
+        sortBy,
         folderId: activeFolderId || null,
         tagId: activeTagId || null,
       }),
-    [activeFolderId, activeTagId, folders, query, sessions, settings, tags],
+    [activeFolderId, activeTagId, folders, query, sessions, settings, sortBy, tags],
   );
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(POPUP_SORT_STORAGE_KEY, sortBy);
+    } catch {
+      return;
+    }
+  }, [sortBy]);
 
   useEffect(() => {
     if (activeFolderId && !folders.some((folder) => folder.id === activeFolderId)) {
@@ -111,7 +156,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
 
   useEffect(() => {
     setKeyboardIndex(0);
-  }, [activeFolderId, activeTagId, query]);
+  }, [activeFolderId, activeTagId, query, sortBy]);
 
   useEffect(() => {
     if (visibleItems.length === 0) {
@@ -365,10 +410,37 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
         <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
           {visibleItems.length} saved {visibleItems.length === 1 ? "session" : "sessions"}
         </span>
-        <button className="btn btn-primary" type="button" style={{ fontSize: 12 }} onClick={onSaveNew}>
-          <Plus size={14} />
-          Save current tabs
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <label
+            htmlFor="tabsetu-popup-sort"
+            style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}
+          >
+            <span style={{ color: "var(--color-text-muted)" }}>Sort</span>
+            <select
+              id="tabsetu-popup-sort"
+              className="input"
+              value={sortBy}
+              aria-label="Sort saved sessions"
+              style={{ height: 32, minHeight: 32, padding: "0 28px 0 10px", fontSize: 12 }}
+              onChange={(event) => {
+                const nextSort = event.currentTarget.value;
+                if (isSortOption(nextSort)) {
+                  setSortBy(nextSort);
+                }
+              }}
+            >
+              {POPUP_SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="btn btn-primary" type="button" style={{ fontSize: 12 }} onClick={onSaveNew}>
+            <Plus size={14} />
+            Save current tabs
+          </button>
+        </div>
       </div>
 
       {folders.length !== 0 || availableTags.length !== 0 ? (

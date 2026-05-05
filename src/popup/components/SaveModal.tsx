@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { BottomSheet } from "@/components/mobile/MobileUI";
 import type { Session, ToastMessage } from "@/types";
+import { defaultSavedSessionTitle } from "@/lib/sessionLabels";
 import { closeTabs, collectTabsForSession, chromeTabToTabItemWithFavicon } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -22,16 +23,6 @@ interface Props {
   onClose: () => void;
   addToast: (type: ToastMessage["type"], message: string) => void;
   onCollapseSaved?: (payload: { session: Session; windowId: number | null }) => void;
-}
-
-function defaultSessionName(closeAfterSaving: boolean): string {
-  const label = closeAfterSaving ? "Collapsed tabs" : "Saved tabs";
-  return `${label} ${new Date().toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
 }
 
 const COLOR_LABELS: Array<{ value: string | null; label: string }> = [
@@ -157,7 +148,7 @@ export default function SaveModal({ mode, selectedTabIds, onClose, addToast, onC
       );
 
       const session = createSession(
-        defaultSessionName(closeAfterSave),
+        defaultSavedSessionTitle(closeAfterSave, savedTabs),
         selectedFolder ? `Saved to ${selectedFolder.name}` : "",
         savedTabs,
         folderId || null,

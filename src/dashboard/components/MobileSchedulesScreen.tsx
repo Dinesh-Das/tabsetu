@@ -4,6 +4,7 @@ import MobileConfirmSheet from "@/components/mobile/MobileConfirmSheet";
 import { BottomSheet, EmptyState, GlassCard, MobileIconButton, SegmentedControl } from "@/components/mobile/MobileUI";
 import { formatDateTime, formatScheduleLabel } from "@/lib/format";
 import { normalizeScheduleDraft, type ScheduleDraft } from "@/lib/scheduleDraft";
+import { displaySessionTitle } from "@/lib/sessionLabels";
 import { generateId, sanitizeLabel } from "@/lib/tabHelpers";
 import type { Schedule, ScheduleType, TabItem, ToastMessage } from "@/types";
 import { useScheduleStore } from "@/store/scheduleStore";
@@ -150,7 +151,7 @@ function ScheduleEditor({ schedule, addToast, onClose, variant = "sheet" }: Sche
             <option value="">Select session</option>
             {sessions.map((session) => (
               <option key={session.id} value={session.id}>
-                {session.name}
+                {displaySessionTitle(session)}
               </option>
             ))}
           </select>

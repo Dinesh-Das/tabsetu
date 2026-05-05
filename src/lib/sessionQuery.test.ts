@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "@/lib/storage";
-import { buildSessionListItems } from "@/lib/sessionQuery";
+import { buildSessionListItems, sortSessions } from "@/lib/sessionQuery";
 import type { Folder, Session, Tag, TabItem } from "@/types";
 
 function createTab(id: string, createdAt: number): TabItem {
@@ -129,5 +129,62 @@ describe("buildSessionListItems", () => {
     });
 
     expect(items.map((item) => item.session.id)).toEqual(["tab-level"]);
+  });
+});
+
+describe("sortSessions", () => {
+  const sortableSessions: Session[] = [
+    {
+      ...createSession("alpha", 200, null, []),
+      name: "Gamma",
+      createdAt: 10,
+      updatedAt: 40,
+      lastOpenedAt: 100,
+      tabs: [createTab("alpha-tab-1", 10), createTab("alpha-tab-2", 10)],
+    },
+    {
+      ...createSession("bravo", 300, null, []),
+      name: "Alpha",
+      createdAt: 30,
+      updatedAt: 20,
+      lastOpenedAt: null,
+      tabs: [createTab("bravo-tab-1", 30)],
+    },
+    {
+      ...createSession("charlie", 100, null, []),
+      name: "Beta",
+      createdAt: 20,
+      updatedAt: 60,
+      lastOpenedAt: 300,
+      tabs: [createTab("charlie-tab-1", 20), createTab("charlie-tab-2", 20), createTab("charlie-tab-3", 20)],
+    },
+  ];
+
+  it("orders popup sort options consistently", () => {
+    expect(sortSessions(sortableSessions, "updatedAt").map((session) => session.id)).toEqual([
+      "charlie",
+      "alpha",
+      "bravo",
+    ]);
+    expect(sortSessions(sortableSessions, "lastOpenedAt").map((session) => session.id)).toEqual([
+      "charlie",
+      "alpha",
+      "bravo",
+    ]);
+    expect(sortSessions(sortableSessions, "name").map((session) => session.name)).toEqual([
+      "Alpha",
+      "Beta",
+      "Gamma",
+    ]);
+    expect(sortSessions(sortableSessions, "tabCount").map((session) => session.id)).toEqual([
+      "charlie",
+      "alpha",
+      "bravo",
+    ]);
+    expect(sortSessions(sortableSessions, "createdAt").map((session) => session.id)).toEqual([
+      "bravo",
+      "charlie",
+      "alpha",
+    ]);
   });
 });
