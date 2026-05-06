@@ -31,9 +31,17 @@ interface Props {
   selectedSessionId: string | null;
   onSelect: (sessionId: string | null) => void;
   addToast: (type: ToastMessage["type"], message: string) => void;
+  initialSavePrompt?: { mode: "save" | "collapse"; sourceTabId: number | null } | null;
+  onInitialSavePromptHandled?: () => void;
 }
 
-export default function SessionList({ selectedSessionId, onSelect, addToast }: Props) {
+export default function SessionList({
+  selectedSessionId,
+  onSelect,
+  addToast,
+  initialSavePrompt,
+  onInitialSavePromptHandled,
+}: Props) {
   const sessions = useSessionStore((state) => state.sessions);
   const sortBy = useSessionStore((state) => state.sortBy);
   const viewFilter = useSessionStore((state) => state.viewFilter);
@@ -52,7 +60,10 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
   const settings = useSettingsStore((state) => state.settings);
 
   const [query, setQuery] = useState("");
-  const [saveModalMode, setSaveModalMode] = useState<"save" | "collapse" | null>(null);
+  const [saveModalPrompt, setSaveModalPrompt] = useState<{
+    mode: "save" | "collapse";
+    sourceTabId: number | null;
+  } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Session | null>(null);
   const [pendingBulkDelete, setPendingBulkDelete] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
@@ -110,8 +121,20 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
   }, [sessions]);
 
   useEffect(() => {
+    if (!initialSavePrompt) {
+      return;
+    }
+
+    setSaveModalPrompt(initialSavePrompt);
+    onInitialSavePromptHandled?.();
+  }, [initialSavePrompt, onInitialSavePromptHandled]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const usesSessionShortcutModifier = event.shiftKey && ((event.ctrlKey || event.metaKey) || event.altKey);
+      const usesCommandShortcutModifier = event.shiftKey && (event.ctrlKey || event.metaKey);
+      const usesAltShortcutModifier = event.shiftKey && event.altKey;
+      const usesLegacySessionShortcutModifier =
+        event.shiftKey && ((event.ctrlKey || event.metaKey) || event.altKey);
 
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -119,14 +142,22 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
         searchRef.current?.select();
       }
 
-      if (usesSessionShortcutModifier && event.key.toLowerCase() === "s") {
+      if (
+        (usesAltShortcutModifier && event.key.toLowerCase() === "y") ||
+        (usesCommandShortcutModifier && event.key.toLowerCase() === "y") ||
+        (usesLegacySessionShortcutModifier && event.key.toLowerCase() === "s")
+      ) {
         event.preventDefault();
-        setSaveModalMode("save");
+        setSaveModalPrompt({ mode: "save", sourceTabId: null });
       }
 
-      if (usesSessionShortcutModifier && event.key.toLowerCase() === "c") {
+      if (
+        (usesAltShortcutModifier && event.key.toLowerCase() === "u") ||
+        (usesCommandShortcutModifier && event.key.toLowerCase() === "u") ||
+        (usesLegacySessionShortcutModifier && event.key.toLowerCase() === "c")
+      ) {
         event.preventDefault();
-        setSaveModalMode("collapse");
+        setSaveModalPrompt({ mode: "collapse", sourceTabId: null });
       }
 
       if (event.key === "Escape" && query) {
@@ -247,7 +278,7 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
               {selectMode ? <X size={15} /> : <CheckSquare size={15} />}
               {selectMode ? "Cancel select" : "Select"}
             </button>
-            <button className="btn btn-primary" onClick={() => setSaveModalMode("save")}>
+            <button className="btn btn-primary" onClick={() => setSaveModalPrompt({ mode: "save", sourceTabId: null })}>
               <PackagePlus size={16} />
               Save current window
             </button>
@@ -602,11 +633,12 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
         </div>
       </div>
 
-      {saveModalMode ? (
+      {saveModalPrompt ? (
         <SaveModal
-          mode={saveModalMode}
+          mode={saveModalPrompt.mode}
           selectedTabIds={[]}
-          onClose={() => setSaveModalMode(null)}
+          preferredTitleTabId={saveModalPrompt.sourceTabId}
+          onClose={() => setSaveModalPrompt(null)}
           addToast={addToast}
         />
       ) : null}

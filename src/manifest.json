@@ -29,15 +29,15 @@
     },
     "save-current-window": {
       "suggested_key": {
-        "default": "Alt+Shift+S",
-        "mac": "Alt+Shift+S"
+        "default": "Alt+Shift+Y",
+        "mac": "Alt+Shift+Y"
       },
       "description": "Save the current window as a TabSetu session"
     },
     "collapse-current-window": {
       "suggested_key": {
-        "default": "Alt+Shift+C",
-        "mac": "Alt+Shift+C"
+        "default": "Alt+Shift+U",
+        "mac": "Alt+Shift+U"
       },
       "description": "Collapse the current window into a TabSetu session"
     },

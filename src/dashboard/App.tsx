@@ -23,6 +23,32 @@ import RemindersPage from "./pages/RemindersPage";
 import type { DesktopSidebarView } from "./components/Sidebar";
 
 type DashView = MobileNavView | "settings" | "importexport";
+type SavePromptMode = "save" | "collapse";
+
+function getInitialSavePrompt(): { mode: SavePromptMode; sourceTabId: number | null } | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const mode = params.get("saveMode");
+  if (mode !== "save" && mode !== "collapse") {
+    return null;
+  }
+
+  const sourceTabId = Number(params.get("sourceTabId"));
+  return {
+    mode,
+    sourceTabId: Number.isFinite(sourceTabId) ? sourceTabId : null,
+  };
+}
+
+function clearSavePromptUrl(): void {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("saveMode");
+  url.searchParams.delete("sourceTabId");
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
 
 function getInitialDashView(): DashView {
   if (typeof window === "undefined") {
@@ -110,6 +136,7 @@ export default function DashboardApp() {
   const settings = useSettingsStore((state) => state.settings);
 
   const [view, setView] = useState<DashView>(getInitialDashView);
+  const [savePrompt, setSavePrompt] = useState(getInitialSavePrompt);
   const [menuOpen, setMenuOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const isDesktop = useMediaQuery("(min-width: 900px)");
@@ -139,12 +166,22 @@ export default function DashboardApp() {
     }, 3400);
   };
 
+  const handleInitialSavePromptHandled = () => {
+    setSavePrompt(null);
+    clearSavePromptUrl();
+  };
+
   const activeNavView = isMobileNavView(view) ? view : "home";
 
   if (isDesktop) {
     return (
       <div className="desktop-dashboard-stage">
-        <DesktopLayout addToast={addToast} initialView={desktopViewFromDashView(view)} />
+        <DesktopLayout
+          addToast={addToast}
+          initialView={desktopViewFromDashView(view)}
+          initialSavePrompt={savePrompt}
+          onInitialSavePromptHandled={handleInitialSavePromptHandled}
+        />
         <DashToast toasts={toasts} />
       </div>
     );
@@ -180,7 +217,13 @@ export default function DashboardApp() {
           </div>
         }
       >
-        {view === "home" ? <MobileHomeScreen addToast={addToast} /> : null}
+        {view === "home" ? (
+          <MobileHomeScreen
+            addToast={addToast}
+            initialSavePrompt={savePrompt}
+            onInitialSavePromptHandled={handleInitialSavePromptHandled}
+          />
+        ) : null}
         {view === "folders" ? <MobileFoldersScreen addToast={addToast} /> : null}
         {view === "schedules" ? <MobileSchedulesScreen addToast={addToast} /> : null}
         {view === "reminders" ? <RemindersPage addToast={addToast} /> : null}

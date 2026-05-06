@@ -253,12 +253,13 @@ interface BottomSheetProps {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  className?: string;
 }
 
-export function BottomSheet({ title, subtitle, onClose, children, footer }: BottomSheetProps) {
+export function BottomSheet({ title, subtitle, onClose, children, footer, className = "" }: BottomSheetProps) {
   return (
     <div className="mobile-sheet-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="mobile-bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-sheet-title">
+      <section className={`mobile-bottom-sheet ${className}`} role="dialog" aria-modal="true" aria-labelledby="mobile-sheet-title">
         <div className="mobile-sheet-handle" />
         <div className="mobile-sheet-header">
           <div>

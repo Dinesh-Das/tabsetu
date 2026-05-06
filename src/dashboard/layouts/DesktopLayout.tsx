@@ -14,6 +14,8 @@ import { useSessionStore } from "@/store/sessionStore";
 interface Props {
   addToast: (type: ToastMessage["type"], message: string) => void;
   initialView?: DesktopSidebarView;
+  initialSavePrompt?: { mode: "save" | "collapse"; sourceTabId: number | null } | null;
+  onInitialSavePromptHandled?: () => void;
 }
 
 function normalizeDesktopView(view: DesktopSidebarView | undefined): DesktopSidebarView {
@@ -30,7 +32,12 @@ function normalizeDesktopView(view: DesktopSidebarView | undefined): DesktopSide
   return "sessions";
 }
 
-export default function DesktopLayout({ addToast, initialView }: Props) {
+export default function DesktopLayout({
+  addToast,
+  initialView,
+  initialSavePrompt,
+  onInitialSavePromptHandled,
+}: Props) {
   const sessions = useSessionStore((state) => state.sessions);
   const [view, setView] = useState<DesktopSidebarView>(() => normalizeDesktopView(initialView));
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -75,6 +82,8 @@ export default function DesktopLayout({ addToast, initialView }: Props) {
             selectedSessionId={selectedSessionId}
             onSelect={setSelectedSessionId}
             addToast={addToast}
+            initialSavePrompt={initialSavePrompt}
+            onInitialSavePromptHandled={onInitialSavePromptHandled}
           />
         ) : null}
         {view === "notes" ? <NotesPanel addToast={addToast} onOpenSession={openSessionDetail} /> : null}

@@ -28,6 +28,8 @@ interface Props {
   onQuickSave?: () => void;
   onCollapseCurrent?: () => void;
   currentTabCount?: number;
+  initialSavePrompt?: { mode: "save" | "collapse"; sourceTabId: number | null } | null;
+  onInitialSavePromptHandled?: () => void;
 }
 
 type HomeFilter = "folders" | "tags";
@@ -102,6 +104,8 @@ export default function MobileHomeScreen({
   onQuickSave,
   onCollapseCurrent,
   currentTabCount,
+  initialSavePrompt,
+  onInitialSavePromptHandled,
 }: Props) {
   const sessions = useSessionStore((state) => state.sessions);
   const sortBy = useSessionStore((state) => state.sortBy);
@@ -117,7 +121,10 @@ export default function MobileHomeScreen({
 
   const [query, setQuery] = useState("");
   const [homeFilter, setHomeFilter] = useState<HomeFilter>("folders");
-  const [saveModalMode, setSaveModalMode] = useState<"save" | "collapse" | null>(null);
+  const [saveModalPrompt, setSaveModalPrompt] = useState<{
+    mode: "save" | "collapse";
+    sourceTabId: number | null;
+  } | null>(null);
   const deferredQuery = useDebouncedValue(query, 140);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -130,6 +137,15 @@ export default function MobileHomeScreen({
     window.addEventListener("tabsetu:focus-home-search", focusSearch);
     return () => window.removeEventListener("tabsetu:focus-home-search", focusSearch);
   }, []);
+
+  useEffect(() => {
+    if (!initialSavePrompt) {
+      return;
+    }
+
+    setSaveModalPrompt(initialSavePrompt);
+    onInitialSavePromptHandled?.();
+  }, [initialSavePrompt, onInitialSavePromptHandled]);
 
   const items = useMemo(
     () =>
@@ -211,7 +227,7 @@ export default function MobileHomeScreen({
       return;
     }
 
-    setSaveModalMode("save");
+    setSaveModalPrompt({ mode: "save", sourceTabId: null });
   };
 
   const openCollapse = () => {
@@ -220,7 +236,7 @@ export default function MobileHomeScreen({
       return;
     }
 
-    setSaveModalMode("collapse");
+    setSaveModalPrompt({ mode: "collapse", sourceTabId: null });
   };
 
   const handleOpenTab = async (session: Session, tab: TabItem) => {
@@ -413,11 +429,12 @@ export default function MobileHomeScreen({
         ) : null}
       </div>
 
-      {saveModalMode ? (
+      {saveModalPrompt ? (
         <SaveModal
-          mode={saveModalMode}
+          mode={saveModalPrompt.mode}
           selectedTabIds={[]}
-          onClose={() => setSaveModalMode(null)}
+          preferredTitleTabId={saveModalPrompt.sourceTabId}
+          onClose={() => setSaveModalPrompt(null)}
           addToast={addToast}
           onCollapseSaved={onCollapseSaved}
         />

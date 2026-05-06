@@ -437,20 +437,13 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
 
   return (
     <aside
-      style={{
-        width: "100%",
-        borderLeft: "1px solid var(--color-border)",
-        background: "var(--color-surface)",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}
+      className="session-detail-shell"
     >
-      <div style={{ padding: "22px 22px 16px", borderBottom: "1px solid var(--color-border)" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+      <div className="session-detail-hero">
+        <div className="session-detail-title-row">
           <div>
-            <h2 style={{ fontSize: 24, lineHeight: 1.1 }}>{session.name}</h2>
-            <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--color-text-muted)" }}>
+            <h2>{session.name}</h2>
+            <p>
               Created {formatDateTime(session.createdAt)} - Opened {formatDateTime(session.lastOpenedAt)}
             </p>
           </div>
@@ -459,7 +452,7 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
           </button>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+        <div className="session-detail-actions">
           <button className="btn btn-primary" onClick={() => void handleOpenSession()}>
             <ExternalLink size={15} />
             Open all
@@ -487,8 +480,8 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 22 }}>
-        <section className="detail-section">
+      <div className="session-detail-scroll">
+        <section className="detail-section session-detail-edit-section">
           <div className="detail-section-header">
             <h3>Session details</h3>
             <button className="btn btn-secondary" onClick={handleSaveDetails}>
@@ -497,18 +490,10 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
             </button>
           </div>
 
-          <div className="form-stack">
+          <div className="form-stack session-detail-form-grid">
             <div>
               <label className="label">Name</label>
               <input className="input" value={name} onChange={(event) => setName(event.target.value)} />
-            </div>
-            <div>
-              <label className="label">Description</label>
-              <textarea className="input" value={description} onChange={(event) => setDescription(event.target.value)} />
-            </div>
-            <div>
-              <label className="label">Session notes</label>
-              <textarea className="input" value={note} onChange={(event) => setNote(event.target.value)} />
             </div>
             <div>
               <label className="label">Folder</label>
@@ -521,7 +506,15 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
                 ))}
               </select>
             </div>
-            <div>
+            <div className="session-detail-wide-field">
+              <label className="label">Description</label>
+              <textarea className="input" value={description} onChange={(event) => setDescription(event.target.value)} />
+            </div>
+            <div className="session-detail-wide-field">
+              <label className="label">Session notes</label>
+              <textarea className="input" value={note} onChange={(event) => setNote(event.target.value)} />
+            </div>
+            <div className="session-detail-wide-field">
               <label className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <FolderOpen size={14} />
                 Tags

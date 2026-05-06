@@ -200,15 +200,26 @@ export default function PopupApp() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const usesSessionShortcutModifier = event.shiftKey && ((event.ctrlKey || event.metaKey) || event.altKey);
+      const usesCommandShortcutModifier = event.shiftKey && (event.ctrlKey || event.metaKey);
+      const usesAltShortcutModifier = event.shiftKey && event.altKey;
+      const usesLegacySessionShortcutModifier =
+        event.shiftKey && ((event.ctrlKey || event.metaKey) || event.altKey);
 
-      if (usesSessionShortcutModifier && event.key.toLowerCase() === "c") {
+      if (
+        (usesAltShortcutModifier && event.key.toLowerCase() === "u") ||
+        (usesCommandShortcutModifier && event.key.toLowerCase() === "u") ||
+        (usesLegacySessionShortcutModifier && event.key.toLowerCase() === "c")
+      ) {
         event.preventDefault();
         setView("capture");
         openSaveModal("collapse");
       }
 
-      if (usesSessionShortcutModifier && event.key.toLowerCase() === "s") {
+      if (
+        (usesAltShortcutModifier && event.key.toLowerCase() === "y") ||
+        (usesCommandShortcutModifier && event.key.toLowerCase() === "y") ||
+        (usesLegacySessionShortcutModifier && event.key.toLowerCase() === "s")
+      ) {
         event.preventDefault();
         setView("capture");
         openSaveModal("save", selectedTabIds);

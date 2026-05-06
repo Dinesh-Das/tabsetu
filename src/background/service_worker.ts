@@ -416,6 +416,20 @@ async function createSessionFromWindow(mode: "save" | "collapse"): Promise<void>
   }
 }
 
+async function openSavePrompt(mode: "save" | "collapse"): Promise<void> {
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const params = new URLSearchParams({
+    view: "home",
+    saveMode: mode,
+  });
+
+  if (typeof activeTab?.id === "number") {
+    params.set("sourceTabId", String(activeTab.id));
+  }
+
+  await chrome.tabs.create({ url: chrome.runtime.getURL(`src/dashboard/index.html?${params.toString()}`) });
+}
+
 function isShareSnapshot(value: unknown): value is ShareSnapshot {
   if (!value || typeof value !== "object") {
     return false;
@@ -889,17 +903,61 @@ async function openSearchOverlay(): Promise<void> {
   });
 }
 
+const EXPECTED_COMMAND_SHORTCUTS: Record<string, string> = {
+  "open-search-overlay": "Ctrl+Shift+F",
+  "save-current-window": "Alt+Shift+Y",
+  "collapse-current-window": "Alt+Shift+U",
+  "open-dashboard": "Alt+Shift+D",
+};
+
+function getRegisteredCommands(): Promise<chrome.commands.Command[]> {
+  return new Promise((resolve) => {
+    chrome.commands.getAll((commands) => resolve(commands));
+  });
+}
+
+async function notifyUnassignedCommandShortcuts(): Promise<void> {
+  try {
+    const commands = await getRegisteredCommands();
+    const unassigned = commands
+      .filter((command) => command.name && command.name in EXPECTED_COMMAND_SHORTCUTS && !command.shortcut)
+      .map((command) => EXPECTED_COMMAND_SHORTCUTS[command.name as keyof typeof EXPECTED_COMMAND_SHORTCUTS]);
+
+    if (unassigned.length === 0) {
+      return;
+    }
+
+    await chrome.notifications.create(`tabsetu-shortcuts-${Date.now()}`, {
+      type: "basic",
+      iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+      title: "TabSetu shortcuts need assigning",
+      message: `Open chrome://extensions/shortcuts and set: ${unassigned.join(", ")}.`,
+      priority: 1,
+    });
+  } catch {
+    // Shortcut diagnostics are best-effort only.
+  }
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  void notifyUnassignedCommandShortcuts();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  void notifyUnassignedCommandShortcuts();
+});
+
 chrome.commands.onCommand.addListener((command) => {
   if (command === "open-search-overlay") {
     void openSearchOverlay();
   }
 
   if (command === "save-current-window") {
-    void createSessionFromWindow("save");
+    void openSavePrompt("save");
   }
 
   if (command === "collapse-current-window") {
-    void createSessionFromWindow("collapse");
+    void openSavePrompt("collapse");
   }
 
   if (command === "open-dashboard") {
