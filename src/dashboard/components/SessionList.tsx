@@ -111,18 +111,20 @@ export default function SessionList({ selectedSessionId, onSelect, addToast }: P
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const usesSessionShortcutModifier = event.shiftKey && ((event.ctrlKey || event.metaKey) || event.altKey);
+
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
       }
 
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "s") {
+      if (usesSessionShortcutModifier && event.key.toLowerCase() === "s") {
         event.preventDefault();
         setSaveModalMode("save");
       }
 
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "c") {
+      if (usesSessionShortcutModifier && event.key.toLowerCase() === "c") {
         event.preventDefault();
         setSaveModalMode("collapse");
       }

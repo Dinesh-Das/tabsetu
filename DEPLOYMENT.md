@@ -157,7 +157,7 @@ After approval:
 - [ ] Verify the listing is live and the install flow works
 - [ ] Test fresh install on a clean Chrome profile
 - [ ] Confirm onboarding flow appears on first launch
-- [ ] Test keyboard shortcuts (`Ctrl+Shift+S`, `Ctrl+Shift+C`, `Ctrl+Shift+F`, `Ctrl+Shift+D`)
+- [ ] Test keyboard shortcuts (`Alt+Shift+S`, `Alt+Shift+C`, `Ctrl+Shift+F`, `Alt+Shift+D`)
 - [ ] Submit to Edge Add-ons if not done already
 - [ ] Update README with store badges/links
 

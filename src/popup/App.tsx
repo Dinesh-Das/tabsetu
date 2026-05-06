@@ -200,13 +200,15 @@ export default function PopupApp() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "c") {
+      const usesSessionShortcutModifier = event.shiftKey && ((event.ctrlKey || event.metaKey) || event.altKey);
+
+      if (usesSessionShortcutModifier && event.key.toLowerCase() === "c") {
         event.preventDefault();
         setView("capture");
         openSaveModal("collapse");
       }
 
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "s") {
+      if (usesSessionShortcutModifier && event.key.toLowerCase() === "s") {
         event.preventDefault();
         setView("capture");
         openSaveModal("save", selectedTabIds);

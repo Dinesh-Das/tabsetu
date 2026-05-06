@@ -54,10 +54,10 @@ TabSetu is a **free, local-first Chrome extension** that transforms browser tab 
 
 | Shortcut | Action |
 |:---|:---|
-| `Ctrl+Shift+S` | **Save** the current window as a session |
-| `Ctrl+Shift+C` | **Collapse** — save + close the window |
+| `Alt+Shift+S` | **Save** the current window as a session |
+| `Alt+Shift+C` | **Collapse** — save + close the window |
 | `Ctrl+Shift+F` | Open the **Global Search Overlay** on any page |
-| `Ctrl+Shift+D` | Open the **TabSetu Dashboard** |
+| `Alt+Shift+D` | Open the **TabSetu Dashboard** |
 | `Ctrl+K` | Focus the search bar (inside popup) |
 | `Escape` | Close modals and overlays |
 
