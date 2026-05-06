@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, X } from "lucide-react";
 import { useSettingsStore } from "@/store/settingsStore";
 
@@ -48,36 +48,44 @@ function getSpotlightRect(target: string): SpotlightRect | null {
 export default function Onboarding() {
   const updateSettings = useSettingsStore((state) => state.updateSettings);
   const [step, setStep] = useState(0);
-  const [spotlightRect, setSpotlightRect] = useState<SpotlightRect | null>(null);
   const current = STEPS[step];
   const isLastStep = step === STEPS.length - 1;
-
-  const spotlightStyle = useMemo(() => {
-    if (!spotlightRect) {
-      return undefined;
-    }
-
-    const padding = 8;
-    return {
-      top: Math.max(spotlightRect.top - padding, 8),
-      left: Math.max(spotlightRect.left - padding, 8),
-      width: spotlightRect.width + padding * 2,
-      height: spotlightRect.height + padding * 2,
-    };
-  }, [spotlightRect]);
+  const spotlightRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let animationFrameId: number;
+    let lastRectString = "";
+
     const updateSpotlight = (): void => {
-      setSpotlightRect(getSpotlightRect(current.target));
+      const rect = getSpotlightRect(current.target);
+      const spotlight = spotlightRef.current;
+      
+      if (rect && spotlight) {
+        const padding = 8;
+        const top = Math.max(rect.top - padding, 8);
+        const left = Math.max(rect.left - padding, 8);
+        const width = rect.width + padding * 2;
+        const height = rect.height + padding * 2;
+        
+        const newRectString = `${top},${left},${width},${height}`;
+        if (newRectString !== lastRectString) {
+          spotlight.style.top = `${top}px`;
+          spotlight.style.left = `${left}px`;
+          spotlight.style.width = `${width}px`;
+          spotlight.style.height = `${height}px`;
+          spotlight.style.opacity = "1";
+          spotlight.style.transition = lastRectString === "" ? "none" : "all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)";
+          lastRectString = newRectString;
+        }
+      } else if (spotlight) {
+        spotlight.style.opacity = "0";
+      }
+      
+      animationFrameId = requestAnimationFrame(updateSpotlight);
     };
 
-    updateSpotlight();
-    window.addEventListener("resize", updateSpotlight);
-    window.addEventListener("scroll", updateSpotlight, true);
-    return () => {
-      window.removeEventListener("resize", updateSpotlight);
-      window.removeEventListener("scroll", updateSpotlight, true);
-    };
+    animationFrameId = requestAnimationFrame(updateSpotlight);
+    return () => cancelAnimationFrame(animationFrameId);
   }, [current.target]);
 
   const finish = (): void => updateSettings({ hasCompletedOnboarding: true });
@@ -94,7 +102,7 @@ export default function Onboarding() {
   return (
     <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="tabsetu-onboarding-title">
       <div className="onboarding-backdrop" aria-hidden />
-      {spotlightStyle ? <div className="onboarding-spotlight" style={spotlightStyle} aria-hidden /> : null}
+      <div ref={spotlightRef} className="onboarding-spotlight" style={{ opacity: 0 }} aria-hidden />
       <section className="onboarding-card animate-scale-in">
         <button className="onboarding-close" type="button" onClick={finish} title="Dismiss onboarding">
           <X size={18} />
