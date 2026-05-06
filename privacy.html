@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Tab Setu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.5);
+            --bg: #030712;
+            --card-bg: rgba(17, 24, 39, 0.7);
+            --text: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 40%);
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 3rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(to right, #fff, #9ca3af);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .effective-date {
+            color: var(--text-muted);
+            margin-bottom: 2.5rem;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 2rem 0 1rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+        }
+
+        h2::before {
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 1.25rem;
+            background: var(--primary);
+            margin-right: 12px;
+            border-radius: 2px;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--text-muted);
+            font-size: 1.05rem;
+        }
+
+        .contact-box {
+            margin-top: 3rem;
+            padding: 2rem;
+            background: rgba(99, 102, 241, 0.05);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 16px;
+        }
+
+        .contact-box h2 {
+            margin-top: 0;
+        }
+
+        .email {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .email:hover {
+            text-decoration: underline;
+            filter: brightness(1.2);
+        }
+
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        @media (max-width: 640px) {
+            .container {
+                padding: 2rem;
+            }
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Privacy Policy</h1>
+            <p class="effective-date">Effective date: May 6, 2026</p>
+        </header>
+
+        <section>
+            <p><strong>Tab Setu</strong> is a browser extension designed to help users manage and organize their browser tabs efficiently.</p>
+
+            <h2>Information We Access</h2>
+            <p>Tab Setu may access browser tab information such as tab titles, URLs, and window details only to provide its tab management features. This access is limited to the current session and is necessary for the core functionality of the extension.</p>
+
+            <h2>Information We Collect</h2>
+            <p>Tab Setu does not collect, sell, share, or transmit personal information to any external server. We believe your data belongs to you.</p>
+
+            <h2>Local Storage</h2>
+            <p>Any data saved by Tab Setu is stored locally in the user’s browser using browser storage APIs. This data remains on the user’s device unless the user removes the extension data or clears browser storage manually.</p>
+
+            <h2>Third-Party Sharing</h2>
+            <p>Tab Setu does not share user data with third parties. No data is ever sent to our servers or any third-party services.</p>
+
+            <h2>Analytics and Advertising</h2>
+            <p>Tab Setu does not use analytics, tracking, or advertising services. We do not track your behavior or serve ads.</p>
+
+            <h2>Data Deletion</h2>
+            <p>Users can delete stored data at any time by clearing the extension’s storage, resetting the extension, or uninstalling Tab Setu from the browser.</p>
+
+            <div class="contact-box">
+                <h2>Contact</h2>
+                <p>For support or privacy-related questions, contact us at:</p>
+                <a href="mailto:your-email@example.com" class="email">your-email@example.com</a>
+            </div>
+        </section>
+        
+        <footer>
+            &copy; 2026 Tab Setu. All rights reserved.
+        </footer>
+    </div>
+</body>
+</html>
