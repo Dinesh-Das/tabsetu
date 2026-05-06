@@ -7,44 +7,50 @@ dist-zip/
 
 # Logs
 *.log
-npm-debug.log*
 
 # TypeScript cache
 *.tsbuildinfo
 
-# Environment variables
+# Environment
 .env
 .env.*
-!.env.example
 
 # OS files
 .DS_Store
 Thumbs.db
-desktop.ini
 
 # IDEs
 .idea/
 .vscode/
-*.swp
-*.swo
-*~
 
 # Test coverage
 coverage/
-*.lcov
 
-# npm
-.npm/
-*.tgz
+# Graphify own output (avoid self-indexing)
+graphify-out/
 
-# Graphify cache (regenerable — keep outputs)
+# Graphify cache
 .graphify_cached.json
 .graphify_semantic_new.json
-graphify-out/cache/
 
-# Stitch design assets (design reference only)
+# Stitch design assets (not code)
 stitch_tabsetu/
 stitch_tabsetu.zip
 
 # Agents
 .agents/
+
+# Git
+.git/
+
+# Images (not code)
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.gif
+*.ico
+*.webp
+
+# Package lock (noise)
+package-lock.json

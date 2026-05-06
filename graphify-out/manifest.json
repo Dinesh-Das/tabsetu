@@ -1,0 +1,394 @@
+{
+  "D:\\MyProjects\\tabsetu\\postcss.config.js": {
+    "mtime": 1777828322.120526,
+    "hash": "c735540bb63936a123bc867d950c9f69"
+  },
+  "D:\\MyProjects\\tabsetu\\tailwind.config.js": {
+    "mtime": 1778002174.2564323,
+    "hash": "d1793ae27542d2093d7b3485438c05be"
+  },
+  "D:\\MyProjects\\tabsetu\\vite.config.ts": {
+    "mtime": 1777968705.966845,
+    "hash": "ec758eea184f7051977c003a1ccec479"
+  },
+  "D:\\MyProjects\\tabsetu\\vitest.config.ts": {
+    "mtime": 1777914982.349865,
+    "hash": "bfed0e9c7d8a08ccb3b37982c87c894d"
+  },
+  "D:\\MyProjects\\tabsetu\\share-page\\share.js": {
+    "mtime": 1777998382.255036,
+    "hash": "36532905c01c1e13044de253d7e7e440"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\background\\service_worker.ts": {
+    "mtime": 1777999207.3319561,
+    "hash": "4254a89ce0ba10741ffc26ea443b92a5"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\components\\mobile\\MobileConfirmSheet.tsx": {
+    "mtime": 1777949554.7400928,
+    "hash": "2d6b03a80c5b3694b381078484f4c84d"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\components\\mobile\\MobileUI.tsx": {
+    "mtime": 1777967031.7758124,
+    "hash": "acf0996976d672d2366973c3934c0cfc"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\components\\shared\\ConfirmDialog.tsx": {
+    "mtime": 1777914484.3459275,
+    "hash": "56604f72870b2ff405f859984a6a7c4e"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\components\\shared\\EntityEditorModal.tsx": {
+    "mtime": 1777914479.5842514,
+    "hash": "c23d9c1b9604d1c267c8cd8c8c33020a"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\components\\shared\\HighlightedText.tsx": {
+    "mtime": 1777913869.1675477,
+    "hash": "ade1a3770dfe626e17a39a3f0bcb0e4c"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\components\\shared\\ModalShell.tsx": {
+    "mtime": 1777914464.5058994,
+    "hash": "47b476d284b64c9207edbdc9f0b82f2b"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\components\\shared\\TabSetuLogo.tsx": {
+    "mtime": 1777952902.9183838,
+    "hash": "bfbf3d48671845ec3ba7f2d8fc2c9150"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\components\\shared\\ThemeToggle.tsx": {
+    "mtime": 1777999393.2272737,
+    "hash": "5d24dbfeb38ddffea20c068095a13714"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\App.tsx": {
+    "mtime": 1777999418.8535876,
+    "hash": "2be669f41f364a9c540778901058aa29"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\main.tsx": {
+    "mtime": 1777868578.439272,
+    "hash": "330d29372b69cc25945ac43629df0c69"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\components\\DashToast.tsx": {
+    "mtime": 1777880639.9945035,
+    "hash": "521b2ada03aff2037da278e2b71286ba"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\components\\ImportExportPanel.tsx": {
+    "mtime": 1778005212.477729,
+    "hash": "f36288d32a692db8ba221537121cead8"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\components\\MobileFoldersScreen.tsx": {
+    "mtime": 1777999287.5590308,
+    "hash": "aca5aa1259e4d40de8386354e1cf60b6"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\components\\MobileHomeScreen.tsx": {
+    "mtime": 1777999374.3744736,
+    "hash": "db511c9388a3b6fd344cd4b4950d46da"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\components\\MobileNotesScreen.tsx": {
+    "mtime": 1777949714.5795105,
+    "hash": "a7ce15652d7add1c4481dfcc663d1a64"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\components\\MobileSchedulesScreen.tsx": {
+    "mtime": 1778005787.2099383,
+    "hash": "82856248ac3a936c3cee5d1c31ebda97"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\components\\NotesPanel.tsx": {
+    "mtime": 1777967019.1616328,
+    "hash": "3aa3a3bcad4aecbee70c53693c3cdcf4"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\components\\SessionDetail.tsx": {
+    "mtime": 1778005463.990363,
+    "hash": "2280f000f769126b34b498133865dfba"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\components\\SessionList.tsx": {
+    "mtime": 1777969008.926733,
+    "hash": "4d6f533d4a3c26ae01642893496131c6"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\components\\SettingsPanel.tsx": {
+    "mtime": 1777998401.4687428,
+    "hash": "427952eb51910a0e6afeec65d3a45870"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\components\\ShareSessionModal.tsx": {
+    "mtime": 1777999608.0328007,
+    "hash": "74bb421270ed34de6cd54e15e59a40e2"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\components\\Sidebar.tsx": {
+    "mtime": 1777999424.5466936,
+    "hash": "b1076ce4d7543805a4217ca97a1c780a"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\layouts\\DesktopLayout.tsx": {
+    "mtime": 1777999342.0610685,
+    "hash": "07751adc3e5efa7aada18085b7050648"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\pages\\RemindersPage.tsx": {
+    "mtime": 1777998165.5805378,
+    "hash": "143a549a15526e99881ba6c47ff0bd79"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\hooks\\useDebouncedValue.ts": {
+    "mtime": 1777881160.2160225,
+    "hash": "d50a564d069beb0361c296de11f5f0d3"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\alarmScheduling.test.ts": {
+    "mtime": 1777968897.5969498,
+    "hash": "c4a304a4f22bb6c33e174c7ebb7021c7"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\alarmScheduling.ts": {
+    "mtime": 1777968944.104195,
+    "hash": "d72dd9cd91e4fef1508c1ee02a3a68d1"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\exportImport.test.ts": {
+    "mtime": 1778005365.7493782,
+    "hash": "02cd850666a167393631cd6637f8bc3f"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\exportImport.ts": {
+    "mtime": 1778005257.7356315,
+    "hash": "ad96811ad3a9b77df908be8030b5913b"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\format.ts": {
+    "mtime": 1777870587.4167726,
+    "hash": "6bc6bf7ebf4c3b427db817dc8a1d61bc"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\fuzzySearch.test.ts": {
+    "mtime": 1777999497.253555,
+    "hash": "e38faee7f0039a6f41e371f8a5c73f3b"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\fuzzySearch.ts": {
+    "mtime": 1777999246.1572714,
+    "hash": "119a3f7593961a8242f09f19f7e82177"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\popupTabs.test.ts": {
+    "mtime": 1777950009.0805163,
+    "hash": "08c03d6551d970b1c3c79eb574c45332"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\popupTabs.ts": {
+    "mtime": 1777950077.9758687,
+    "hash": "539aaeda52966323818475047771bb01"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\reminders.test.ts": {
+    "mtime": 1777998553.580368,
+    "hash": "2de0d7f87ac8662bac38acfeeac73549"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\reminders.ts": {
+    "mtime": 1777985779.568302,
+    "hash": "40d9e04bb59fc4cc30a40692b0b6c2f3"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\scheduleDraft.test.ts": {
+    "mtime": 1777950021.862155,
+    "hash": "a746c1976ba7490d376aa7699aa7166a"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\scheduleDraft.ts": {
+    "mtime": 1777949739.2974591,
+    "hash": "26c03536872f107e2fb453933d91958b"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\sessionBrowser.ts": {
+    "mtime": 1777870541.8053725,
+    "hash": "17acf5d7e18fa35e711bdf47204c2ce1"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\sessionLabels.test.ts": {
+    "mtime": 1778005809.9236586,
+    "hash": "b138e168efdb95ec41b4d92223938ac4"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\sessionLabels.ts": {
+    "mtime": 1778005805.529876,
+    "hash": "5d838aa1683533093b925637560f6427"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\sessionQuery.test.ts": {
+    "mtime": 1778005292.4946465,
+    "hash": "7a3c897f2281da45ec75ff3d5e5d0b36"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\sessionQuery.ts": {
+    "mtime": 1777999238.043564,
+    "hash": "ba8b84ece2a97cbb02aaad73e75c3ff0"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\shareEncoder.ts": {
+    "mtime": 1777918892.5029135,
+    "hash": "18a0a50889ba6c699819df170d7d0f4a"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\storage.test.ts": {
+    "mtime": 1777915030.439278,
+    "hash": "6194f5c3d95a5c043467d72d8dbe4c23"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\storage.ts": {
+    "mtime": 1777999214.471123,
+    "hash": "0fab4e340d2f9444fc9619991c4c9f30"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\tabHelpers.test.ts": {
+    "mtime": 1777968877.3722935,
+    "hash": "91122180ee475b60b8b88242b836d5d5"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\tabHelpers.ts": {
+    "mtime": 1777999199.4886672,
+    "hash": "8f30f65217a02eace4078fc9adb5e96a"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\tabOrdering.test.ts": {
+    "mtime": 1778005474.517215,
+    "hash": "e76620912f33e4844567bf94dd888286"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\tabOrdering.ts": {
+    "mtime": 1778005451.9649167,
+    "hash": "a0333092564953b7acf48b4b8a880149"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\theme.test.ts": {
+    "mtime": 1778002177.6760583,
+    "hash": "cf44634b44dd8bfe94ecb565268a708b"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\lib\\theme.ts": {
+    "mtime": 1778002182.0622647,
+    "hash": "d41354daf73c44cff482c0fd7ac23972"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\popup\\App.tsx": {
+    "mtime": 1778002184.926453,
+    "hash": "279b097c77a10361aa70f2d42e68ad29"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\popup\\main.tsx": {
+    "mtime": 1778002191.4990714,
+    "hash": "8160c7f2d6c3ae7fd50e770a053a3dcc"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\popup\\components\\CurrentTabs.tsx": {
+    "mtime": 1777969025.382319,
+    "hash": "26a91b00d0832adc2769269ea080090e"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\popup\\components\\Onboarding.tsx": {
+    "mtime": 1777998437.141533,
+    "hash": "971649cb7b11d387aa4b14f6666dedab"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\popup\\components\\SavedSessions.tsx": {
+    "mtime": 1778005052.34365,
+    "hash": "4f291a8d96fffec7a8b526b11d5b0d43"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\popup\\components\\SaveModal.tsx": {
+    "mtime": 1778005781.4329805,
+    "hash": "6bcc1a4f2799137eefeb3cfd184f9639"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\popup\\components\\SearchBar.tsx": {
+    "mtime": 1777881155.267713,
+    "hash": "cd131e3a37687bf2d05952fa8b25e64d"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\popup\\components\\Toast.tsx": {
+    "mtime": 1778002975.3323414,
+    "hash": "0016bfcdc270e0577964a7242a88017e"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\store\\folderStore.ts": {
+    "mtime": 1777918026.9564788,
+    "hash": "366a42ae6a7712d358cfc1d092924d0d"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\store\\notesStore.ts": {
+    "mtime": 1777918255.4394436,
+    "hash": "61b4f731c901d437a40de3ef41a2af9e"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\store\\scheduleStore.ts": {
+    "mtime": 1777968772.6773973,
+    "hash": "dafd56fc28252a5d47abb75a43e37770"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\store\\sessionStore.ts": {
+    "mtime": 1777999230.514335,
+    "hash": "1b8c995b843be8cd188cecee60ce9e78"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\store\\settingsStore.ts": {
+    "mtime": 1777918048.4356134,
+    "hash": "cc0b0e9368f5afb48985023d8a03b620"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\store\\shareStore.ts": {
+    "mtime": 1777918872.401576,
+    "hash": "d1d106d52e8b6da91d26a8a74d9affd3"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\store\\tagStore.ts": {
+    "mtime": 1777918038.1019316,
+    "hash": "4368e350d3a0a63a1382d38635337329"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\types\\index.ts": {
+    "mtime": 1777999195.318652,
+    "hash": "269352c19c4e6fc5cd62b4698d83e4e7"
+  },
+  "D:\\MyProjects\\tabsetu\\DEPLOYMENT.md": {
+    "mtime": 1778006646.7528508,
+    "hash": "0d0a78c02596116a07022cfe144dd54a"
+  },
+  "D:\\MyProjects\\tabsetu\\README.md": {
+    "mtime": 1778006446.4779785,
+    "hash": "dbe5015dd1bd70cb558348e595be293b"
+  },
+  "D:\\MyProjects\\tabsetu\\share-page\\index.html": {
+    "mtime": 1777967403.8441305,
+    "hash": "20b74c1889efbfe242d93ec4ab6387b7"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\dashboard\\index.html": {
+    "mtime": 1777952984.1712873,
+    "hash": "cf61fe933c71816d302c33a1a78a4fb5"
+  },
+  "D:\\MyProjects\\tabsetu\\src\\popup\\index.html": {
+    "mtime": 1778002188.3693297,
+    "hash": "42f6c36103a2b6919534a971070c335f"
+  },
+  "D:\\MyProjects\\tabsetu\\stitch_tabsetu\\monochrome_glassmorphism\\DESIGN.md": {
+    "mtime": 1777948513.54517,
+    "hash": "737f30aff4ac6e3fc554121c4e961e5d"
+  },
+  "D:\\MyProjects\\tabsetu\\stitch_tabsetu\\tabsetu_mobile_extension_popup\\code.html": {
+    "mtime": 1777948513.429189,
+    "hash": "278ce6b8d3985d1db0de687d79df2edf"
+  },
+  "D:\\MyProjects\\tabsetu\\stitch_tabsetu\\tabsetu_mobile_folders\\code.html": {
+    "mtime": 1777948513.4549603,
+    "hash": "8bd8fe2dd0913ee59f4f4d556561d7ed"
+  },
+  "D:\\MyProjects\\tabsetu\\stitch_tabsetu\\tabsetu_mobile_home\\code.html": {
+    "mtime": 1777948513.3963797,
+    "hash": "8209864289c7dd62db63a9abf8a95ea7"
+  },
+  "D:\\MyProjects\\tabsetu\\stitch_tabsetu\\tabsetu_mobile_notes\\code.html": {
+    "mtime": 1777948513.501116,
+    "hash": "b6fe00e20d53bd6ad2d48b19eb048267"
+  },
+  "D:\\MyProjects\\tabsetu\\stitch_tabsetu\\tabsetu_mobile_save_modal\\code.html": {
+    "mtime": 1777948513.5241983,
+    "hash": "127b0618b507560a1fd3d47c0641023e"
+  },
+  "D:\\MyProjects\\tabsetu\\stitch_tabsetu\\tabsetu_mobile_schedules\\code.html": {
+    "mtime": 1777948513.4787538,
+    "hash": "907d0c26a088af1ef2902ccbffc56436"
+  },
+  "D:\\MyProjects\\tabsetu\\TabSetu.png": {
+    "mtime": 1777952575.9655285,
+    "hash": "043f366799f785bfca3029c85d40eecb"
+  },
+  "D:\\MyProjects\\tabsetu\\public\\icons\\icon128.png": {
+    "mtime": 1777952875.3339965,
+    "hash": "a063f96b272274818a827580603571da"
+  },
+  "D:\\MyProjects\\tabsetu\\public\\icons\\icon16.png": {
+    "mtime": 1777952875.275376,
+    "hash": "af23b89b412bb6597eff9d9af8c453a7"
+  },
+  "D:\\MyProjects\\tabsetu\\public\\icons\\icon32.png": {
+    "mtime": 1777952875.2957375,
+    "hash": "3325c18d2b7c0e445a6ad50b79b09d09"
+  },
+  "D:\\MyProjects\\tabsetu\\public\\icons\\icon48.png": {
+    "mtime": 1777952875.3134348,
+    "hash": "359a5c65597b2cb74f859bc3da921108"
+  },
+  "D:\\MyProjects\\tabsetu\\public\\icons\\tabsetu.png": {
+    "mtime": 1777952575.9655285,
+    "hash": "043f366799f785bfca3029c85d40eecb"
+  },
+  "D:\\MyProjects\\tabsetu\\stitch_tabsetu\\tabsetu_mobile_extension_popup\\screen.png": {
+    "mtime": 1777948513.4412267,
+    "hash": "4134ba64b434fe0fcbf589265d3a1860"
+  },
+  "D:\\MyProjects\\tabsetu\\stitch_tabsetu\\tabsetu_mobile_folders\\screen.png": {
+    "mtime": 1777948513.4665198,
+    "hash": "45a202f27bd990eccaf4d880bccb7ee9"
+  },
+  "D:\\MyProjects\\tabsetu\\stitch_tabsetu\\tabsetu_mobile_home\\screen.png": {
+    "mtime": 1777948513.4145741,
+    "hash": "dd83a6fd5e377f93bb8f27c423c09067"
+  },
+  "D:\\MyProjects\\tabsetu\\stitch_tabsetu\\tabsetu_mobile_notes\\screen.png": {
+    "mtime": 1777948513.5111456,
+    "hash": "1ef167bef93d8faf7ec9d9f42b34733b"
+  },
+  "D:\\MyProjects\\tabsetu\\stitch_tabsetu\\tabsetu_mobile_save_modal\\screen.png": {
+    "mtime": 1777948513.5341544,
+    "hash": "2a8c4bc18d0a161a6d862b3f650ad08e"
+  },
+  "D:\\MyProjects\\tabsetu\\stitch_tabsetu\\tabsetu_mobile_schedules\\screen.png": {
+    "mtime": 1777948513.4888165,
+    "hash": "1c6898c2eb5e43dd080943033a90ff84"
+  }
+}
