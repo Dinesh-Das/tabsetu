@@ -12,6 +12,13 @@ interface FolderState {
   importFolders: (folders: Folder[]) => void;
 }
 
+let writePromise: Promise<void> = Promise.resolve();
+
+function persistFolders(folders: Folder[]): void {
+  writePromise = writePromise.then(() => saveFolders(folders));
+  void writePromise;
+}
+
 export const useFolderStore = create<FolderState>((set, get) => ({
   folders: [],
 
@@ -33,7 +40,7 @@ export const useFolderStore = create<FolderState>((set, get) => ({
     };
     const folders = [...get().folders, folder];
     set({ folders });
-    void saveFolders(folders);
+    persistFolders(folders);
   },
 
   updateFolder: (id, updates) => {
@@ -45,13 +52,13 @@ export const useFolderStore = create<FolderState>((set, get) => ({
       f.id === id ? { ...f, ...sanitizedUpdates, updatedAt: Date.now() } : f
     );
     set({ folders });
-    void saveFolders(folders);
+    persistFolders(folders);
   },
 
   deleteFolder: (id) => {
     const folders = get().folders.filter((f) => f.id !== id);
     set({ folders });
-    void saveFolders(folders);
+    persistFolders(folders);
   },
 
   importFolders: (folders) => {
@@ -59,6 +66,5 @@ export const useFolderStore = create<FolderState>((set, get) => ({
       .sort((left, right) => left.position - right.position)
       .map((folder, index) => ({ ...folder, position: index }));
     set({ folders: normalizedFolders });
-    void saveFolders(normalizedFolders);
   },
 }));

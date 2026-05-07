@@ -8,6 +8,13 @@ interface SettingsState {
   updateSettings: (updates: Partial<Settings>) => void;
 }
 
+let writePromise: Promise<void> = Promise.resolve();
+
+function persistSettings(settings: Settings): void {
+  writePromise = writePromise.then(() => saveSettings(settings));
+  void writePromise;
+}
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
 
@@ -19,6 +26,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   updateSettings: (updates) => {
     const settings = { ...get().settings, ...updates };
     set({ settings });
-    void saveSettings(settings);
+    persistSettings(settings);
   },
 }));

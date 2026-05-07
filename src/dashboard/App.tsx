@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import React, { type ReactNode, useEffect, useState } from "react";
 import { Download, MoreHorizontal, Settings } from "lucide-react";
 import { MobileAppShell, MobileIconButton, type MobileNavView } from "@/components/mobile/MobileUI";
 import ThemeToggle from "@/components/shared/ThemeToggle";
 import type { ToastMessage } from "@/types";
+import { clearAllData, loadStorage } from "@/lib/storage";
 import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
 import { useFolderStore } from "@/store/folderStore";
 import { useNotesStore } from "@/store/notesStore";
@@ -125,14 +126,43 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-export default function DashboardApp() {
-  const loadSessions = useSessionStore((state) => state.load);
-  const loadFolders = useFolderStore((state) => state.load);
-  const loadTags = useTagStore((state) => state.load);
-  const loadSchedules = useScheduleStore((state) => state.load);
-  const loadNotes = useNotesStore((state) => state.load);
-  const loadShareLinks = useShareStore((state) => state.load);
-  const loadSettings = useSettingsStore((state) => state.load);
+function ErrorScreen({ error, onReset }: { error: Error; onReset: () => void }) {
+  return (
+    <div className="mobile-dashboard-stage">
+      <div className="empty-state" style={{ margin: 24 }}>
+        <h3>TabSetu hit a problem</h3>
+        <p>{error.message}</p>
+        <button
+          className="btn btn-danger"
+          type="button"
+          onClick={() => {
+            void clearAllData().then(() => {
+              onReset();
+              window.location.reload();
+            });
+          }}
+        >
+          Clear all data and reload
+        </button>
+      </div>
+    </div>
+  );
+}
+
+class AppErrorBoundary extends React.Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return <ErrorScreen error={this.state.error} onReset={() => this.setState({ error: null })} />;
+    }
+    return this.props.children;
+  }
+}
+
+function DashboardAppContent() {
   const settings = useSettingsStore((state) => state.settings);
 
   const [view, setView] = useState<DashView>(getInitialDashView);
@@ -142,16 +172,16 @@ export default function DashboardApp() {
   const isDesktop = useMediaQuery("(min-width: 900px)");
 
   useEffect(() => {
-    void Promise.all([
-      loadSessions(),
-      loadFolders(),
-      loadTags(),
-      loadSchedules(),
-      loadNotes(),
-      loadShareLinks(),
-      loadSettings(),
-    ]);
-  }, [loadFolders, loadNotes, loadSchedules, loadSessions, loadSettings, loadShareLinks, loadTags]);
+    void loadStorage().then((data) => {
+      useSessionStore.getState().importSessions(data.sessions);
+      useFolderStore.getState().importFolders(data.folders);
+      useTagStore.getState().importTags(data.tags);
+      useScheduleStore.getState().importSchedules(data.schedules);
+      useNotesStore.getState().importNotes(data.standaloneNotes);
+      useShareStore.getState().importShareLinks(data.shareLinks);
+      useSettingsStore.setState({ settings: data.settings });
+    });
+  }, []);
 
   useEffect(() => {
     applyTheme(settings.theme);
@@ -234,5 +264,13 @@ export default function DashboardApp() {
 
       <DashToast toasts={toasts} />
     </div>
+  );
+}
+
+export default function DashboardApp() {
+  return (
+    <AppErrorBoundary>
+      <DashboardAppContent />
+    </AppErrorBoundary>
   );
 }

@@ -19,7 +19,6 @@ function makeTab(overrides?: Partial<TabItem>): TabItem {
     title: "Docs",
     url: "https://example.com/docs",
     favIconUrl: null,
-    favIconDataUrl: null,
     folderId: null,
     tagIds: [],
     pinned: false,

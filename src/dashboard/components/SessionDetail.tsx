@@ -771,7 +771,7 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {session.tabs.map((tab, index) => {
-              const favicon = tab.favIconDataUrl ?? tab.favIconUrl;
+              const favicon = tab.favIconUrl;
 
               return (
               <div

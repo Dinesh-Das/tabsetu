@@ -1,4 +1,5 @@
-import { buildSearchIndex, searchSessions, type SessionSearchResult } from "@/lib/fuzzySearch";
+import Fuse from "fuse.js";
+import { buildSearchIndex, searchSessions, type SearchableSession, type SessionSearchResult } from "@/lib/fuzzySearch";
 import type {
   Folder,
   Session,
@@ -25,7 +26,10 @@ interface QueryOptions {
   viewFilter?: ViewFilter;
   folderId?: string | null;
   tagId?: string | null;
+  searchIndex?: Fuse<SearchableSession>;
 }
+
+export { buildSearchIndex } from "@/lib/fuzzySearch";
 
 export function sortSessions(sessions: Session[], sortBy: SortOption): Session[] {
   const copy = [...sessions];
@@ -94,6 +98,7 @@ export function buildSessionListItems({
   viewFilter = "all",
   folderId = null,
   tagId = null,
+  searchIndex,
 }: QueryOptions): SessionListItem[] {
   const folderMap = new Map(folders.map((folder) => [folder.id, folder]));
   const tagMap = new Map(tags.map((tag) => [tag.id, tag]));
@@ -107,10 +112,7 @@ export function buildSessionListItems({
       return [];
     }
 
-    const searchResults = searchSessions(
-      buildSearchIndex(visible, folders, tags, settings),
-      trimmedQuery,
-    );
+    const searchResults = searchSessions(searchIndex ?? buildSearchIndex(visible, folders, tags, settings), trimmedQuery);
 
     visible = searchResults.map((result) => result.session);
     for (const result of searchResults) {

@@ -127,7 +127,7 @@ function ReminderList({
   return (
     <div className="reminders-list">
       {rows.map((row) => {
-        const favicon = row.tab.favIconDataUrl ?? row.tab.favIconUrl;
+        const favicon = row.tab.favIconUrl;
         const overdue = !row.dismissed && row.dueAt < Date.now();
 
         return (

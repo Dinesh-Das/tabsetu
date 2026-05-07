@@ -115,9 +115,14 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
             className="btn btn-secondary"
             type="button"
             onClick={() => {
-              const encoded = encodeShareSnapshot(createShareSnapshot(session));
-              createShareLink(session.id, encoded);
-              void copy("share link", generateShareUrlFromEncoded(encoded));
+              try {
+                const encoded = encodeShareSnapshot(createShareSnapshot(session));
+                const shareUrl = generateShareUrlFromEncoded(encoded);
+                createShareLink(session.id, encoded);
+                void copy("share link", shareUrl);
+              } catch (error) {
+                addToast("error", error instanceof Error ? error.message : "Could not create share link.");
+              }
             }}
           >
             <ExternalLink size={14} />

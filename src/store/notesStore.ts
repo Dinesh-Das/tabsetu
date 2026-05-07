@@ -12,8 +12,11 @@ interface NotesState {
   importNotes: (notes: StandaloneNote[]) => void;
 }
 
+let writePromise: Promise<void> = Promise.resolve();
+
 function persistNotes(notes: StandaloneNote[]): void {
-  void saveStandaloneNotes(notes);
+  writePromise = writePromise.then(() => saveStandaloneNotes(notes));
+  void writePromise;
 }
 
 function sanitizeNoteUpdates(updates: Partial<StandaloneNote>): Partial<StandaloneNote> {
@@ -70,6 +73,5 @@ export const useNotesStore = create<NotesState>((set, get) => ({
 
   importNotes: (notes) => {
     set({ standaloneNotes: notes });
-    persistNotes(notes);
   },
 }));

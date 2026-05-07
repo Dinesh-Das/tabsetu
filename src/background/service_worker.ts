@@ -1,4 +1,5 @@
 import type { Schedule, Session, Settings, ShareSnapshot, TabItem, UndoCollapseBuffer } from "@/types";
+import type { OverlaySearchRow } from "@/lib/overlaySearch";
 import { nextMatchingDate } from "@/lib/alarmScheduling";
 import {
   chromeTabToTabItemWithFavicon,
@@ -15,6 +16,7 @@ import {
   saveSchedules,
   saveSessions,
   saveUndoBuffer,
+  COLLAPSE_UNDO_MS,
 } from "@/lib/storage";
 
 const LAST_BROWSER_TAB_KEY = "tabsetuLastBrowserTab";
@@ -27,24 +29,9 @@ interface StoredBrowserTab {
 type TrackableTab = chrome.tabs.Tab & { id: number; url: string };
 
 type OverlayPayload = {
-  sessions: Array<{
-    id: string;
-    name: string;
-    description: string;
-    note: string;
-    folderId: string | null;
-    tagIds: string[];
-    tabs: Array<{
-      id: string;
-      title: string;
-      url: string;
-      note: string;
-    }>;
-  }>;
-  folders: Array<{ id: string; name: string }>;
-  tags: Array<{ id: string; name: string }>;
-  standaloneNotes: Array<{ id: string; title: string; content: string }>;
+  rows: OverlaySearchRow[];
   searchScopes: Settings["searchScopes"];
+  fuzzySearchThreshold: number;
 };
 
 function alarmName(scheduleId: string): string {
@@ -407,7 +394,7 @@ async function createSessionFromWindow(mode: "save" | "collapse"): Promise<void>
       tabs: session.tabs,
       windowId: eligibleTabs[0]?.windowId ?? null,
       createdAt,
-      expiresAt: createdAt + 10000,
+      expiresAt: createdAt + COLLAPSE_UNDO_MS,
     };
     await saveUndoBuffer(buffer);
     if (tabIds.length !== 0) {
@@ -464,7 +451,6 @@ function snapshotTabToTabItem(tab: ShareSnapshot["tabs"][number], position: numb
     title: sanitizeLabel(tab.title, "Untitled Tab", 200),
     url,
     favIconUrl: null,
-    favIconDataUrl: null,
     folderId: null,
     tagIds: [],
     pinned: false,
@@ -515,7 +501,21 @@ async function importSharedSession(snapshot: ShareSnapshot): Promise<Session> {
   return session;
 }
 
-function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
+function mountTabSetuSearchOverlay(payload: {
+  sessions: Array<{
+    id: string;
+    name: string;
+    description: string;
+    note: string;
+    folderId: string | null;
+    tagIds: string[];
+    tabs: Array<{ id: string; title: string; url: string; note: string }>;
+  }>;
+  folders: Array<{ id: string; name: string }>;
+  tags: Array<{ id: string; name: string }>;
+  standaloneNotes: Array<{ id: string; title: string; content: string }>;
+  searchScopes: Settings["searchScopes"];
+}): void {
   const hostId = "tabsetu-search-overlay-host";
   const existing = document.getElementById(hostId);
   if (existing?.shadowRoot) {
@@ -857,10 +857,9 @@ async function openSearchOverlay(): Promise<void> {
   if (!settings.searchOverlayEnabled) {
     const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (activeTab?.id && activeTab.url && !isRestrictedUrl(activeTab.url)) {
-      await chrome.scripting.executeScript({
-        target: { tabId: activeTab.id },
-        func: showTabSetuOverlayDisabledToast,
-        args: ["TabSetu search overlay is disabled. Enable it in Settings > Search."],
+      await chrome.tabs.sendMessage(activeTab.id, {
+        type: "tabsetu:overlay-disabled",
+        message: "TabSetu search overlay is disabled. Enable it in Settings > Search.",
       });
     }
     return;
@@ -871,36 +870,61 @@ async function openSearchOverlay(): Promise<void> {
     return;
   }
 
+  const folderMap = new Map(data.folders.map((folder) => [folder.id, folder.name]));
+  const tagMap = new Map(data.tags.map((tag) => [tag.id, tag.name]));
+  const rows: OverlaySearchRow[] = data.sessions.flatMap((session) => {
+    const folderName = session.folderId ? folderMap.get(session.folderId) ?? "" : "";
+    const tagNames = session.tagIds.map((id) => tagMap.get(id) ?? "").filter(Boolean).join(" ");
+    const sessionRows: OverlaySearchRow[] = session.tabs[0]?.url
+      ? [{
+          id: session.id,
+          kind: "session",
+          title: session.name || "Untitled Session",
+          subtitle: `${session.tabs.length} tabs${folderName ? ` in ${folderName}` : ""}`.trim(),
+          action: { kind: "url", url: session.tabs[0].url },
+          sessionName: session.name,
+          sessionDescription: session.description,
+          sessionNote: session.note,
+          folderName,
+          tagNames,
+        }]
+      : [];
+    const tabRows: OverlaySearchRow[] = session.tabs.map((tab) => ({
+      id: `${session.id}-${tab.id}`,
+      kind: "tab" as const,
+      title: tab.title || "Untitled Tab",
+      subtitle: [session.name || "Session", tab.url || ""].filter(Boolean).join(" - "),
+      action: { kind: "url" as const, url: tab.url },
+      sessionName: session.name,
+      sessionDescription: session.description,
+      sessionNote: session.note,
+      folderName,
+      tagNames,
+      tabTitle: tab.title,
+      tabUrl: tab.url,
+      tabNote: tab.note,
+    })).filter((row) => row.action.url);
+    return [...sessionRows, ...tabRows];
+  });
+  rows.push(
+    ...data.standaloneNotes.map((note) => ({
+      id: `note-${note.id}`,
+      kind: "note" as const,
+      title: note.title || "Untitled Note",
+      subtitle: note.content.trim() ? note.content.trim().slice(0, 120) : "Open the Notes view in TabSetu.",
+      action: { kind: "dashboard" as const, view: "notes" as const },
+      noteTitle: note.title,
+      noteContent: note.content,
+    })),
+  );
+
   const payload: OverlayPayload = {
-    sessions: data.sessions.map((session) => ({
-      id: session.id,
-      name: session.name,
-      description: session.description,
-      note: session.note,
-      folderId: session.folderId,
-      tagIds: session.tagIds,
-      tabs: session.tabs.map((tab) => ({
-        id: tab.id,
-        title: tab.title,
-        url: tab.url,
-        note: tab.note,
-      })),
-    })),
-    folders: data.folders.map((folder) => ({ id: folder.id, name: folder.name })),
-    tags: data.tags.map((tag) => ({ id: tag.id, name: tag.name })),
-    standaloneNotes: data.standaloneNotes.map((note) => ({
-      id: note.id,
-      title: note.title,
-      content: note.content,
-    })),
+    rows,
     searchScopes: settings.searchScopes,
+    fuzzySearchThreshold: settings.fuzzySearchThreshold,
   };
 
-  await chrome.scripting.executeScript({
-    target: { tabId: activeTab.id },
-    func: mountTabSetuSearchOverlay,
-    args: [payload],
-  });
+  await chrome.tabs.sendMessage(activeTab.id, { type: "tabsetu:open-overlay", payload });
 }
 
 const EXPECTED_COMMAND_SHORTCUTS: Record<string, string> = {

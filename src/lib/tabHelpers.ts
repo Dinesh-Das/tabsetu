@@ -1,4 +1,7 @@
 import type { TabItem } from "@/types";
+import { fetchFavIconDataUrl, storeFavicon } from "@/lib/favicon";
+
+export { fetchFavIconDataUrl } from "@/lib/favicon";
 
 const RESTRICTED_PREFIXES = [
   "chrome://",
@@ -26,12 +29,11 @@ export function isRestrictedUrl(url: string): boolean {
 }
 
 export function stripHtml(value: string): string {
-  return value
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
-    .replace(/<[^>]*>/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  if (typeof DOMParser === "undefined") {
+    return value.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+  }
+  const doc = new DOMParser().parseFromString(value, "text/html");
+  return (doc.body.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
 export function clampText(value: string, maxLength: number): string {
@@ -46,7 +48,7 @@ export function sanitizeLabel(value: string | undefined, fallback: string, maxLe
 export function isValidUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return Boolean(parsed.protocol && parsed.hostname) && !isRestrictedUrl(url);
+    return parsed.protocol !== "javascript:" && parsed.protocol !== "data:";
   } catch {
     return false;
   }
@@ -60,7 +62,6 @@ export function chromeTabToTabItem(tab: chrome.tabs.Tab, position = 0): TabItem 
     title: sanitizeLabel(tab.title, "Untitled Tab"),
     url: tab.url ?? "",
     favIconUrl: tab.favIconUrl ?? null,
-    favIconDataUrl: null,
     folderId: null,
     tagIds: [],
     pinned: tab.pinned ?? false,
@@ -76,52 +77,10 @@ export function chromeTabToTabItem(tab: chrome.tabs.Tab, position = 0): TabItem 
   };
 }
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  const chunks: string[] = [];
-  const chunkSize = 0x8000;
-
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    const chunk = bytes.subarray(index, index + chunkSize);
-    chunks.push(String.fromCharCode(...chunk));
-  }
-
-  return btoa(chunks.join(""));
-}
-
-export async function fetchFavIconDataUrl(url: string | null | undefined): Promise<string | null> {
-  if (!url) {
-    return null;
-  }
-
-  if (url.startsWith("data:image/")) {
-    return url;
-  }
-
-  if (isRestrictedUrl(url)) {
-    return null;
-  }
-
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      return null;
-    }
-
-    const contentType = response.headers.get("content-type") || "image/png";
-    const buffer = await response.arrayBuffer();
-    return `data:${contentType};base64,${arrayBufferToBase64(buffer)}`;
-  } catch {
-    return null;
-  }
-}
-
 export async function chromeTabToTabItemWithFavicon(tab: chrome.tabs.Tab, position = 0): Promise<TabItem> {
   const base = chromeTabToTabItem(tab, position);
-  return {
-    ...base,
-    favIconDataUrl: await fetchFavIconDataUrl(tab.favIconUrl),
-  };
+  await storeFavicon(base.id, await fetchFavIconDataUrl(tab.favIconUrl));
+  return base;
 }
 
 export async function getCurrentTabs(): Promise<chrome.tabs.Tab[]> {

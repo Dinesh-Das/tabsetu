@@ -59,9 +59,16 @@
     "alarms",
     "notifications",
     "scripting",
-    "activeTab"
+    "activeTab",
+    "unlimitedStorage"
   ],
-  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/searchOverlay.ts"],
+      "run_at": "document_idle"
+    }
+  ],
   "options_page": "src/dashboard/index.html",
   "web_accessible_resources": [
     {
@@ -71,7 +78,7 @@
         "share-page/share.css",
         "share-page/share.js"
       ],
-      "matches": ["<all_urls>"]
+      "matches": ["*://*/*"]
     }
   ]
 }

@@ -12,10 +12,11 @@ import type {
   UndoCollapseBuffer,
 } from "@/types";
 import { clampText, generateId, isValidUrl, sanitizeLabel, stripHtml } from "@/lib/tabHelpers";
+import { getOnboardingFolders, getOnboardingTags } from "@/lib/onboarding";
 
-const now = Date.now();
 const APP_VERSION = "1.0.0";
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
+export const COLLAPSE_UNDO_MS = 10_000;
 
 export const STORAGE_KEYS = {
   sessions: "TabSetu_sessions",
@@ -29,7 +30,6 @@ export const STORAGE_KEYS = {
   undoBuffer: "TabSetu_undo_buffer",
   schemaVersion: "TabSetu_schema_version",
   remindersDismissed: "TabSetu_reminders_dismissed",
-  syncQueue: "TabSetu_sync_queue",
 } as const;
 
 const LEGACY_KEYS = ["sessions", "folders", "tags", "schedules", "settings", "tabsetuUndoBuffer"] as const;
@@ -65,21 +65,6 @@ export const DEFAULT_SETTINGS: Settings = {
   hasCompletedOnboarding: false,
 };
 
-export const DEFAULT_FOLDERS: Folder[] = [
-  { id: "folder-work", name: "Work", color: "#4F46E5", icon: "briefcase", position: 0, createdAt: now, updatedAt: now },
-  { id: "folder-learning", name: "Learning", color: "#10B981", icon: "book-open", position: 1, createdAt: now, updatedAt: now },
-  { id: "folder-personal", name: "Personal", color: "#F59E0B", icon: "home", position: 2, createdAt: now, updatedAt: now },
-  { id: "folder-research", name: "Research", color: "#8B5CF6", icon: "flask-conical", position: 3, createdAt: now, updatedAt: now },
-];
-
-export const DEFAULT_TAGS: Tag[] = [
-  { id: "tag-docs", name: "Docs", color: "#60A5FA", createdAt: now },
-  { id: "tag-coding", name: "Coding", color: "#A78BFA", createdAt: now },
-  { id: "tag-ai", name: "AI", color: "#34D399", createdAt: now },
-  { id: "tag-important", name: "Important", color: "#F87171", createdAt: now },
-  { id: "tag-later", name: "Later", color: "#FCD34D", createdAt: now },
-];
-
 export const DEFAULT_AI_CONFIG: AIShareConfig = {
   defaultProvider: "chatgpt",
   customProviderUrl: "",
@@ -92,13 +77,32 @@ export const DEFAULT_AI_CONFIG: AIShareConfig = {
 
 const DEFAULT_STORAGE: StorageData = {
   sessions: [],
-  folders: DEFAULT_FOLDERS,
-  tags: DEFAULT_TAGS,
+  folders: [],
+  tags: [],
   schedules: [],
   standaloneNotes: [],
   shareLinks: [],
   aiConfig: DEFAULT_AI_CONFIG,
   settings: DEFAULT_SETTINGS,
+};
+
+const MIGRATIONS: Record<number, (data: StorageData) => StorageData> = {
+  2: (d) => d,
+  3: (d) => ({
+    ...d,
+    shareLinks: d.shareLinks.map((link) => {
+      const legacyLink = link as Omit<ShareLink, "type"> & { type: string };
+      return {
+      id: legacyLink.id,
+      sessionId: legacyLink.sessionId,
+      type: legacyLink.type === "hosted" ? "encoded-url" : (legacyLink.type as ShareLink["type"]),
+      encodedData: link.encodedData,
+      expiresAt: link.expiresAt,
+      createdAt: link.createdAt,
+      updatedAt: link.updatedAt,
+    };
+    }),
+  }),
 };
 
 const STORAGE_IMPORT_KEYS = [
@@ -175,7 +179,6 @@ function normalizeTabItem(raw: unknown): TabItem | null {
     title: sanitizeLabel(asString(raw.title), "Untitled Tab", 200),
     url,
     favIconUrl: asNullableString(raw.favIconUrl),
-    favIconDataUrl: asNullableString(raw.favIconDataUrl),
     folderId: raw.folderId == null ? null : asString(raw.folderId) || null,
     tagIds: asStringArray(raw.tagIds),
     pinned: asBoolean(raw.pinned),
@@ -199,10 +202,6 @@ function normalizeSession(raw: unknown): Session | null {
   const tabs = Array.isArray(raw.tabs)
     ? raw.tabs.map(normalizeTabItem).filter((item): item is TabItem => Boolean(item))
     : [];
-
-  if (tabs.length === 0) {
-    return null;
-  }
 
   const createdAt = asNumber(raw.createdAt, Date.now());
   const updatedAt = asNumber(raw.updatedAt, createdAt);
@@ -349,12 +348,9 @@ function normalizeShareLink(raw: unknown): ShareLink | null {
   return {
     id: asString(raw.id, generateId("share")),
     sessionId: asString(raw.sessionId),
-    type: type as ShareLink["type"],
+    type: (type === "hosted" ? "encoded-url" : type) as ShareLink["type"],
     encodedData: raw.encodedData == null ? null : asString(raw.encodedData) || null,
-    hostedUrl: raw.hostedUrl == null ? null : asString(raw.hostedUrl) || null,
-    slug: raw.slug == null ? null : asString(raw.slug) || null,
     expiresAt: raw.expiresAt == null ? null : asNumber(raw.expiresAt, createdAt),
-    viewCount: Math.max(0, asNumber(raw.viewCount, 0)),
     createdAt,
     updatedAt,
   };
@@ -513,19 +509,25 @@ function hasLegacyStorage(raw: Record<string, unknown>): boolean {
 }
 
 async function migrateLegacyStorage(raw: Record<string, unknown>, data: StorageData): Promise<void> {
-  if (!hasLegacyStorage(raw) && raw[STORAGE_KEYS.schemaVersion] === SCHEMA_VERSION) {
+  const fromVersion = asNumber(raw[STORAGE_KEYS.schemaVersion], 1);
+  let migrated = data;
+  for (let version = Math.max(2, fromVersion + 1); version <= SCHEMA_VERSION; version += 1) {
+    migrated = (MIGRATIONS[version] ?? ((d: StorageData) => d))(migrated);
+  }
+
+  if (!hasLegacyStorage(raw) && fromVersion === SCHEMA_VERSION) {
     return;
   }
 
-  await storageSet(toStorageRecord(data));
+  await storageSet(toStorageRecord(migrated));
   await storageRemove(LEGACY_KEYS);
 }
 
 export function getDefaultStorageData(): StorageData {
   return {
     sessions: [],
-    folders: DEFAULT_FOLDERS.map((folder) => ({ ...folder })),
-    tags: DEFAULT_TAGS.map((tag) => ({ ...tag })),
+    folders: [],
+    tags: [],
     schedules: [],
     standaloneNotes: [],
     shareLinks: [],
@@ -668,6 +670,29 @@ export async function loadStorage(): Promise<StorageData> {
   return data;
 }
 
+function normalizeUndoBuffer(raw: unknown): UndoCollapseBuffer | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const buffer = raw as UndoCollapseBuffer;
+  return buffer.expiresAt > Date.now() ? buffer : null;
+}
+
+export async function loadStorageWithUndoBuffer(): Promise<{
+  data: StorageData;
+  undoBuffer: UndoCollapseBuffer | null;
+}> {
+  const raw = await storageGet<Record<string, unknown>>(null);
+  const data = normalizeStorageData(raw);
+  await migrateLegacyStorage(raw, data);
+  const undoBuffer = normalizeUndoBuffer(raw[STORAGE_KEYS.undoBuffer] ?? raw.tabsetuUndoBuffer);
+  if (!undoBuffer && raw[STORAGE_KEYS.undoBuffer]) {
+    await saveUndoBuffer(null);
+  }
+  return { data, undoBuffer };
+}
+
 export async function saveSessions(sessions: Session[]): Promise<void> {
   await storageSet({ [STORAGE_KEYS.sessions]: sessions, [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION });
 }
@@ -720,18 +745,19 @@ export async function loadUndoBuffer(): Promise<UndoCollapseBuffer | null> {
   ]);
   const buffer = result[STORAGE_KEYS.undoBuffer] ?? result.tabsetuUndoBuffer;
 
-  if (!buffer || typeof buffer !== "object") {
-    return null;
-  }
-
-  if (buffer.expiresAt <= Date.now()) {
+  const normalized = normalizeUndoBuffer(buffer);
+  if (!normalized) {
     await saveUndoBuffer(null);
     return null;
   }
 
-  return buffer;
+  return normalized;
 }
 
 export async function initializeStorageForInstall(): Promise<void> {
-  await saveStorageData(getDefaultStorageData());
+  await saveStorageData({
+    ...getDefaultStorageData(),
+    folders: getOnboardingFolders(),
+    tags: getOnboardingTags(),
+  });
 }

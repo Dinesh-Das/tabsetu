@@ -10,8 +10,11 @@ interface ShareState {
   importShareLinks: (shareLinks: ShareLink[]) => void;
 }
 
+let writePromise: Promise<void> = Promise.resolve();
+
 function persistShareLinks(shareLinks: ShareLink[]): void {
-  void saveShareLinks(shareLinks);
+  writePromise = writePromise.then(() => saveShareLinks(shareLinks));
+  void writePromise;
 }
 
 export const useShareStore = create<ShareState>((set, get) => ({
@@ -29,10 +32,7 @@ export const useShareStore = create<ShareState>((set, get) => ({
       sessionId,
       type: "encoded-url",
       encodedData,
-      hostedUrl: null,
-      slug: null,
       expiresAt: null,
-      viewCount: 0,
       createdAt,
       updatedAt: createdAt,
     };
@@ -44,6 +44,5 @@ export const useShareStore = create<ShareState>((set, get) => ({
 
   importShareLinks: (shareLinks) => {
     set({ shareLinks });
-    persistShareLinks(shareLinks);
   },
 }));

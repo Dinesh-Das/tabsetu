@@ -45,5 +45,9 @@ export function generateShareUrl(session: Session): string {
 }
 
 export function generateShareUrlFromEncoded(encoded: string): string {
-  return `${SHARE_BASE_URL}#${encoded}`;
+  const url = `${SHARE_BASE_URL}#${encoded}`;
+  if (url.length > 4000) {
+    throw new Error("This session is too large to share via URL. Use Export instead.");
+  }
+  return url;
 }

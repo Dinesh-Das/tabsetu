@@ -46,8 +46,48 @@ interface SessionState {
   clearSessions: () => void;
 }
 
+let writePromise: Promise<void> = Promise.resolve();
+let folderIndex = new Map<string, Set<string>>();
+let tagIndex = new Map<string, Set<string>>();
+
 function persistSessions(sessions: Session[]): void {
-  void saveSessions(sessions);
+  writePromise = writePromise.then(() => saveSessions(sessions));
+  void writePromise;
+}
+
+function addToIndex(index: Map<string, Set<string>>, key: string | null | undefined, sessionId: string): void {
+  if (!key) {
+    return;
+  }
+
+  const values = index.get(key) ?? new Set<string>();
+  values.add(sessionId);
+  index.set(key, values);
+}
+
+function rebuildIndexes(sessions: Session[]): void {
+  folderIndex = new Map();
+  tagIndex = new Map();
+  for (const session of sessions) {
+    addToIndex(folderIndex, session.folderId, session.id);
+    for (const tagId of session.tagIds) {
+      addToIndex(tagIndex, tagId, session.id);
+    }
+    for (const tab of session.tabs) {
+      addToIndex(folderIndex, tab.folderId, session.id);
+      for (const tagId of tab.tagIds) {
+        addToIndex(tagIndex, tagId, session.id);
+      }
+    }
+  }
+}
+
+function setSessions(set: (partial: Partial<SessionState>) => void, sessions: Session[], persist = true): void {
+  rebuildIndexes(sessions);
+  set({ sessions });
+  if (persist) {
+    persistSessions(sessions);
+  }
 }
 
 function reindexTabs(tabs: TabItem[]): TabItem[] {
@@ -111,6 +151,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   load: async () => {
     const data = await loadStorage();
     const sessions = autoArchiveSessions(data.sessions, data.settings.autoArchiveDays);
+    rebuildIndexes(sessions);
     set({ sessions, isLoaded: true });
     if (sessions !== data.sessions) {
       persistSessions(sessions);
@@ -139,8 +180,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       isArchived: false,
     };
     const sessions = [session, ...get().sessions];
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
     return session;
   },
 
@@ -163,38 +203,33 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           })
         : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   updateSessionNote: (id, note) => {
     const sessions = get().sessions.map((session) =>
       session.id === id ? touchSession(session, { note: clampText(stripHtml(note), 5000) }) : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   setSessionFolder: (id, folderId) => {
     const sessions = get().sessions.map((session) =>
       session.id === id ? touchSession(session, { folderId }) : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   setSessionTags: (id, tagIds) => {
     const sessions = get().sessions.map((session) =>
       session.id === id ? touchSession(session, { tagIds }) : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   deleteSession: (id) => {
     const sessions = get().sessions.filter((session) => session.id !== id);
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   duplicateSession: (id) => {
@@ -216,8 +251,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       version: 1,
     };
     const sessions = [copy, ...get().sessions];
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   renameSession: (id, name) => {
@@ -229,24 +263,21 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const sessions = get().sessions.map((session) =>
       session.id === id ? touchSession(session, { name: trimmedName }) : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   pinSession: (id, pinned) => {
     const sessions = get().sessions.map((session) =>
       session.id === id ? touchSession(session, { isPinned: pinned }) : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   archiveSession: (id, archived) => {
     const sessions = get().sessions.map((session) =>
       session.id === id ? touchSession(session, { isArchived: archived }) : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   addTabToSession: (sessionId, tab) => {
@@ -266,8 +297,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         tabs: reindexTabs([...session.tabs, { ...tab, position: session.tabs.length }]),
       });
     });
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
     return added;
   },
 
@@ -279,8 +309,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           })
         : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   updateTabNote: (sessionId, tabId, note) => {
@@ -293,8 +322,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           })
         : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   updateTabReminder: (sessionId, tabId, reminderAt) => {
@@ -314,8 +342,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           })
         : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   updateTabFolder: (sessionId, tabId, folderId) => {
@@ -328,8 +355,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           })
         : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   updateTabTags: (sessionId, tabId, tagIds) => {
@@ -342,8 +368,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           })
         : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   recordOpened: (id) => {
@@ -364,8 +389,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           }
         : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   recordTabOpened: (sessionId, tabId) => {
@@ -385,13 +409,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           }
         : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   unassignFolder: (folderId) => {
+    const affected = folderIndex.get(folderId) ?? new Set<string>();
     const sessions = get().sessions.map((session) =>
-      session.folderId === folderId || session.tabs.some((tab) => tab.folderId === folderId)
+      affected.has(session.id)
         ? touchSession(session, {
             folderId: session.folderId === folderId ? null : session.folderId,
             tabs: session.tabs.map((tab) => ({
@@ -401,13 +425,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           })
         : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   removeTagReferences: (tagId) => {
+    const affected = tagIndex.get(tagId) ?? new Set<string>();
     const sessions = get().sessions.map((session) =>
-      session.tagIds.includes(tagId) || session.tabs.some((tab) => tab.tagIds.includes(tagId))
+      affected.has(session.id)
         ? {
             ...touchSession(session, {
               tagIds: session.tagIds.filter((existing) => existing !== tagId),
@@ -419,14 +443,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           }
         : session,
     );
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   applyAutoArchive: (days) => {
     const sessions = autoArchiveSessions(get().sessions, days);
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions);
   },
 
   setSortBy: (sortBy) => set({ sortBy }),
@@ -435,12 +457,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setActiveTagId: (activeTagId) => set({ activeTagId }),
 
   importSessions: (sessions) => {
-    set({ sessions });
-    persistSessions(sessions);
+    setSessions(set, sessions, false);
   },
 
   clearSessions: () => {
-    set({ sessions: [] });
-    persistSessions([]);
+    setSessions(set, []);
   },
 }));

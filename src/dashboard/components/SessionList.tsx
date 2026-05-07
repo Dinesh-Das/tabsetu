@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentType, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArrowUpRight,
@@ -12,11 +12,12 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import * as LucideIcons from "lucide-react";
 import HighlightedText from "@/components/shared/HighlightedText";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatDateTime, formatScheduleLabel } from "@/lib/format";
-import { buildSessionListItems } from "@/lib/sessionQuery";
+import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
 import { getDomainLabel, openSessionTabs } from "@/lib/sessionBrowser";
 import type { Session, SortOption, ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
@@ -33,6 +34,14 @@ interface Props {
   addToast: (type: ToastMessage["type"], message: string) => void;
   initialSavePrompt?: { mode: "save" | "collapse"; sourceTabId: number | null } | null;
   onInitialSavePromptHandled?: () => void;
+}
+
+function toLucideExportName(icon: string): string {
+  return icon
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join("");
 }
 
 export default function SessionList({
@@ -71,6 +80,10 @@ export default function SessionList({
   const [bulkFolderId, setBulkFolderId] = useState("");
   const deferredQuery = useDebouncedValue(query, 150);
   const searchRef = useRef<HTMLInputElement>(null);
+  const searchIndex = useMemo(
+    () => buildSearchIndex(sessions, folders, tags, settings),
+    [folders, sessions, settings.fuzzySearchThreshold, settings.searchScopes, tags],
+  );
 
   const filteredItems = useMemo(
     () =>
@@ -84,8 +97,9 @@ export default function SessionList({
         viewFilter,
         folderId: activeFolderId,
         tagId: activeTagId,
+        searchIndex,
       }),
-    [activeFolderId, activeTagId, deferredQuery, folders, sessions, settings, sortBy, tags, viewFilter],
+    [activeFolderId, activeTagId, deferredQuery, folders, searchIndex, sessions, settings, sortBy, tags, viewFilter],
   );
 
   const sessionCounts = useMemo(
@@ -413,6 +427,9 @@ export default function SessionList({
         >
           {filteredItems.map((item) => {
             const { session, folder, tags: sessionTags, searchResult } = item;
+            const SessionIcon = session.icon
+              ? (LucideIcons as unknown as Record<string, ComponentType<{ size?: number }>>)[toLucideExportName(session.icon)]
+              : null;
             const active = selectedSessionId === session.id;
             const secondaryText = searchResult?.highlights.sessionNote.length
               ? session.note
@@ -473,6 +490,7 @@ export default function SessionList({
                           }}
                         />
                       ) : null}
+                      {SessionIcon ? <SessionIcon size={14} /> : null}
                       {session.isPinned ? <Pin size={14} color="var(--color-accent)" /> : null}
                       <h3
                         style={{

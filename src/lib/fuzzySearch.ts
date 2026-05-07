@@ -34,7 +34,7 @@ export interface SessionSearchResult {
   snippets: SessionSearchSnippet[];
 }
 
-interface SearchableSession {
+export interface SearchableSession {
   session: Session;
   folderName: string;
   tagIds: string[];

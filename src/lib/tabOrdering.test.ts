@@ -8,7 +8,6 @@ function createTab(id: string, position: number): TabItem {
     title: id,
     url: `https://${id}.example.com`,
     favIconUrl: null,
-    favIconDataUrl: null,
     folderId: null,
     tagIds: [],
     pinned: false,

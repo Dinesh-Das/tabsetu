@@ -55,8 +55,8 @@ interface TagEditorProps {
 function tabPreview(tab: TabItem) {
   return (
     <div className="session-tab-preview">
-      {tab.favIconDataUrl ?? tab.favIconUrl ? (
-        <img src={tab.favIconDataUrl ?? tab.favIconUrl ?? ""} alt="" />
+      {tab.favIconUrl ? (
+        <img src={tab.favIconUrl} alt="" />
       ) : (
         <span>{getDomainLabel(tab.url).slice(0, 2).toUpperCase()}</span>
       )}
@@ -376,7 +376,7 @@ export default function MobileFoldersScreen({ addToast }: Props) {
                       key={tab.id}
                       title={tab.title}
                       subtitle={getDomainLabel(tab.url)}
-                      favIconUrl={tab.favIconDataUrl ?? tab.favIconUrl}
+                      favIconUrl={tab.favIconUrl}
                       preview={tabPreview(tab)}
                       showCheckbox={false}
                       onSelect={() => void handleOpenTab(session.session, tab)}

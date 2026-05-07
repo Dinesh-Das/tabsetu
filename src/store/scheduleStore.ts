@@ -52,8 +52,11 @@ interface ScheduleState {
   syncAlarms: (schedulesEnabled: boolean) => Promise<void>;
 }
 
+let writePromise: Promise<void> = Promise.resolve();
+
 function persistSchedules(schedules: Schedule[]): void {
-  void saveSchedules(schedules);
+  writePromise = writePromise.then(() => saveSchedules(schedules));
+  void writePromise;
 }
 
 export const useScheduleStore = create<ScheduleState>((set, get) => ({
@@ -128,7 +131,6 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
 
   importSchedules: (schedules) => {
     set({ schedules });
-    persistSchedules(schedules);
   },
 
   syncAlarms: async (schedulesEnabled) => {

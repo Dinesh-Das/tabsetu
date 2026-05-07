@@ -392,7 +392,6 @@ function createImportedTab(seed: LegacyTabSeed, position: number, createdAt: num
     title: sanitizeLabel(seed.title ?? fallbackTitle, fallbackTitle, 200),
     url,
     favIconUrl: null,
-    favIconDataUrl: null,
     folderId: null,
     tagIds: [],
     pinned: false,

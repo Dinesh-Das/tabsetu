@@ -12,6 +12,13 @@ interface TagState {
   importTags: (tags: Tag[]) => void;
 }
 
+let writePromise: Promise<void> = Promise.resolve();
+
+function persistTags(tags: Tag[]): void {
+  writePromise = writePromise.then(() => saveTags(tags));
+  void writePromise;
+}
+
 export const useTagStore = create<TagState>((set, get) => ({
   tags: [],
 
@@ -30,7 +37,7 @@ export const useTagStore = create<TagState>((set, get) => ({
     };
     const tags = [...get().tags, tag];
     set({ tags });
-    void saveTags(tags);
+    persistTags(tags);
   },
 
   updateTag: (id, updates) => {
@@ -44,17 +51,16 @@ export const useTagStore = create<TagState>((set, get) => ({
       t.id === id ? { ...t, ...sanitizedUpdates } : t
     );
     set({ tags });
-    void saveTags(tags);
+    persistTags(tags);
   },
 
   deleteTag: (id) => {
     const tags = get().tags.filter((t) => t.id !== id);
     set({ tags });
-    void saveTags(tags);
+    persistTags(tags);
   },
 
   importTags: (tags) => {
     set({ tags });
-    void saveTags(tags);
   },
 }));

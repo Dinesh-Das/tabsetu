@@ -3,7 +3,6 @@ export interface TabItem {
   title: string;
   url: string;
   favIconUrl: string | null;
-  favIconDataUrl: string | null;
   folderId: string | null;
   tagIds: string[];
   pinned: boolean;
@@ -83,12 +82,9 @@ export interface StandaloneNote {
 export interface ShareLink {
   id: string;
   sessionId: string;
-  type: "text" | "markdown" | "encoded-url" | "hosted";
+  type: "text" | "markdown" | "encoded-url";
   encodedData: string | null;
-  hostedUrl: string | null;
-  slug: string | null;
   expiresAt: number | null;
-  viewCount: number;
   createdAt: number;
   updatedAt: number;
 }

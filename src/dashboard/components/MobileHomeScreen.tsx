@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { EmptyState, GlassCard, MobileIconButton, SegmentedControl, TabRow } from "@/components/mobile/MobileUI";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { buildSessionListItems } from "@/lib/sessionQuery";
+import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
 import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
 import type { Folder, Session, SortOption, TabItem, Tag as TagItem, ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
@@ -127,6 +127,10 @@ export default function MobileHomeScreen({
   } | null>(null);
   const deferredQuery = useDebouncedValue(query, 140);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchIndex = useMemo(
+    () => buildSearchIndex(sessions, folders, tags, settings),
+    [folders, sessions, settings.fuzzySearchThreshold, settings.searchScopes, tags],
+  );
 
   useEffect(() => {
     const focusSearch = () => {
@@ -159,8 +163,9 @@ export default function MobileHomeScreen({
         viewFilter,
         folderId: activeFolderId,
         tagId: activeTagId,
+        searchIndex,
       }),
-    [activeFolderId, activeTagId, deferredQuery, folders, sessions, settings, sortBy, tags, viewFilter],
+    [activeFolderId, activeTagId, deferredQuery, folders, searchIndex, sessions, settings, sortBy, tags, viewFilter],
   );
 
   const visibleSessions = useMemo(() => items.map((item) => item.session), [items]);

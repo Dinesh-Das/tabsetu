@@ -4,7 +4,7 @@ import HighlightedText from "@/components/shared/HighlightedText";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
 import { formatDateTime } from "@/lib/format";
-import { buildSessionListItems } from "@/lib/sessionQuery";
+import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
 import { getDomainLabel, openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
 import { chromeTabToTabItem, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
 import type { Session, SortOption, TabItem, ToastMessage } from "@/types";
@@ -80,6 +80,10 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const quickInfoShowTimer = useRef<number | null>(null);
   const quickInfoHideTimer = useRef<number | null>(null);
+  const searchIndex = useMemo(
+    () => buildSearchIndex(sessions, folders, tags, settings),
+    [folders, sessions, settings.fuzzySearchThreshold, settings.searchScopes, tags],
+  );
 
   const itemsForTagFilters = useMemo(
     () =>
@@ -92,8 +96,9 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
         sortBy,
         folderId: activeFolderId || null,
         tagId: null,
+        searchIndex,
       }),
-    [activeFolderId, folders, query, sessions, settings, sortBy, tags],
+    [activeFolderId, folders, query, searchIndex, sessions, settings, sortBy, tags],
   );
 
   const availableTags = useMemo(() => {
@@ -117,8 +122,9 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
         sortBy,
         folderId: activeFolderId || null,
         tagId: activeTagId || null,
+        searchIndex,
       }),
-    [activeFolderId, activeTagId, folders, query, sessions, settings, sortBy, tags],
+    [activeFolderId, activeTagId, folders, query, searchIndex, sessions, settings, sortBy, tags],
   );
 
   useEffect(() => {
@@ -725,9 +731,9 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
           onMouseLeave={hideQuickInfo}
         >
           <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-            {quickInfo.tab.favIconDataUrl || quickInfo.tab.favIconUrl ? (
+            {quickInfo.tab.favIconUrl ? (
               <img
-                src={quickInfo.tab.favIconDataUrl ?? quickInfo.tab.favIconUrl ?? ""}
+                src={quickInfo.tab.favIconUrl}
                 className="favicon"
                 alt=""
               />

@@ -5,6 +5,25 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function stubChromeStorage() {
+  const values: Record<string, unknown> = {};
+  vi.stubGlobal("chrome", {
+    runtime: {},
+    storage: {
+      local: {
+        get: (keys: string[], callback: (result: Record<string, unknown>) => void) => {
+          callback(Object.fromEntries(keys.map((key) => [key, values[key]])));
+        },
+        set: (value: Record<string, unknown>, callback?: () => void) => {
+          Object.assign(values, value);
+          callback?.();
+        },
+      },
+    },
+  });
+  return values;
+}
+
 describe("fetchFavIconDataUrl", () => {
   it("converts a successful image response into a data URL", async () => {
     vi.stubGlobal(
@@ -44,7 +63,8 @@ describe("fetchFavIconDataUrl", () => {
     await expect(fetchFavIconDataUrl("https://example.com/favicon.ico")).resolves.toBeNull();
   });
 
-  it("stores the fetched favicon data URL on converted Chrome tabs", async () => {
+  it("stores fetched favicon data separately from converted Chrome tabs", async () => {
+    const values = stubChromeStorage();
     vi.stubGlobal(
       "fetch",
       vi.fn<() => Promise<Response>>(() =>
@@ -66,7 +86,8 @@ describe("fetchFavIconDataUrl", () => {
       2,
     );
 
-    expect(item.favIconDataUrl).toBe("data:image/x-icon;base64,BAUG");
+    expect(item.favIconUrl).toBe("https://example.com/favicon.ico");
+    expect(values.TabSetu_favicons).toEqual({ [item.id]: "data:image/x-icon;base64,BAUG" });
     expect(item.position).toBe(2);
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { type ReactNode, useEffect, useState } from "react";
 import { ListChecks } from "lucide-react";
 import {
   MobileAppShell,
@@ -9,7 +9,7 @@ import {
 } from "@/components/mobile/MobileUI";
 import ThemeToggle from "@/components/shared/ThemeToggle";
 import type { Session, ToastMessage, UndoCollapseBuffer } from "@/types";
-import { loadUndoBuffer, saveUndoBuffer } from "@/lib/storage";
+import { clearAllData, COLLAPSE_UNDO_MS, loadStorageWithUndoBuffer, saveUndoBuffer } from "@/lib/storage";
 import { filterCapturableTabs } from "@/lib/popupTabs";
 import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
 import { getCurrentTabs } from "@/lib/tabHelpers";
@@ -56,15 +56,44 @@ function titleForView(view: PopupView): string {
   }
 }
 
-export default function PopupApp() {
-  const loadSessions = useSessionStore((state) => state.load);
+function ErrorScreen({ error, onReset }: { error: Error; onReset: () => void }) {
+  return (
+    <MobileFrame className="mobile-popup-frame">
+      <div className="empty-state" style={{ margin: 16 }}>
+        <h3>TabSetu hit a problem</h3>
+        <p>{error.message}</p>
+        <button
+          className="btn btn-danger"
+          type="button"
+          onClick={() => {
+            void clearAllData().then(() => {
+              onReset();
+              window.location.reload();
+            });
+          }}
+        >
+          Clear all data and reload
+        </button>
+      </div>
+    </MobileFrame>
+  );
+}
+
+class AppErrorBoundary extends React.Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return <ErrorScreen error={this.state.error} onReset={() => this.setState({ error: null })} />;
+    }
+    return this.props.children;
+  }
+}
+
+function PopupAppContent() {
   const sessions = useSessionStore((state) => state.sessions);
-  const loadFolders = useFolderStore((state) => state.load);
-  const loadTags = useTagStore((state) => state.load);
-  const loadSchedules = useScheduleStore((state) => state.load);
-  const loadNotes = useNotesStore((state) => state.load);
-  const loadShareLinks = useShareStore((state) => state.load);
-  const loadSettings = useSettingsStore((state) => state.load);
   const settings = useSettingsStore((state) => state.settings);
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -81,15 +110,18 @@ export default function PopupApp() {
 
   useEffect(() => {
     let mounted = true;
-    void Promise.all([
-      loadSessions(),
-      loadFolders(),
-      loadTags(),
-      loadSchedules(),
-      loadNotes(),
-      loadShareLinks(),
-      loadSettings(),
-    ]).finally(() => {
+    void loadStorageWithUndoBuffer().then(({ data, undoBuffer }) => {
+      useSessionStore.getState().importSessions(data.sessions);
+      useFolderStore.getState().importFolders(data.folders);
+      useTagStore.getState().importTags(data.tags);
+      useScheduleStore.getState().importSchedules(data.schedules);
+      useNotesStore.getState().importNotes(data.standaloneNotes);
+      useShareStore.getState().importShareLinks(data.shareLinks);
+      useSettingsStore.setState({ settings: data.settings });
+      if (undoBuffer) {
+        showUndoToast(undoBuffer);
+      }
+    }).finally(() => {
       if (mounted) {
         setIsBootstrapped(true);
       }
@@ -97,7 +129,7 @@ export default function PopupApp() {
     return () => {
       mounted = false;
     };
-  }, [loadFolders, loadNotes, loadSchedules, loadSessions, loadSettings, loadShareLinks, loadTags]);
+  }, []);
 
   useEffect(() => {
     applyTheme(settings.theme);
@@ -181,22 +213,14 @@ export default function PopupApp() {
       tabs: session.tabs,
       windowId,
       createdAt,
-      expiresAt: createdAt + 10000,
+      expiresAt: createdAt + COLLAPSE_UNDO_MS,
     };
     void saveUndoBuffer(buffer);
     window.setTimeout(() => {
       void saveUndoBuffer(null);
-    }, 10000);
+    }, COLLAPSE_UNDO_MS);
     showUndoToast(buffer);
   };
-
-  useEffect(() => {
-    void loadUndoBuffer().then((buffer) => {
-      if (buffer) {
-        showUndoToast(buffer);
-      }
-    });
-  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -326,5 +350,13 @@ export default function PopupApp() {
         />
       ) : null}
     </MobileAppShell>
+  );
+}
+
+export default function PopupApp() {
+  return (
+    <AppErrorBoundary>
+      <PopupAppContent />
+    </AppErrorBoundary>
   );
 }
