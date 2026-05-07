@@ -28,6 +28,7 @@ interface SessionState {
   pinSession: (id: string, pinned: boolean) => void;
   archiveSession: (id: string, archived: boolean) => void;
   addTabToSession: (sessionId: string, tab: TabItem) => boolean;
+  addTabsToSession: (sessionId: string, tabs: TabItem[]) => number;
   removeTabFromSession: (sessionId: string, tabId: string) => void;
   updateTabNote: (sessionId: string, tabId: string, note: string) => void;
   updateTabReminder: (sessionId: string, tabId: string, reminderAt: number | null) => void;
@@ -299,6 +300,39 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     });
     setSessions(set, sessions);
     return added;
+  },
+
+  addTabsToSession: (sessionId, tabs) => {
+    let addedCount = 0;
+    const sessions = get().sessions.map((session) => {
+      if (session.id !== sessionId) {
+        return session;
+      }
+
+      const existingUrls = new Set(session.tabs.map((tab) => tab.url));
+      const newTabs = tabs.filter((tab) => {
+        if (existingUrls.has(tab.url)) {
+          return false;
+        }
+
+        existingUrls.add(tab.url);
+        return true;
+      });
+
+      if (newTabs.length === 0) {
+        return session;
+      }
+
+      addedCount = newTabs.length;
+      return touchSession(session, {
+        tabs: reindexTabs([
+          ...session.tabs,
+          ...newTabs.map((tab, index) => ({ ...tab, position: session.tabs.length + index })),
+        ]),
+      });
+    });
+    setSessions(set, sessions);
+    return addedCount;
   },
 
   removeTabFromSession: (sessionId, tabId) => {

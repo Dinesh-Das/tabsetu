@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Bot, ClipboardCopy, ExternalLink, Link2 } from "lucide-react";
 import ModalShell from "@/components/shared/ModalShell";
 import {
+  copyLinksToClipboard,
   generateAIPrompt,
   generateAIPromptWithPageText,
   sessionToMarkdown,
@@ -110,6 +111,14 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
           >
             <Link2 size={14} />
             Copy Markdown
+          </button>
+          <button
+            className="btn btn-secondary"
+            type="button"
+            onClick={() => void copy("URL list", copyLinksToClipboard(session))}
+          >
+            <ClipboardCopy size={14} />
+            Copy URL list
           </button>
           <button
             className="btn btn-secondary"

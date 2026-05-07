@@ -32,6 +32,7 @@ import SaveModal from "./components/SaveModal";
 import Toast from "./components/Toast";
 
 type SaveMode = "save" | "collapse";
+// "capture" is the popup-only tab selection workflow used before opening SaveModal.
 type PopupView = MobileNavView | "capture";
 
 interface SaveModalState {

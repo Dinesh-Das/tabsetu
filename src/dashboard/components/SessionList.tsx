@@ -88,6 +88,7 @@ export default function SessionList({
   const [bulkFolderId, setBulkFolderId] = useState("");
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState("");
+  const [showDuplicates, setShowDuplicates] = useState(false);
   const deferredQuery = useDebouncedValue(query, 150);
   const searchRef = useRef<HTMLInputElement>(null);
   const searchIndex = useMemo(
@@ -131,6 +132,37 @@ export default function SessionList({
     () => sessions.filter((session) => selectedIds.includes(session.id)),
     [selectedIds, sessions],
   );
+
+  const duplicateGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      Array<{ sessionId: string; sessionName: string; tabId: string; tabTitle: string }>
+    >();
+
+    for (const session of sessions) {
+      for (const tab of session.tabs) {
+        const normalizedUrl = tab.url.trim().toLowerCase();
+        if (!normalizedUrl) {
+          continue;
+        }
+
+        groups.set(normalizedUrl, [
+          ...(groups.get(normalizedUrl) ?? []),
+          {
+            sessionId: session.id,
+            sessionName: session.name,
+            tabId: tab.id,
+            tabTitle: tab.title || tab.url,
+          },
+        ]);
+      }
+    }
+
+    return [...groups.entries()]
+      .map(([url, appearances]) => ({ url, appearances }))
+      .filter((group) => new Set(group.appearances.map((item) => item.sessionId)).size > 1)
+      .sort((left, right) => right.appearances.length - left.appearances.length);
+  }, [sessions]);
 
   const schedulesBySessionId = useMemo(() => {
     const map = new Map<string, typeof schedules>();
@@ -333,6 +365,10 @@ export default function SessionList({
               {selectMode ? <X size={15} /> : <CheckSquare size={15} />}
               {selectMode ? "Cancel select" : "Select"}
             </button>
+            <button className="btn btn-secondary" type="button" onClick={() => setShowDuplicates((current) => !current)}>
+              <Copy size={15} />
+              Duplicates
+            </button>
             <button className="btn btn-secondary" type="button" onClick={() => void handleSuspendBackgroundTabs()}>
               <Pause size={15} />
               Suspend tabs
@@ -444,6 +480,41 @@ export default function SessionList({
             <button className="btn btn-ghost" type="button" onClick={clearBulkSelection}>
               Clear
             </button>
+          </div>
+        ) : null}
+
+        {showDuplicates ? (
+          <div className="card-raised" style={{ marginTop: 14, padding: 14 }}>
+            <div className="detail-section-header">
+              <h3>Duplicate tabs</h3>
+              <span className="badge badge-subtle">{duplicateGroups.length} URLs</span>
+            </div>
+            {duplicateGroups.length === 0 ? (
+              <p style={{ margin: 0, color: "var(--color-text-secondary)", fontSize: 13 }}>
+                No cross-session duplicate tabs found.
+              </p>
+            ) : (
+              <div style={{ display: "grid", gap: 10, maxHeight: 220, overflow: "auto" }}>
+                {duplicateGroups.slice(0, 12).map((group) => (
+                  <div key={group.url} style={{ borderTop: "1px solid var(--color-border)", paddingTop: 10 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, wordBreak: "break-all" }}>{group.url}</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                      {group.appearances.map((appearance) => (
+                        <button
+                          key={`${group.url}-${appearance.sessionId}-${appearance.tabId}`}
+                          className="badge badge-subtle"
+                          type="button"
+                          onClick={() => onSelect(appearance.sessionId)}
+                          title={appearance.tabTitle}
+                        >
+                          {appearance.sessionName}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : null}
       </div>

@@ -4,6 +4,7 @@ import type { Session, ToastMessage } from "@/types";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { formatDateTime } from "@/lib/format";
 import { openSessionTabs } from "@/lib/sessionBrowser";
+import { chromeTabToTabItem, isRestrictedUrl } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
 import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -30,6 +31,7 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
   const duplicateSession = useSessionStore((state) => state.duplicateSession);
   const deleteSession = useSessionStore((state) => state.deleteSession);
   const addTabToSession = useSessionStore((state) => state.addTabToSession);
+  const addTabsToSession = useSessionStore((state) => state.addTabsToSession);
   const removeTabFromSession = useSessionStore((state) => state.removeTabFromSession);
   const updateTabNote = useSessionStore((state) => state.updateTabNote);
   const updateTabReminder = useSessionStore((state) => state.updateTabReminder);
@@ -62,6 +64,21 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
     deleteSession(session.id); onClose(); addToast("success", `Deleted "${session.name}".`);
   };
 
+  const handleAddCurrentTabs = async () => {
+    const browserTabs = await chrome.tabs.query({});
+    const tabs = browserTabs
+      .filter((tab) => tab.url && !isRestrictedUrl(tab.url))
+      .map(chromeTabToTabItem);
+    const addedCount = addTabsToSession(session.id, tabs);
+
+    if (addedCount === 0) {
+      addToast("info", "All open tabs are already in this session.");
+      return;
+    }
+
+    addToast("success", `Added ${addedCount} ${addedCount === 1 ? "open tab" : "open tabs"} to "${session.name}".`);
+  };
+
   return (
     <aside className="session-detail-shell">
       <div className="session-detail-hero">
@@ -75,6 +92,7 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
           <button className="btn btn-secondary" onClick={() => { duplicateSession(session.id); addToast("success", `Duplicated "${session.name}".`); }}>Duplicate</button>
           <button className="btn btn-secondary" onClick={() => window.dispatchEvent(new Event("tabsetu:open-share-panel"))}><Share2 size={15} />Share</button>
           <button className="btn btn-secondary" onClick={() => window.dispatchEvent(new Event("tabsetu:add-active-tab"))}><Plus size={15} />Add active tab</button>
+          <button className="btn btn-secondary" onClick={() => void handleAddCurrentTabs()}><Plus size={15} />Add open tabs</button>
         </div>
       </div>
       <div className="session-detail-scroll">

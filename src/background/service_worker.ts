@@ -23,6 +23,8 @@ import {
 
 const LAST_BROWSER_TAB_KEY = "tabsetuLastBrowserTab";
 const AUTO_ARCHIVE_ALARM_NAME = "tabsetu-auto-archive";
+const TIMEZONE_CHECK_ALARM_NAME = "tabsetu-timezone-check";
+const TIMEZONE_OFFSET_KEY = "TabSetu_timezone_offset_minutes";
 
 interface StoredBrowserTab {
   tabId: number;
@@ -228,6 +230,8 @@ async function hydrateAlarms(): Promise<void> {
   const { schedules, sessions, settings } = await loadRuntimeData();
 
   await chrome.alarms.clearAll();
+  await createTimezoneCheckAlarm();
+  await rememberTimezoneOffset();
 
   if (settings.schedulesEnabled) {
     for (const schedule of schedules) {
@@ -356,7 +360,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "tabsetu:open-dashboard") {
     const view = typeof message.view === "string" && message.view.trim() ? `?view=${encodeURIComponent(message.view)}` : "";
     void chrome.tabs
-      .create({ url: chrome.runtime.getURL(`src/dashboard/index.html${view}`) })
+      .create({ url: chrome.runtime.getURL(`dashboard.html${view}`) })
       .then(() => sendResponse({ ok: true }))
       .catch(() => sendResponse({ ok: false }));
 
@@ -453,6 +457,30 @@ async function createSessionFromWindow(mode: "save" | "collapse"): Promise<Sessi
   }
 
   return { session, tabCount: savedTabs.length, mode };
+}
+
+async function createTimezoneCheckAlarm(): Promise<void> {
+  await chrome.alarms.create(TIMEZONE_CHECK_ALARM_NAME, {
+    delayInMinutes: 60,
+    periodInMinutes: 60,
+  });
+}
+
+async function rememberTimezoneOffset(): Promise<void> {
+  await chrome.storage.local.set({ [TIMEZONE_OFFSET_KEY]: new Date().getTimezoneOffset() });
+}
+
+async function rehydrateAlarmsAfterTimezoneChange(): Promise<void> {
+  const result = await chrome.storage.local.get([TIMEZONE_OFFSET_KEY]);
+  const previousOffset = typeof result[TIMEZONE_OFFSET_KEY] === "number" ? result[TIMEZONE_OFFSET_KEY] : null;
+  const currentOffset = new Date().getTimezoneOffset();
+
+  if (previousOffset === currentOffset) {
+    return;
+  }
+
+  await rememberTimezoneOffset();
+  await hydrateAlarms();
 }
 
 function isShareSnapshot(value: unknown): value is ShareSnapshot {
@@ -860,7 +888,7 @@ chrome.commands.onCommand.addListener((command) => {
   }
 
   if (command === "open-dashboard") {
-    void chrome.tabs.create({ url: chrome.runtime.getURL("src/dashboard/index.html") });
+    void chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html") });
   }
 });
 
@@ -961,11 +989,16 @@ chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) =
 
 chrome.notifications.onClicked.addListener((notificationId) => {
   if (notificationId.startsWith("tabsetu-schedule-")) {
-    void chrome.tabs.create({ url: chrome.runtime.getURL("src/dashboard/index.html") });
+    void chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html") });
   }
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === TIMEZONE_CHECK_ALARM_NAME) {
+    await rehydrateAlarmsAfterTimezoneChange();
+    return;
+  }
+
   if (alarm.name === AUTO_ARCHIVE_ALARM_NAME) {
     await runAutoArchive();
     return;

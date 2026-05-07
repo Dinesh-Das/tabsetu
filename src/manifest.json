@@ -10,7 +10,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_popup": "src/popup/index.html",
+    "default_popup": "popup.html",
     "default_icon": {
       "16":  "icons/icon16.png",
       "32":  "icons/icon32.png",
@@ -64,11 +64,11 @@
     "unlimitedStorage"
   ],
   "optional_host_permissions": ["*://*/*"],
-  "options_page": "src/dashboard/index.html",
+  "options_page": "dashboard.html",
   "web_accessible_resources": [
     {
       "resources": [
-        "src/dashboard/index.html",
+        "dashboard.html",
         "share-page/index.html",
         "share-page/share.css",
         "share-page/share.js"
