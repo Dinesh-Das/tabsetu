@@ -18,6 +18,7 @@ import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatDateTime, formatScheduleLabel } from "@/lib/format";
 import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
+import { toLucideExportName } from "@/lib/sessionLabels";
 import { getDomainLabel, openSessionTabs } from "@/lib/sessionBrowser";
 import type { Session, SortOption, ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
@@ -34,14 +35,6 @@ interface Props {
   addToast: (type: ToastMessage["type"], message: string) => void;
   initialSavePrompt?: { mode: "save" | "collapse"; sourceTabId: number | null } | null;
   onInitialSavePromptHandled?: () => void;
-}
-
-function toLucideExportName(icon: string): string {
-  return icon
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-    .join("");
 }
 
 export default function SessionList({

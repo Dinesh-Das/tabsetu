@@ -682,6 +682,7 @@ function normalizeUndoBuffer(raw: unknown): UndoCollapseBuffer | null {
 export async function loadStorageWithUndoBuffer(): Promise<{
   data: StorageData;
   undoBuffer: UndoCollapseBuffer | null;
+  favicons: Record<string, string>;
 }> {
   const raw = await storageGet<Record<string, unknown>>(null);
   const data = normalizeStorageData(raw);
@@ -690,7 +691,9 @@ export async function loadStorageWithUndoBuffer(): Promise<{
   if (!undoBuffer && raw[STORAGE_KEYS.undoBuffer]) {
     await saveUndoBuffer(null);
   }
-  return { data, undoBuffer };
+  const rawFavicons = raw.TabSetu_favicons;
+  const favicons = rawFavicons && typeof rawFavicons === "object" ? rawFavicons as Record<string, string> : {};
+  return { data, undoBuffer, favicons };
 }
 
 export async function saveSessions(sessions: Session[]): Promise<void> {

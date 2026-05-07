@@ -17,3 +17,11 @@ export function defaultSavedSessionTitle(closeAfterSaving: boolean, tabs: TabIte
   const fallback = closeAfterSaving ? "Collapsed tabs" : "Saved tabs";
   return tabTitleFallback(tabs, fallback);
 }
+
+export function toLucideExportName(icon: string): string {
+  return icon
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join("");
+}

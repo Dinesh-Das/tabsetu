@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentType, useEffect, useMemo, useRef, useState } from "react";
 import { Copy, ExternalLink, FolderOpen, Pin, Plus, Trash2 } from "lucide-react";
+import * as LucideIcons from "lucide-react";
 import HighlightedText from "@/components/shared/HighlightedText";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
+import { useFavicons } from "@/hooks/useFavicons";
 import { formatDateTime } from "@/lib/format";
+import { toLucideExportName } from "@/lib/sessionLabels";
 import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
 import { getDomainLabel, openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
 import { chromeTabToTabItem, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
@@ -80,6 +83,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const quickInfoShowTimer = useRef<number | null>(null);
   const quickInfoHideTimer = useRef<number | null>(null);
+  const favicons = useFavicons();
   const searchIndex = useMemo(
     () => buildSearchIndex(sessions, folders, tags, settings),
     [folders, sessions, settings.fuzzySearchThreshold, settings.searchScopes, tags],
@@ -520,6 +524,9 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
 
         {visibleItems.map((item, index) => {
           const { session, folder, tags: sessionTags, searchResult } = item;
+          const SessionIcon = session.icon
+            ? (LucideIcons as unknown as Record<string, ComponentType<{ size?: number; "aria-hidden"?: boolean }>>)[toLucideExportName(session.icon)]
+            : null;
           const secondaryText = searchResult?.highlights.sessionNote.length
             ? session.note
             : session.description || session.note || "";
@@ -554,6 +561,10 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
               <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    {session.color ? (
+                      <span className="session-color-dot" style={{ background: session.color }} aria-hidden="true" />
+                    ) : null}
+                    {SessionIcon ? <SessionIcon size={14} aria-hidden={true} /> : null}
                     {session.isPinned ? <Pin size={12} color="var(--color-accent)" /> : null}
                     <div
                       style={{
@@ -731,9 +742,9 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
           onMouseLeave={hideQuickInfo}
         >
           <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-            {quickInfo.tab.favIconUrl ? (
+            {favicons.get(quickInfo.tab.id) ?? quickInfo.tab.favIconUrl ? (
               <img
-                src={quickInfo.tab.favIconUrl}
+                src={favicons.get(quickInfo.tab.id) ?? quickInfo.tab.favIconUrl ?? ""}
                 className="favicon"
                 alt=""
               />

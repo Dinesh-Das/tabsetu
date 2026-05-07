@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentType, useEffect, useMemo, useRef, useState } from "react";
 import {
   Filter,
   FolderOpen,
@@ -10,9 +10,11 @@ import {
   Tag,
   Trash2,
 } from "lucide-react";
+import * as LucideIcons from "lucide-react";
 import { EmptyState, GlassCard, MobileIconButton, SegmentedControl, TabRow } from "@/components/mobile/MobileUI";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
+import { toLucideExportName } from "@/lib/sessionLabels";
 import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
 import type { Folder, Session, SortOption, TabItem, Tag as TagItem, ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
@@ -254,13 +256,23 @@ export default function MobileHomeScreen({
     recordTabOpened(session.id, tab.id);
   };
 
-  const renderSavedTab = ({ session, tab }: SavedTab) => (
-    <TabRow
-      key={`${session.id}-${tab.id}`}
-      title={tab.title}
-      subtitle={`${getDomainLabel(tab.url)} - ${session.name}`}
-      favIconUrl={tab.favIconUrl}
-      preview={tabPreview(tab)}
+  const renderSavedTab = ({ session, tab }: SavedTab) => {
+    const SessionIcon = session.icon
+      ? (LucideIcons as unknown as Record<string, ComponentType<{ size?: number; "aria-hidden"?: boolean }>>)[toLucideExportName(session.icon)]
+      : null;
+    return (
+      <TabRow
+        key={`${session.id}-${tab.id}`}
+        title={tab.title}
+        subtitle={`${getDomainLabel(tab.url)} - ${session.name}`}
+        favIconUrl={tab.favIconUrl}
+        preview={
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {session.color ? <span className="session-color-dot" style={{ background: session.color }} aria-hidden="true" /> : null}
+            {SessionIcon ? <SessionIcon size={14} aria-hidden={true} /> : null}
+            {tabPreview(tab)}
+          </div>
+        }
       showCheckbox={false}
       onSelect={() => void handleOpenTab(session, tab)}
       actions={
@@ -290,8 +302,9 @@ export default function MobileHomeScreen({
           </button>
         </>
       }
-    />
-  );
+      />
+    );
+  };
 
   return (
     <>

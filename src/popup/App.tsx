@@ -10,6 +10,7 @@ import {
 import ThemeToggle from "@/components/shared/ThemeToggle";
 import type { Session, ToastMessage, UndoCollapseBuffer } from "@/types";
 import { clearAllData, COLLAPSE_UNDO_MS, loadStorageWithUndoBuffer, saveUndoBuffer } from "@/lib/storage";
+import { seedFavicons } from "@/hooks/useFavicons";
 import { filterCapturableTabs } from "@/lib/popupTabs";
 import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
 import { getCurrentTabs } from "@/lib/tabHelpers";
@@ -110,7 +111,8 @@ function PopupAppContent() {
 
   useEffect(() => {
     let mounted = true;
-    void loadStorageWithUndoBuffer().then(({ data, undoBuffer }) => {
+    void loadStorageWithUndoBuffer().then(({ data, undoBuffer, favicons }) => {
+      seedFavicons(favicons);
       useSessionStore.getState().importSessions(data.sessions);
       useFolderStore.getState().importFolders(data.folders);
       useTagStore.getState().importTags(data.tags);

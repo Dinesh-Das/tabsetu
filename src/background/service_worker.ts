@@ -1,4 +1,4 @@
-import type { Schedule, Session, Settings, ShareSnapshot, TabItem, UndoCollapseBuffer } from "@/types";
+import type { Schedule, Session, Settings, ShareSnapshot, StorageData, TabItem, UndoCollapseBuffer } from "@/types";
 import type { OverlaySearchRow } from "@/lib/overlaySearch";
 import { nextMatchingDate } from "@/lib/alarmScheduling";
 import {
@@ -501,375 +501,8 @@ async function importSharedSession(snapshot: ShareSnapshot): Promise<Session> {
   return session;
 }
 
-function mountTabSetuSearchOverlay(payload: {
-  sessions: Array<{
-    id: string;
-    name: string;
-    description: string;
-    note: string;
-    folderId: string | null;
-    tagIds: string[];
-    tabs: Array<{ id: string; title: string; url: string; note: string }>;
-  }>;
-  folders: Array<{ id: string; name: string }>;
-  tags: Array<{ id: string; name: string }>;
-  standaloneNotes: Array<{ id: string; title: string; content: string }>;
-  searchScopes: Settings["searchScopes"];
-}): void {
-  const hostId = "tabsetu-search-overlay-host";
-  const existing = document.getElementById(hostId);
-  if (existing?.shadowRoot) {
-    const input = existing.shadowRoot.querySelector("input");
-    input?.focus();
-    return;
-  }
-
-  const host = document.createElement("div");
-  host.id = hostId;
-  document.documentElement.appendChild(host);
-  const shadow = host.attachShadow({ mode: "open" });
-  shadow.innerHTML = `
-    <style>
-      :host { all: initial; }
-      .backdrop {
-        position: fixed;
-        inset: 0;
-        z-index: 2147483647;
-        display: grid;
-        place-items: start center;
-        padding: 10vh 18px 18px;
-        background: rgba(8, 13, 24, 0.42);
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }
-      .panel {
-        width: min(720px, calc(100vw - 36px));
-        max-height: min(680px, 78vh);
-        overflow: hidden;
-        border: 1px solid rgba(149, 166, 196, 0.34);
-        border-radius: 12px;
-        background: #f9fbff;
-        color: #101828;
-        box-shadow: 0 28px 72px rgba(4, 10, 22, 0.28);
-      }
-      .search { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #d9e2f0; }
-      input {
-        width: 100%;
-        border: 0;
-        outline: 0;
-        background: transparent;
-        color: #101828;
-        font: 600 16px/1.4 inherit;
-      }
-      input::placeholder { color: #667085; }
-      .results { max-height: min(560px, 63vh); overflow: auto; padding: 8px; }
-      .item {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 10px;
-        width: 100%;
-        border: 1px solid transparent;
-        border-radius: 8px;
-        padding: 11px 12px;
-        background: transparent;
-        color: inherit;
-        text-align: left;
-        cursor: pointer;
-      }
-      .item[aria-selected="true"] { background: #e8f7fb; border-color: #84d8ea; }
-      .title { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .meta { margin-top: 3px; color: #667085; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .kind { align-self: start; border-radius: 999px; padding: 4px 8px; background: #eef2f7; color: #475467; font-size: 11px; font-weight: 700; }
-      .empty { padding: 28px 18px; color: #667085; text-align: center; font-size: 13px; }
-      @media (prefers-color-scheme: dark) {
-        .panel { background: #101828; color: #f8fbff; border-color: rgba(149, 166, 196, 0.28); }
-        .search { border-color: #243044; }
-        input { color: #f8fbff; }
-        input::placeholder, .meta, .empty { color: #98a2b3; }
-        .item[aria-selected="true"] { background: rgba(20, 184, 166, 0.14); border-color: rgba(20, 184, 166, 0.4); }
-        .kind { background: #1d2939; color: #d0d5dd; }
-      }
-    </style>
-    <div class="backdrop" role="presentation">
-      <section class="panel" role="dialog" aria-modal="true" aria-label="TabSetu search">
-        <div class="search">
-          <input autocomplete="off" placeholder="Search saved sessions, tabs, notes, folders, or tags" aria-label="Search TabSetu" />
-        </div>
-        <div class="results" role="listbox"></div>
-      </section>
-    </div>
-  `;
-
-  type OverlayRow = {
-    id: string;
-    kind: "session" | "tab" | "note";
-    title: string;
-    subtitle: string;
-    action:
-      | { kind: "url"; url: string }
-      | { kind: "dashboard"; view: "notes" };
-    haystack: string;
-  };
-
-  const input = shadow.querySelector("input") as HTMLInputElement;
-  const resultsNode = shadow.querySelector(".results") as HTMLDivElement;
-  const backdrop = shadow.querySelector(".backdrop") as HTMLDivElement;
-  let rows: OverlayRow[] = [];
-  let visibleRows: OverlayRow[] = [];
-  let selectedIndex = 0;
-
-  const removeOverlay = () => host.remove();
-  const scopes = payload.searchScopes ?? {
-    sessions: true,
-    tabs: true,
-    notes: true,
-    tags: true,
-    folders: true,
-  };
-  const normalize = (value: unknown) => (typeof value === "string" ? value.toLowerCase() : "");
-  const scoreRow = (row: OverlayRow, query: string) => {
-    const normalizedQuery = query.toLowerCase().trim();
-    if (!normalizedQuery) {
-      return 1;
-    }
-
-    const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
-    const haystack = row.haystack.toLowerCase();
-    if (tokens.every((token) => haystack.includes(token))) {
-      return tokens.reduce((score, token) => score + Math.max(1, 40 - haystack.indexOf(token)), 0);
-    }
-
-    let cursor = 0;
-    let fuzzyScore = 0;
-    for (const char of normalizedQuery) {
-      const next = haystack.indexOf(char, cursor);
-      if (next === -1) {
-        return 0;
-      }
-      fuzzyScore += Math.max(1, 16 - (next - cursor));
-      cursor = next + 1;
-    }
-    return fuzzyScore;
-  };
-
-  const render = () => {
-    resultsNode.textContent = "";
-    if (visibleRows.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "empty";
-      empty.textContent = input.value.trim() ? "No saved tabs match that search." : "Start typing to search TabSetu.";
-      resultsNode.appendChild(empty);
-      return;
-    }
-
-    visibleRows.slice(0, 12).forEach((row, index) => {
-      const item = document.createElement("button");
-      item.className = "item";
-      item.type = "button";
-      item.setAttribute("role", "option");
-      item.setAttribute("aria-selected", String(index === selectedIndex));
-      item.innerHTML = `
-        <span>
-          <span class="title"></span>
-          <span class="meta"></span>
-        </span>
-        <span class="kind">${row.kind === "session" ? "Session" : row.kind === "tab" ? "Tab" : "Note"}</span>
-      `;
-      (item.querySelector(".title") as HTMLSpanElement).textContent = row.title;
-      (item.querySelector(".meta") as HTMLSpanElement).textContent = row.subtitle;
-      item.addEventListener("mouseenter", () => {
-        selectedIndex = index;
-        render();
-      });
-      item.addEventListener("click", () => {
-        void openSelected(row);
-      });
-      resultsNode.appendChild(item);
-    });
-  };
-
-  const updateVisibleRows = () => {
-    const query = input.value.trim();
-    visibleRows = rows
-      .map((row) => ({ row, score: scoreRow(row, query) }))
-      .filter((entry) => entry.score > 0)
-      .sort((left, right) => right.score - left.score)
-      .map((entry) => entry.row);
-    selectedIndex = Math.min(selectedIndex, Math.max(visibleRows.length - 1, 0));
-    render();
-  };
-
-  const openSelected = async (row: OverlayRow | undefined) => {
-    if (!row) {
-      return;
-    }
-
-    if (row.action.kind === "url") {
-      await chrome.runtime.sendMessage({ type: "tabsetu:open-url", url: row.action.url });
-    } else {
-      await chrome.runtime.sendMessage({ type: "tabsetu:open-dashboard", view: row.action.view });
-    }
-    removeOverlay();
-  };
-
-  const folderMap = new Map(payload.folders.map((folder) => [folder.id, folder.name]));
-  const tagMap = new Map(payload.tags.map((tag) => [tag.id, tag.name]));
-  const hasSessionRowFields = scopes.sessions || scopes.notes || scopes.folders || scopes.tags;
-
-  rows = payload.sessions.flatMap((session) => {
-    const folderName = session.folderId ? folderMap.get(session.folderId) ?? "" : "";
-    const tagNames = session.tagIds.map((id) => tagMap.get(id) ?? "").filter(Boolean).join(" ");
-    const sessionHaystack = [
-      scopes.sessions ? normalize(session.name) : "",
-      scopes.sessions ? normalize(session.description) : "",
-      scopes.notes ? normalize(session.note) : "",
-      scopes.folders ? normalize(folderName) : "",
-      scopes.tags ? normalize(tagNames) : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
-
-    const sessionRows: OverlayRow[] =
-      hasSessionRowFields && sessionHaystack
-        ? [
-            {
-              id: session.id,
-              kind: "session" as const,
-              title: session.name || "Untitled Session",
-              subtitle: `${session.tabs.length} tabs${folderName ? ` in ${folderName}` : ""}`.trim(),
-              action: { kind: "url" as const, url: session.tabs[0]?.url ?? "" },
-              haystack: sessionHaystack,
-            },
-          ].filter((row) => row.action.url)
-        : [];
-
-    const tabRows: OverlayRow[] = scopes.tabs
-      ? session.tabs
-          .map((tab) => ({
-            id: `${session.id}-${tab.id}`,
-            kind: "tab" as const,
-            title: tab.title || "Untitled Tab",
-            subtitle: [session.name || "Session", tab.url || ""].filter(Boolean).join(" - "),
-            action: { kind: "url" as const, url: tab.url || "" },
-            haystack: [
-              scopes.tabs ? normalize(tab.title) : "",
-              scopes.tabs ? normalize(tab.url) : "",
-              scopes.notes ? normalize(tab.note) : "",
-              scopes.sessions ? normalize(session.name) : "",
-              scopes.sessions ? normalize(session.description) : "",
-              scopes.notes ? normalize(session.note) : "",
-              scopes.folders ? normalize(folderName) : "",
-              scopes.tags ? normalize(tagNames) : "",
-            ]
-              .filter(Boolean)
-              .join(" "),
-          }))
-          .filter((row) => row.action.url && row.haystack)
-      : [];
-
-    return [...sessionRows, ...tabRows];
-  });
-
-  if (scopes.notes) {
-    rows.push(
-      ...payload.standaloneNotes
-        .map((note) => ({
-          id: `note-${note.id}`,
-          kind: "note" as const,
-          title: note.title || "Untitled Note",
-          subtitle: note.content.trim() ? note.content.trim().slice(0, 120) : "Open the Notes view in TabSetu.",
-          action: { kind: "dashboard" as const, view: "notes" as const },
-          haystack: [normalize(note.title), normalize(note.content)].filter(Boolean).join(" "),
-        }))
-        .filter((row) => row.haystack),
-    );
-  }
-
-  updateVisibleRows();
-
-  input.addEventListener("input", updateVisibleRows);
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      removeOverlay();
-      return;
-    }
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      selectedIndex = Math.min(selectedIndex + 1, Math.max(visibleRows.length - 1, 0));
-      render();
-      return;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      selectedIndex = Math.max(selectedIndex - 1, 0);
-      render();
-      return;
-    }
-    if (event.key === "Enter") {
-      event.preventDefault();
-      void openSelected(visibleRows[selectedIndex]);
-    }
-  });
-  backdrop.addEventListener("click", (event) => {
-    if (event.target === backdrop) {
-      removeOverlay();
-    }
-  });
-  input.focus();
-}
-
-function showTabSetuOverlayDisabledToast(message: string): void {
-  const hostId = "tabsetu-toast-host";
-  document.getElementById(hostId)?.remove();
-
-  const host = document.createElement("div");
-  host.id = hostId;
-  document.documentElement.appendChild(host);
-  const shadow = host.attachShadow({ mode: "open" });
-  shadow.innerHTML = `
-    <style>
-      :host { all: initial; }
-      .toast {
-        position: fixed;
-        right: 18px;
-        bottom: 18px;
-        z-index: 2147483647;
-        max-width: min(360px, calc(100vw - 36px));
-        padding: 12px 14px;
-        border: 1px solid rgba(132, 216, 234, 0.5);
-        border-radius: 12px;
-        background: #101828;
-        color: #f8fbff;
-        font: 600 13px/1.4 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        box-shadow: 0 18px 48px rgba(4, 10, 22, 0.28);
-      }
-    </style>
-    <div class="toast" role="status"></div>
-  `;
-  const toast = shadow.querySelector(".toast") as HTMLDivElement;
-  toast.textContent = message;
-  window.setTimeout(() => host.remove(), 2200);
-}
-
-async function openSearchOverlay(): Promise<void> {
-  const data = await loadStorage();
+function buildOverlayPayload(data: StorageData): OverlayPayload {
   const { settings } = data;
-  if (!settings.searchOverlayEnabled) {
-    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (activeTab?.id && activeTab.url && !isRestrictedUrl(activeTab.url)) {
-      await chrome.tabs.sendMessage(activeTab.id, {
-        type: "tabsetu:overlay-disabled",
-        message: "TabSetu search overlay is disabled. Enable it in Settings > Search.",
-      });
-    }
-    return;
-  }
-
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!activeTab?.id || !activeTab.url || isRestrictedUrl(activeTab.url)) {
-    return;
-  }
-
   const folderMap = new Map(data.folders.map((folder) => [folder.id, folder.name]));
   const tagMap = new Map(data.tags.map((tag) => [tag.id, tag.name]));
   const rows: OverlaySearchRow[] = data.sessions.flatMap((session) => {
@@ -918,13 +551,67 @@ async function openSearchOverlay(): Promise<void> {
     })),
   );
 
-  const payload: OverlayPayload = {
+  return {
     rows,
     searchScopes: settings.searchScopes,
     fuzzySearchThreshold: settings.fuzzySearchThreshold,
   };
+}
 
-  await chrome.tabs.sendMessage(activeTab.id, { type: "tabsetu:open-overlay", payload });
+async function openSearchOverlay(): Promise<void> {
+  const data = await loadStorage();
+  const { settings } = data;
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!activeTab?.id || !activeTab.url || isRestrictedUrl(activeTab.url)) {
+    return;
+  }
+
+  if (!settings.searchOverlayEnabled) {
+    await chrome.scripting.executeScript({
+      target: { tabId: activeTab.id },
+      func: (msg: string) => {
+        const existing = document.getElementById("tabsetu-toast-host");
+        existing?.remove();
+        const host = document.createElement("div");
+        host.id = "tabsetu-toast-host";
+        document.documentElement.appendChild(host);
+        const shadow = host.attachShadow({ mode: "open" });
+        shadow.innerHTML = `<style>:host{all:initial}.t{position:fixed;right:18px;bottom:18px;z-index:2147483647;padding:12px 14px;border-radius:12px;background:#101828;color:#f8fbff;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;box-shadow:0 18px 48px rgba(4,10,22,.28)}</style><div class="t"></div>`;
+        (shadow.querySelector(".t") as HTMLElement).textContent = msg;
+        setTimeout(() => host.remove(), 2200);
+      },
+      args: ["TabSetu search overlay is disabled. Enable it in Settings > Search."],
+    });
+    return;
+  }
+
+  const granted = await chrome.permissions.request({ origins: ["*://*/*"] });
+  if (!granted) {
+    return;
+  }
+
+  try {
+    await chrome.scripting.registerContentScripts([{
+      id: "tabsetu-search-overlay",
+      matches: ["*://*/*"],
+      js: ["src/content/searchOverlay.js"],
+      runAt: "document_idle",
+      persistAcrossSessions: true,
+    }]);
+  } catch {
+    // Already registered.
+  }
+
+  const payload = buildOverlayPayload(data);
+  try {
+    await chrome.tabs.sendMessage(activeTab.id, { type: "tabsetu:open-overlay", payload });
+  } catch {
+    await chrome.scripting.executeScript({
+      target: { tabId: activeTab.id },
+      files: ["src/content/searchOverlay.js"],
+    });
+    await chrome.tabs.sendMessage(activeTab.id, { type: "tabsetu:open-overlay", payload });
+  }
 }
 
 const EXPECTED_COMMAND_SHORTCUTS: Record<string, string> = {

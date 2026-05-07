@@ -29,5 +29,14 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        searchOverlay: path.resolve(projectRoot, "src/content/searchOverlay.ts"),
+      },
+      output: {
+        entryFileNames: (chunk) =>
+          chunk.name === "searchOverlay" ? "src/content/searchOverlay.js" : "assets/[name]-[hash].js",
+      },
+    },
   },
 });
