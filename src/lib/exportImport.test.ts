@@ -256,6 +256,32 @@ describe("exportImport", () => {
     expect(data.sessions[1].tabs[0].title).toBe("Paper");
   });
 
+  it("does not mistake foreign JSON with settings for a TabSetu backup", async () => {
+    const data = await importFile(
+      makeImportFile(
+        "foreign-session-export.json",
+        JSON.stringify({
+          settings: { theme: "dark" },
+          sessions: [
+            {
+              name: "Foreign workspace",
+              windows: [
+                {
+                  tabs: [{ title: "Console", url: "https://console.example.com" }],
+                },
+              ],
+            },
+          ],
+        }),
+        "application/json",
+      ),
+    );
+
+    expect(data.sessions).toHaveLength(1);
+    expect(data.sessions[0].name).toBe("Foreign workspace");
+    expect(data.sessions[0].tabs[0].url).toBe("https://console.example.com");
+  });
+
   it("rejects imports when no valid tabs are found", async () => {
     await expect(
       importFile(makeImportFile("empty.txt", "not a saved tab export", "text/plain")),

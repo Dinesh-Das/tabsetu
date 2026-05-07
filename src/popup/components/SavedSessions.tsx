@@ -33,6 +33,18 @@ const POPUP_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
   { value: "createdAt", label: "Recently created" },
 ];
 
+function getSessionIcon(icon: string | null): ComponentType<{ size?: number; "aria-hidden"?: boolean }> | null {
+  if (!icon) {
+    return null;
+  }
+
+  const iconName = toLucideExportName(icon);
+  const lucideIcons = LucideIcons as unknown as Record<string, ComponentType<{ size?: number; "aria-hidden"?: boolean }>>;
+  return iconName in LucideIcons
+    ? lucideIcons[iconName] ?? null
+    : null;
+}
+
 function isSortOption(value: string | null): value is SortOption {
   switch (value) {
     case "createdAt":
@@ -524,9 +536,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
 
         {visibleItems.map((item, index) => {
           const { session, folder, tags: sessionTags, searchResult } = item;
-          const SessionIcon = session.icon
-            ? (LucideIcons as unknown as Record<string, ComponentType<{ size?: number; "aria-hidden"?: boolean }>>)[toLucideExportName(session.icon)]
-            : null;
+          const SessionIcon = getSessionIcon(session.icon);
           const secondaryText = searchResult?.highlights.sessionNote.length
             ? session.note
             : session.description || session.note || "";

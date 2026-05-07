@@ -78,4 +78,44 @@ describe("normalizeImportedStorageData", () => {
     expect(result.sessions[0]?.tabs.map((tab) => tab.position)).toEqual([0, 1]);
     expect(result.settings.fuzzySearchThreshold).toBe(0.6);
   });
+
+  it("runs schema migrations when importing older TabSetu backups", () => {
+    const result = normalizeImportedStorageData({
+      schemaVersion: 2,
+      sessions: [
+        {
+          id: "session-1",
+          name: "Shared",
+          tabs: [{ id: "tab-1", title: "Docs", url: "https://example.com", position: 0 }],
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+      folders: [],
+      tags: [],
+      schedules: [],
+      shareLinks: [
+        {
+          id: "share-1",
+          sessionId: "session-1",
+          type: "hosted",
+          encodedData: "abc",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    });
+
+    expect(result.shareLinks[0]?.type).toBe("encoded-url");
+  });
+
+  it("rejects backups from newer schema versions", () => {
+    expect(() =>
+      normalizeImportedStorageData({
+        schemaVersion: 999,
+        sessions: [],
+        folders: [],
+      }),
+    ).toThrow("newer version of TabSetu");
+  });
 });

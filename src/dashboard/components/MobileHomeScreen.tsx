@@ -36,6 +36,18 @@ interface Props {
 
 type HomeFilter = "folders" | "tags";
 
+function getSessionIcon(icon: string | null): ComponentType<{ size?: number; "aria-hidden"?: boolean }> | null {
+  if (!icon) {
+    return null;
+  }
+
+  const iconName = toLucideExportName(icon);
+  const lucideIcons = LucideIcons as unknown as Record<string, ComponentType<{ size?: number; "aria-hidden"?: boolean }>>;
+  return iconName in LucideIcons
+    ? lucideIcons[iconName] ?? null
+    : null;
+}
+
 interface SavedTab {
   session: Session;
   tab: TabItem;
@@ -257,9 +269,7 @@ export default function MobileHomeScreen({
   };
 
   const renderSavedTab = ({ session, tab }: SavedTab) => {
-    const SessionIcon = session.icon
-      ? (LucideIcons as unknown as Record<string, ComponentType<{ size?: number; "aria-hidden"?: boolean }>>)[toLucideExportName(session.icon)]
-      : null;
+    const SessionIcon = getSessionIcon(session.icon);
     return (
       <TabRow
         key={`${session.id}-${tab.id}`}

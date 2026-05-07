@@ -60,6 +60,7 @@
     "notifications",
     "scripting",
     "activeTab",
+    "history",
     "unlimitedStorage"
   ],
   "optional_host_permissions": ["*://*/*"],

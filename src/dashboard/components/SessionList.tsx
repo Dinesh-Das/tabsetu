@@ -2,11 +2,13 @@ import { type ComponentType, useEffect, useMemo, useRef, useState } from "react"
 import {
   Archive,
   ArrowUpRight,
+  Check,
   CheckSquare,
   Copy,
   FolderInput,
   FolderOpen,
   PackagePlus,
+  Pause,
   Pin,
   Square,
   Trash2,
@@ -37,6 +39,18 @@ interface Props {
   onInitialSavePromptHandled?: () => void;
 }
 
+function getSessionIcon(icon: string | null): ComponentType<{ size?: number }> | null {
+  if (!icon) {
+    return null;
+  }
+
+  const iconName = toLucideExportName(icon);
+  const lucideIcons = LucideIcons as unknown as Record<string, ComponentType<{ size?: number }>>;
+  return iconName in LucideIcons
+    ? lucideIcons[iconName] ?? null
+    : null;
+}
+
 export default function SessionList({
   selectedSessionId,
   onSelect,
@@ -55,6 +69,7 @@ export default function SessionList({
   const pinSession = useSessionStore((state) => state.pinSession);
   const archiveSession = useSessionStore((state) => state.archiveSession);
   const setSessionFolder = useSessionStore((state) => state.setSessionFolder);
+  const renameSession = useSessionStore((state) => state.renameSession);
   const recordOpened = useSessionStore((state) => state.recordOpened);
   const folders = useFolderStore((state) => state.folders);
   const tags = useTagStore((state) => state.tags);
@@ -71,6 +86,8 @@ export default function SessionList({
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkFolderId, setBulkFolderId] = useState("");
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingSessionName, setEditingSessionName] = useState("");
   const deferredQuery = useDebouncedValue(query, 150);
   const searchRef = useRef<HTMLInputElement>(null);
   const searchIndex = useMemo(
@@ -263,6 +280,37 @@ export default function SessionList({
     deleteSelectedSessions();
   };
 
+  const startInlineRename = (session: Session) => {
+    setEditingSessionId(session.id);
+    setEditingSessionName(session.name);
+  };
+
+  const commitInlineRename = (session: Session) => {
+    const trimmed = editingSessionName.trim();
+    if (trimmed && trimmed !== session.name) {
+      renameSession(session.id, trimmed);
+      addToast("success", `Renamed session to "${trimmed}".`);
+    }
+    setEditingSessionId(null);
+    setEditingSessionName("");
+  };
+
+  const handleSuspendBackgroundTabs = async () => {
+    const response = await chrome.runtime.sendMessage({ type: "tabsetu:suspend-background-tabs" });
+    if (!response?.ok) {
+      addToast("error", "TabSetu could not suspend background tabs.");
+      return;
+    }
+
+    const count = Number(response.count ?? 0);
+    addToast(
+      count === 0 ? "info" : "success",
+      count === 0
+        ? "No background tabs were available to suspend."
+        : `Suspended ${count} ${count === 1 ? "background tab" : "background tabs"}.`,
+    );
+  };
+
   return (
     <section style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div
@@ -284,6 +332,10 @@ export default function SessionList({
             <button className="btn btn-secondary" type="button" onClick={toggleSelectMode}>
               {selectMode ? <X size={15} /> : <CheckSquare size={15} />}
               {selectMode ? "Cancel select" : "Select"}
+            </button>
+            <button className="btn btn-secondary" type="button" onClick={() => void handleSuspendBackgroundTabs()}>
+              <Pause size={15} />
+              Suspend tabs
             </button>
             <button className="btn btn-primary" onClick={() => setSaveModalPrompt({ mode: "save", sourceTabId: null })}>
               <PackagePlus size={16} />
@@ -420,9 +472,7 @@ export default function SessionList({
         >
           {filteredItems.map((item) => {
             const { session, folder, tags: sessionTags, searchResult } = item;
-            const SessionIcon = session.icon
-              ? (LucideIcons as unknown as Record<string, ComponentType<{ size?: number }>>)[toLucideExportName(session.icon)]
-              : null;
+            const SessionIcon = getSessionIcon(session.icon);
             const active = selectedSessionId === session.id;
             const secondaryText = searchResult?.highlights.sessionNote.length
               ? session.note
@@ -485,19 +535,54 @@ export default function SessionList({
                       ) : null}
                       {SessionIcon ? <SessionIcon size={14} /> : null}
                       {session.isPinned ? <Pin size={14} color="var(--color-accent)" /> : null}
-                      <h3
-                        style={{
-                          fontSize: 18,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        <HighlightedText
-                          text={session.name}
-                          ranges={searchResult?.highlights.sessionName}
-                        />
-                      </h3>
+                      {editingSessionId === session.id ? (
+                        <form
+                          style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            commitInlineRename(session);
+                          }}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <input
+                            className="input"
+                            value={editingSessionName}
+                            autoFocus
+                            onChange={(event) => setEditingSessionName(event.target.value)}
+                            onBlur={() => commitInlineRename(session)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                setEditingSessionId(null);
+                                setEditingSessionName("");
+                              }
+                            }}
+                            style={{ minWidth: 0, height: 32, fontWeight: 700 }}
+                          />
+                          <button className="btn btn-ghost btn-icon" type="submit" title="Save title">
+                            <Check size={14} />
+                          </button>
+                        </form>
+                      ) : (
+                        <h3
+                          title="Double-click to rename"
+                          onDoubleClick={(event) => {
+                            event.stopPropagation();
+                            startInlineRename(session);
+                          }}
+                          style={{
+                            fontSize: 18,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          <HighlightedText
+                            text={session.name}
+                            ranges={searchResult?.highlights.sessionName}
+                          />
+                        </h3>
+                      )}
                     </div>
                     <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--color-text-secondary)" }}>
                       <HighlightedText text={secondaryText} ranges={secondaryRanges} />

@@ -10,9 +10,20 @@ type OverlayPayload = {
 function openRow(row: OverlaySearchRow): void {
   if (row.action.kind === "url") {
     void chrome.runtime.sendMessage({ type: "tabsetu:open-url", url: row.action.url });
+  } else if (row.action.kind === "switch-tab") {
+    void chrome.runtime.sendMessage({ type: "tabsetu:switch-to-tab", tabId: row.action.tabId });
   } else {
     void chrome.runtime.sendMessage({ type: "tabsetu:open-dashboard", view: row.action.view });
   }
+}
+
+async function fetchHistoryRows(query: string): Promise<OverlaySearchRow[]> {
+  const response = await chrome.runtime.sendMessage({ type: "tabsetu:search-history", query });
+  if (!response?.ok || !Array.isArray(response.rows)) {
+    return [];
+  }
+
+  return response.rows as OverlaySearchRow[];
 }
 
 function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
@@ -49,7 +60,7 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
     </style>
     <div class="backdrop" role="presentation">
       <section class="panel" role="dialog" aria-modal="true" aria-label="TabSetu search">
-        <div class="search"><input autocomplete="off" placeholder="Search saved sessions, tabs, notes, folders, or tags" aria-label="Search TabSetu" /></div>
+        <div class="search"><input autocomplete="off" placeholder="Search saved sessions, active tabs, notes, folders, or tags" aria-label="Search TabSetu" /></div>
         <div class="results" role="listbox"></div>
       </section>
     </div>
@@ -59,7 +70,9 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
   const resultsNode = shadow.querySelector(".results") as HTMLDivElement;
   const backdrop = shadow.querySelector(".backdrop") as HTMLDivElement;
   let visibleRows = payload.rows;
+  let historyRows: OverlaySearchRow[] = [];
   let selectedIndex = 0;
+  let historyRequestId = 0;
   const removeOverlay = () => host.remove();
 
   const render = () => {
@@ -67,7 +80,7 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
     if (visibleRows.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty";
-      empty.textContent = input.value.trim() ? "No saved tabs match that search." : "Start typing to search TabSetu.";
+      empty.textContent = input.value.trim() ? "No tabs, sessions, or history match that search." : "Start typing to search TabSetu.";
       resultsNode.appendChild(empty);
       return;
     }
@@ -82,7 +95,15 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
       (item.querySelector(".title") as HTMLSpanElement).textContent = row.title;
       (item.querySelector(".meta") as HTMLSpanElement).textContent = row.subtitle;
       (item.querySelector(".kind") as HTMLSpanElement).textContent =
-        row.kind === "session" ? "Session" : row.kind === "tab" ? "Tab" : "Note";
+        row.kind === "session"
+          ? "Session"
+          : row.kind === "active-tab"
+            ? "Active"
+            : row.kind === "history"
+              ? "History"
+              : row.kind === "tab"
+                ? "Tab"
+                : "Note";
       item.addEventListener("mouseenter", () => {
         selectedIndex = index;
         render();
@@ -96,7 +117,8 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
   };
 
   const updateVisibleRows = () => {
-    visibleRows = scoreOverlayRows(payload.rows, input.value, {
+    const allRows = [...payload.rows, ...historyRows];
+    visibleRows = scoreOverlayRows(allRows, input.value, {
       searchScopes: payload.searchScopes,
       fuzzySearchThreshold: payload.fuzzySearchThreshold,
     });
@@ -104,7 +126,31 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
     render();
   };
 
-  input.addEventListener("input", updateVisibleRows);
+  const updateHistoryRows = () => {
+    const query = input.value.trim();
+    const requestId = historyRequestId + 1;
+    historyRequestId = requestId;
+
+    if (query.length < 3) {
+      historyRows = [];
+      updateVisibleRows();
+      return;
+    }
+
+    void fetchHistoryRows(query).then((rows) => {
+      if (historyRequestId !== requestId) {
+        return;
+      }
+
+      historyRows = rows;
+      updateVisibleRows();
+    });
+  };
+
+  input.addEventListener("input", () => {
+    updateVisibleRows();
+    updateHistoryRows();
+  });
   input.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       event.preventDefault();

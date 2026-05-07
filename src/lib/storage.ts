@@ -11,6 +11,7 @@ import type {
   Tag,
   UndoCollapseBuffer,
 } from "@/types";
+import { pruneStaleTabFavicons } from "@/lib/favicon";
 import { clampText, generateId, isValidUrl, sanitizeLabel, stripHtml } from "@/lib/tabHelpers";
 import { getOnboardingFolders, getOnboardingTags } from "@/lib/onboarding";
 
@@ -91,11 +92,10 @@ const MIGRATIONS: Record<number, (data: StorageData) => StorageData> = {
   3: (d) => ({
     ...d,
     shareLinks: d.shareLinks.map((link) => {
-      const legacyLink = link as Omit<ShareLink, "type"> & { type: string };
       return {
-      id: legacyLink.id,
-      sessionId: legacyLink.sessionId,
-      type: legacyLink.type === "hosted" ? "encoded-url" : (legacyLink.type as ShareLink["type"]),
+      id: link.id,
+      sessionId: link.sessionId,
+      type: "encoded-url",
       encodedData: link.encodedData,
       expiresAt: link.expiresAt,
       createdAt: link.createdAt,
@@ -348,7 +348,7 @@ function normalizeShareLink(raw: unknown): ShareLink | null {
   return {
     id: asString(raw.id, generateId("share")),
     sessionId: asString(raw.sessionId),
-    type: (type === "hosted" ? "encoded-url" : type) as ShareLink["type"],
+    type: "encoded-url",
     encodedData: raw.encodedData == null ? null : asString(raw.encodedData) || null,
     expiresAt: raw.expiresAt == null ? null : asNumber(raw.expiresAt, createdAt),
     createdAt,
@@ -505,22 +505,42 @@ function toStorageRecord(data: StorageData): Record<string, unknown> {
 }
 
 function hasLegacyStorage(raw: Record<string, unknown>): boolean {
-  return LEGACY_KEYS.some((key) => hasOwnKey(raw, key));
+  if (!LEGACY_KEYS.some((key) => hasOwnKey(raw, key))) {
+    return false;
+  }
+
+  if (!Array.isArray(raw.sessions)) {
+    return false;
+  }
+
+  return raw.sessions.every(
+    (session) =>
+      isRecord(session) &&
+      Array.isArray(session.tabs),
+  );
 }
 
-async function migrateLegacyStorage(raw: Record<string, unknown>, data: StorageData): Promise<void> {
-  const fromVersion = asNumber(raw[STORAGE_KEYS.schemaVersion], 1);
+function applyMigrations(raw: Record<string, unknown>, data: StorageData): StorageData {
+  const fromVersion = asNumber(raw[STORAGE_KEYS.schemaVersion] ?? raw.schemaVersion, 1);
   let migrated = data;
   for (let version = Math.max(2, fromVersion + 1); version <= SCHEMA_VERSION; version += 1) {
     migrated = (MIGRATIONS[version] ?? ((d: StorageData) => d))(migrated);
   }
 
+  return migrated;
+}
+
+async function migrateLegacyStorage(raw: Record<string, unknown>, data: StorageData): Promise<StorageData> {
+  const fromVersion = asNumber(raw[STORAGE_KEYS.schemaVersion] ?? raw.schemaVersion, 1);
+  const migrated = applyMigrations(raw, data);
+
   if (!hasLegacyStorage(raw) && fromVersion === SCHEMA_VERSION) {
-    return;
+    return migrated;
   }
 
   await storageSet(toStorageRecord(migrated));
   await storageRemove(LEGACY_KEYS);
+  return migrated;
 }
 
 export function getDefaultStorageData(): StorageData {
@@ -625,6 +645,13 @@ export function validateImportPayload(raw: unknown): void {
     throw new Error("This file is not a TabSetu backup.");
   }
 
+  const importedSchemaVersion = asNumber(raw.schemaVersion ?? raw[STORAGE_KEYS.schemaVersion], SCHEMA_VERSION);
+  if (importedSchemaVersion > SCHEMA_VERSION) {
+    throw new Error(
+      "This backup was created with a newer version of TabSetu. Please update the extension before importing.",
+    );
+  }
+
   if (hasOwnKey(raw, "sessions") && !Array.isArray(raw.sessions)) {
     throw new Error("The backup file has an invalid sessions section.");
   }
@@ -660,14 +687,15 @@ export function validateImportPayload(raw: unknown): void {
 
 export function normalizeImportedStorageData(raw: unknown): StorageData {
   validateImportPayload(raw);
-  return normalizeStorageData(raw);
+  return applyMigrations(isRecord(raw) ? raw : {}, normalizeStorageData(raw));
 }
 
 export async function loadStorage(): Promise<StorageData> {
   const raw = await storageGet<Record<string, unknown>>(null);
   const data = normalizeStorageData(raw);
-  await migrateLegacyStorage(raw, data);
-  return data;
+  const migrated = await migrateLegacyStorage(raw, data);
+  await pruneStaleTabFavicons(migrated.sessions);
+  return migrated;
 }
 
 function normalizeUndoBuffer(raw: unknown): UndoCollapseBuffer | null {
@@ -686,14 +714,15 @@ export async function loadStorageWithUndoBuffer(): Promise<{
 }> {
   const raw = await storageGet<Record<string, unknown>>(null);
   const data = normalizeStorageData(raw);
-  await migrateLegacyStorage(raw, data);
+  const migrated = await migrateLegacyStorage(raw, data);
   const undoBuffer = normalizeUndoBuffer(raw[STORAGE_KEYS.undoBuffer] ?? raw.tabsetuUndoBuffer);
   if (!undoBuffer && raw[STORAGE_KEYS.undoBuffer]) {
     await saveUndoBuffer(null);
   }
+  await pruneStaleTabFavicons(migrated.sessions);
   const rawFavicons = raw.TabSetu_favicons;
   const favicons = rawFavicons && typeof rawFavicons === "object" ? rawFavicons as Record<string, string> : {};
-  return { data, undoBuffer, favicons };
+  return { data: migrated, undoBuffer, favicons };
 }
 
 export async function saveSessions(sessions: Session[]): Promise<void> {

@@ -1,3 +1,5 @@
+import type { Session } from "@/types";
+
 export const FAVICON_STORAGE_KEY = "TabSetu_favicons";
 
 const TRACKER_DOMAIN_BLOCKLIST = new Set([
@@ -91,4 +93,16 @@ export async function storeFavicon(tabId: string, dataUrl: string | null): Promi
       [tabId]: dataUrl,
     },
   });
+}
+
+export async function pruneStaleTabFavicons(activeSessions: Session[]): Promise<void> {
+  const favicons = await getStoredFavicons();
+  const activeTabIds = new Set(activeSessions.flatMap((session) => session.tabs.map((tab) => tab.id)));
+  const pruned = Object.fromEntries(Object.entries(favicons).filter(([tabId]) => activeTabIds.has(tabId)));
+
+  if (Object.keys(pruned).length === Object.keys(favicons).length) {
+    return;
+  }
+
+  await chrome.storage.local.set({ [FAVICON_STORAGE_KEY]: pruned });
 }

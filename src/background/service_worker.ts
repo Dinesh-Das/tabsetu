@@ -13,13 +13,16 @@ import {
 import {
   initializeStorageForInstall,
   loadStorage,
+  loadUndoBuffer,
   saveSchedules,
   saveSessions,
   saveUndoBuffer,
   COLLAPSE_UNDO_MS,
+  STORAGE_KEYS,
 } from "@/lib/storage";
 
 const LAST_BROWSER_TAB_KEY = "tabsetuLastBrowserTab";
+const AUTO_ARCHIVE_ALARM_NAME = "tabsetu-auto-archive";
 
 interface StoredBrowserTab {
   tabId: number;
@@ -32,6 +35,12 @@ type OverlayPayload = {
   rows: OverlaySearchRow[];
   searchScopes: Settings["searchScopes"];
   fuzzySearchThreshold: number;
+};
+
+type SessionCaptureResult = {
+  session: Session;
+  tabCount: number;
+  mode: "save" | "collapse";
 };
 
 function alarmName(scheduleId: string): string {
@@ -229,6 +238,8 @@ async function hydrateAlarms(): Promise<void> {
     }
   }
 
+  await createAutoArchiveAlarm(settings);
+
   if (!settings.remindersEnabled) {
     return;
   }
@@ -267,6 +278,14 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   void clearStoredBrowserTab(tabId);
 });
 
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local" || !changes[STORAGE_KEYS.settings]) {
+    return;
+  }
+
+  void hydrateAlarms();
+});
+
 chrome.windows.onFocusChanged.addListener((windowId) => {
   if (windowId === chrome.windows.WINDOW_ID_NONE) {
     return;
@@ -303,6 +322,37 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "tabsetu:switch-to-tab" && typeof message.tabId === "number") {
+    void chrome.tabs
+      .get(message.tabId)
+      .then(async (tab) => {
+        if (typeof tab.windowId === "number") {
+          await chrome.windows.update(tab.windowId, { focused: true });
+        }
+        await chrome.tabs.update(message.tabId, { active: true });
+        sendResponse({ ok: true });
+      })
+      .catch(() => sendResponse({ ok: false }));
+
+    return true;
+  }
+
+  if (message?.type === "tabsetu:suspend-background-tabs") {
+    void suspendBackgroundTabs()
+      .then((count) => sendResponse({ ok: true, count }))
+      .catch(() => sendResponse({ ok: false, count: 0 }));
+
+    return true;
+  }
+
+  if (message?.type === "tabsetu:search-history" && typeof message.query === "string") {
+    void searchBrowserHistory(message.query)
+      .then((rows) => sendResponse({ ok: true, rows }))
+      .catch(() => sendResponse({ ok: false, rows: [] }));
+
+    return true;
+  }
+
   if (message?.type === "tabsetu:open-dashboard") {
     const view = typeof message.view === "string" && message.view.trim() ? `?view=${encodeURIComponent(message.view)}` : "";
     void chrome.tabs
@@ -333,7 +383,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return undefined;
 });
 
-async function createSessionFromWindow(mode: "save" | "collapse"): Promise<void> {
+async function createSessionFromWindow(mode: "save" | "collapse"): Promise<SessionCaptureResult | null> {
   const { sessions, settings } = await loadRuntimeData();
   const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
   const eligibleTabs = tabs.filter((tab) => {
@@ -349,7 +399,7 @@ async function createSessionFromWindow(mode: "save" | "collapse"): Promise<void>
   });
 
   if (eligibleTabs.length === 0) {
-    return;
+    return null;
   }
 
   const createdAt = Date.now();
@@ -401,20 +451,8 @@ async function createSessionFromWindow(mode: "save" | "collapse"): Promise<void>
       await chrome.tabs.remove(tabIds);
     }
   }
-}
 
-async function openSavePrompt(mode: "save" | "collapse"): Promise<void> {
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const params = new URLSearchParams({
-    view: "home",
-    saveMode: mode,
-  });
-
-  if (typeof activeTab?.id === "number") {
-    params.set("sourceTabId", String(activeTab.id));
-  }
-
-  await chrome.tabs.create({ url: chrome.runtime.getURL(`src/dashboard/index.html?${params.toString()}`) });
+  return { session, tabCount: savedTabs.length, mode };
 }
 
 function isShareSnapshot(value: unknown): value is ShareSnapshot {
@@ -501,7 +539,79 @@ async function importSharedSession(snapshot: ShareSnapshot): Promise<Session> {
   return session;
 }
 
-function buildOverlayPayload(data: StorageData): OverlayPayload {
+async function restoreLastCollapse(): Promise<boolean> {
+  const buffer = await loadUndoBuffer();
+  if (!buffer) {
+    return false;
+  }
+
+  const urls = buffer.tabs.map((tab) => tab.url).filter(Boolean);
+  if (urls.length === 0) {
+    await saveUndoBuffer(null);
+    return false;
+  }
+
+  await chrome.windows.create({ url: urls });
+  await saveUndoBuffer(null);
+  return true;
+}
+
+async function suspendBackgroundTabs(): Promise<number> {
+  const tabs = await chrome.tabs.query({});
+  let discardedCount = 0;
+
+  for (const tab of tabs) {
+    if (!tab.id || tab.active || tab.discarded || tab.pinned || !tab.url || isRestrictedUrl(tab.url)) {
+      continue;
+    }
+
+    try {
+      await chrome.tabs.discard(tab.id);
+      discardedCount += 1;
+    } catch {
+      // Some tabs cannot be discarded by Chrome; keep going for the rest.
+    }
+  }
+
+  if (discardedCount !== 0) {
+    await chrome.notifications.create(`tabsetu-suspend-${Date.now()}`, {
+      type: "basic",
+      iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+      title: "TabSetu suspended background tabs",
+      message: `${discardedCount} ${discardedCount === 1 ? "tab is" : "tabs are"} now unloaded until selected.`,
+      priority: 1,
+    });
+  }
+
+  return discardedCount;
+}
+
+async function searchBrowserHistory(query: string): Promise<OverlaySearchRow[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 3) {
+    return [];
+  }
+
+  const results = await chrome.history.search({
+    text: trimmed,
+    maxResults: 20,
+    startTime: Date.now() - 1000 * 60 * 60 * 24 * 90,
+  });
+
+  return results
+    .filter((item) => item.url && isValidUrl(item.url) && !isRestrictedUrl(item.url))
+    .map((item) => ({
+      id: `history-${item.id ?? item.url}`,
+      kind: "history" as const,
+      title: item.title || item.url || "Visited page",
+      subtitle: item.url || "",
+      action: { kind: "url" as const, url: item.url || "" },
+      historyTitle: item.title || item.url || "Visited page",
+      historyUrl: item.url || "",
+    }));
+}
+
+async function buildOverlayPayload(data: StorageData): Promise<OverlayPayload> {
   const { settings } = data;
   const folderMap = new Map(data.folders.map((folder) => [folder.id, folder.name]));
   const tagMap = new Map(data.tags.map((tag) => [tag.id, tag.name]));
@@ -540,6 +650,15 @@ function buildOverlayPayload(data: StorageData): OverlayPayload {
     return [...sessionRows, ...tabRows];
   });
   rows.push(
+    ...(await chrome.tabs.query({})).filter(isTrackableTab).map((tab) => ({
+      id: `active-tab-${tab.id}`,
+      kind: "active-tab" as const,
+      title: tab.title || "Untitled Tab",
+      subtitle: tab.url,
+      action: { kind: "switch-tab" as const, tabId: tab.id },
+      tabTitle: tab.title || "Untitled Tab",
+      tabUrl: tab.url,
+    })),
     ...data.standaloneNotes.map((note) => ({
       id: `note-${note.id}`,
       kind: "note" as const,
@@ -585,9 +704,12 @@ async function openSearchOverlay(): Promise<void> {
     return;
   }
 
-  const granted = await chrome.permissions.request({ origins: ["*://*/*"] });
-  if (!granted) {
-    return;
+  const alreadyGranted = await chrome.permissions.contains({ origins: ["*://*/*"] });
+  if (!alreadyGranted) {
+    const granted = await chrome.permissions.request({ origins: ["*://*/*"] });
+    if (!granted) {
+      return;
+    }
   }
 
   try {
@@ -598,11 +720,14 @@ async function openSearchOverlay(): Promise<void> {
       runAt: "document_idle",
       persistAcrossSessions: true,
     }]);
-  } catch {
-    // Already registered.
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!message.includes("already registered") && !message.includes("Duplicate script")) {
+      console.error("[TabSetu] Failed to register search overlay script:", err);
+    }
   }
 
-  const payload = buildOverlayPayload(data);
+  const payload = await buildOverlayPayload(data);
   try {
     await chrome.tabs.sendMessage(activeTab.id, { type: "tabsetu:open-overlay", payload });
   } catch {
@@ -611,6 +736,68 @@ async function openSearchOverlay(): Promise<void> {
       files: ["src/content/searchOverlay.js"],
     });
     await chrome.tabs.sendMessage(activeTab.id, { type: "tabsetu:open-overlay", payload });
+  }
+}
+
+async function createAutoArchiveAlarm(settings: Settings): Promise<void> {
+  await chrome.alarms.clear(AUTO_ARCHIVE_ALARM_NAME);
+  if (!settings.autoArchiveDays) {
+    return;
+  }
+
+  await chrome.alarms.create(AUTO_ARCHIVE_ALARM_NAME, {
+    delayInMinutes: 60,
+    periodInMinutes: 24 * 60,
+  });
+}
+
+async function runAutoArchive(): Promise<number> {
+  const { sessions, settings } = await loadRuntimeData();
+  if (!settings.autoArchiveDays) {
+    return 0;
+  }
+
+  const now = Date.now();
+  const cutoff = now - settings.autoArchiveDays * 24 * 60 * 60 * 1000;
+  let archivedCount = 0;
+  const updatedSessions = sessions.map((session) => {
+    if (session.isArchived) {
+      return session;
+    }
+
+    const lastActiveAt = session.lastOpenedAt ?? session.updatedAt ?? session.createdAt;
+    if (lastActiveAt > cutoff) {
+      return session;
+    }
+
+    archivedCount += 1;
+    return {
+      ...session,
+      isArchived: true,
+      updatedAt: now,
+      version: Math.max(1, session.version) + 1,
+    };
+  });
+
+  if (archivedCount !== 0) {
+    await saveSessions(updatedSessions);
+  }
+
+  return archivedCount;
+}
+
+async function notifySessionCaptured(result: SessionCaptureResult): Promise<void> {
+  try {
+    await chrome.notifications.create(`tabsetu-${result.mode}-${result.session.id}-${Date.now()}`, {
+      type: "basic",
+      iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+      title: result.mode === "collapse" ? "TabSetu collapsed this window" : "TabSetu saved this window",
+      message: `"${result.session.name}" - ${result.tabCount} ${result.tabCount === 1 ? "tab" : "tabs"}.`,
+      priority: 2,
+      ...(result.mode === "collapse" ? { buttons: [{ title: "Undo collapse" }] } : {}),
+    });
+  } catch {
+    // Notification permission/platform quirks should not block the save.
   }
 }
 
@@ -650,30 +837,39 @@ async function notifyUnassignedCommandShortcuts(): Promise<void> {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => {
-  void notifyUnassignedCommandShortcuts();
-});
-
-chrome.runtime.onStartup.addListener(() => {
-  void notifyUnassignedCommandShortcuts();
-});
-
 chrome.commands.onCommand.addListener((command) => {
   if (command === "open-search-overlay") {
     void openSearchOverlay();
   }
 
   if (command === "save-current-window") {
-    void openSavePrompt("save");
+    void createSessionFromWindow("save").then((result) => {
+      if (result) {
+        void notifySessionCaptured(result);
+      }
+    });
   }
 
   if (command === "collapse-current-window") {
-    void openSavePrompt("collapse");
+    void createSessionFromWindow("collapse").then((result) => {
+      if (result) {
+        void notifySessionCaptured(result);
+        void chrome.action.openPopup?.().catch(() => undefined);
+      }
+    });
   }
 
   if (command === "open-dashboard") {
     void chrome.tabs.create({ url: chrome.runtime.getURL("src/dashboard/index.html") });
   }
+});
+
+chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
+  if (!notificationId.startsWith("tabsetu-collapse-") || buttonIndex !== 0) {
+    return;
+  }
+
+  void restoreLastCollapse();
 });
 
 async function handleReminderAlarm(tabId: string): Promise<void> {
@@ -770,6 +966,11 @@ chrome.notifications.onClicked.addListener((notificationId) => {
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === AUTO_ARCHIVE_ALARM_NAME) {
+    await runAutoArchive();
+    return;
+  }
+
   if (alarm.name.startsWith("reminder_")) {
     await handleReminderAlarm(alarm.name.replace("reminder_", ""));
     return;
@@ -859,10 +1060,14 @@ chrome.runtime.onInstalled.addListener((details) => {
 
     await hydrateAlarms();
     await findFallbackBrowserTab();
+    await notifyUnassignedCommandShortcuts();
   })();
 });
 
 chrome.runtime.onStartup.addListener(() => {
-  void hydrateAlarms();
-  void findFallbackBrowserTab();
+  void (async () => {
+    await hydrateAlarms();
+    await findFallbackBrowserTab();
+    await notifyUnassignedCommandShortcuts();
+  })();
 });

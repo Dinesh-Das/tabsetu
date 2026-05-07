@@ -58,21 +58,18 @@ function looksLikeTabSetuSession(value: unknown): boolean {
 }
 
 function looksLikeTabSetuBackup(value: unknown): boolean {
-  if (!isRecord(value)) {
+  if (!isRecord(value) || !Array.isArray(value.sessions)) {
     return false;
   }
 
-  const metadataKeys = ["folders", "tags", "schedules", "standaloneNotes", "shareLinks", "aiConfig", "settings"];
-  if (metadataKeys.some((key) => hasOwnKey(value, key))) {
+  const metadataKeys = ["folders", "tags", "schedules", "standaloneNotes", "shareLinks", "aiConfig"];
+  const metadataMatches = metadataKeys.filter((key) => hasOwnKey(value, key)).length;
+  if (metadataMatches >= 2) {
     return true;
-  }
-
-  if (!Array.isArray(value.sessions)) {
-    return false;
   }
 
   if (typeof value.sessions[0] === "undefined") {
-    return true;
+    return metadataMatches >= 2;
   }
 
   return value.sessions.every(looksLikeTabSetuSession);

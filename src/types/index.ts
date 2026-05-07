@@ -82,7 +82,7 @@ export interface StandaloneNote {
 export interface ShareLink {
   id: string;
   sessionId: string;
-  type: "text" | "markdown" | "encoded-url";
+  type: "encoded-url";
   encodedData: string | null;
   expiresAt: number | null;
   createdAt: number;
