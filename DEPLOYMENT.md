@@ -164,3 +164,7 @@ After approval:
 ---
 
 **TabSetu** — *Modern, Secure, and Ready for the World.*
+
+## Storage Permission Note
+
+TabSetu intentionally does not request `unlimitedStorage` by default. Add it to `src/manifest.json` only if the 10MB `chrome.storage.local` quota proves insufficient, and include Chrome Web Store justification for the expanded permission.

@@ -63,7 +63,6 @@
     "contextMenus",
     "history"
   ],
-  "_note_unlimitedStorage": "Uncomment/add unlimitedStorage if 10MB proves insufficient; requires Chrome Web Store justification.",
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   },
