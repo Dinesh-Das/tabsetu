@@ -35,8 +35,8 @@ interface Props {
   selectedSessionId: string | null;
   onSelect: (sessionId: string | null) => void;
   addToast: (type: ToastMessage["type"], message: string) => void;
-  initialSavePrompt?: { mode: "save" | "collapse"; sourceTabId: number | null } | null;
-  onInitialSavePromptHandled?: () => void;
+  initialSavePrompt?: { mode: "save" | "collapse"; sourceTabId: number | null } | null | undefined;
+  onInitialSavePromptHandled?: (() => void) | undefined;
 }
 
 function getSessionIcon(icon: string | null): ComponentType<{ size?: number }> | null {
@@ -46,9 +46,7 @@ function getSessionIcon(icon: string | null): ComponentType<{ size?: number }> |
 
   const iconName = toLucideExportName(icon);
   const lucideIcons = LucideIcons as unknown as Record<string, ComponentType<{ size?: number }>>;
-  return iconName in LucideIcons
-    ? lucideIcons[iconName] ?? null
-    : null;
+  return iconName in LucideIcons ? (lucideIcons[iconName] ?? null) : null;
 }
 
 export default function SessionList({
@@ -93,7 +91,7 @@ export default function SessionList({
   const searchRef = useRef<HTMLInputElement>(null);
   const searchIndex = useMemo(
     () => buildSearchIndex(sessions, folders, tags, settings),
-    [folders, sessions, settings.fuzzySearchThreshold, settings.searchScopes, tags],
+    [folders, sessions, settings, tags]
   );
 
   const filteredItems = useMemo(
@@ -110,7 +108,18 @@ export default function SessionList({
         tagId: activeTagId,
         searchIndex,
       }),
-    [activeFolderId, activeTagId, deferredQuery, folders, searchIndex, sessions, settings, sortBy, tags, viewFilter],
+    [
+      activeFolderId,
+      activeTagId,
+      deferredQuery,
+      folders,
+      searchIndex,
+      sessions,
+      settings,
+      sortBy,
+      tags,
+      viewFilter,
+    ]
   );
 
   const sessionCounts = useMemo(
@@ -120,17 +129,17 @@ export default function SessionList({
       archived: sessions.filter((session) => session.isArchived).length,
       tabs: sessions.reduce((total, session) => total + session.tabs.length, 0),
     }),
-    [sessions],
+    [sessions]
   );
 
   const visibleSessionIds = useMemo(
     () => filteredItems.map((item) => item.session.id),
-    [filteredItems],
+    [filteredItems]
   );
 
   const selectedSessions = useMemo(
     () => sessions.filter((session) => selectedIds.includes(session.id)),
-    [selectedIds, sessions],
+    [selectedIds, sessions]
   );
 
   const duplicateGroups = useMemo(() => {
@@ -173,7 +182,9 @@ export default function SessionList({
   }, [schedules]);
 
   useEffect(() => {
-    setSelectedIds((current) => current.filter((id) => sessions.some((session) => session.id === id)));
+    setSelectedIds((current) =>
+      current.filter((id) => sessions.some((session) => session.id === id))
+    );
   }, [sessions]);
 
   useEffect(() => {
@@ -190,7 +201,7 @@ export default function SessionList({
       const usesCommandShortcutModifier = event.shiftKey && (event.ctrlKey || event.metaKey);
       const usesAltShortcutModifier = event.shiftKey && event.altKey;
       const usesLegacySessionShortcutModifier =
-        event.shiftKey && ((event.ctrlKey || event.metaKey) || event.altKey);
+        event.shiftKey && (event.ctrlKey || event.metaKey || event.altKey);
 
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -259,14 +270,15 @@ export default function SessionList({
     setSelectedIds((current) =>
       current.includes(sessionId)
         ? current.filter((id) => id !== sessionId)
-        : [...current, sessionId],
+        : [...current, sessionId]
     );
   };
 
   const selectAllVisible = () => {
     setSelectedIds((current) => {
       const visible = new Set(visibleSessionIds);
-      const allVisibleSelected = visibleSessionIds.length !== 0 && visibleSessionIds.every((id) => current.includes(id));
+      const allVisibleSelected =
+        visibleSessionIds.length !== 0 && visibleSessionIds.every((id) => current.includes(id));
       if (allVisibleSelected) {
         return current.filter((id) => !visible.has(id));
       }
@@ -282,20 +294,30 @@ export default function SessionList({
 
   const handleBulkMove = () => {
     selectedIds.forEach((id) => setSessionFolder(id, bulkFolderId || null));
-    addToast("success", `Moved ${selectedIds.length} ${selectedIds.length === 1 ? "session" : "sessions"}.`);
+    addToast(
+      "success",
+      `Moved ${selectedIds.length} ${selectedIds.length === 1 ? "session" : "sessions"}.`
+    );
     clearBulkSelection();
   };
 
   const handleBulkArchive = () => {
-    const shouldUnarchive = selectedSessions.length !== 0 && selectedSessions.every((session) => session.isArchived);
+    const shouldUnarchive =
+      selectedSessions.length !== 0 && selectedSessions.every((session) => session.isArchived);
     selectedIds.forEach((id) => archiveSession(id, !shouldUnarchive));
-    addToast("success", shouldUnarchive ? "Restored selected sessions." : "Archived selected sessions.");
+    addToast(
+      "success",
+      shouldUnarchive ? "Restored selected sessions." : "Archived selected sessions."
+    );
     clearBulkSelection();
   };
 
   const deleteSelectedSessions = () => {
     selectedIds.forEach(deleteSession);
-    addToast("success", `Deleted ${selectedIds.length} ${selectedIds.length === 1 ? "session" : "sessions"}.`);
+    addToast(
+      "success",
+      `Deleted ${selectedIds.length} ${selectedIds.length === 1 ? "session" : "sessions"}.`
+    );
     if (selectedSessionId && selectedIds.includes(selectedSessionId)) {
       onSelect(null);
     }
@@ -339,7 +361,7 @@ export default function SessionList({
       count === 0 ? "info" : "success",
       count === 0
         ? "No background tabs were available to suspend."
-        : `Suspended ${count} ${count === 1 ? "background tab" : "background tabs"}.`,
+        : `Suspended ${count} ${count === 1 ? "background tab" : "background tabs"}.`
     );
   };
 
@@ -349,11 +371,17 @@ export default function SessionList({
         style={{
           padding: "24px 24px 18px",
           borderBottom: "1px solid var(--color-border)",
-          background:
-            "linear-gradient(180deg, rgba(0,179,216,0.08) 0%, rgba(0,179,216,0) 100%)",
+          background: "linear-gradient(180deg, rgba(0,179,216,0.08) 0%, rgba(0,179,216,0) 100%)",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 16,
+            alignItems: "flex-start",
+          }}
+        >
           <div>
             <h1 style={{ fontSize: 28 }}>Sessions</h1>
             <p style={{ margin: "8px 0 0", fontSize: 14, color: "var(--color-text-secondary)" }}>
@@ -365,15 +393,26 @@ export default function SessionList({
               {selectMode ? <X size={15} /> : <CheckSquare size={15} />}
               {selectMode ? "Cancel select" : "Select"}
             </button>
-            <button className="btn btn-secondary" type="button" onClick={() => setShowDuplicates((current) => !current)}>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => setShowDuplicates((current) => !current)}
+            >
               <Copy size={15} />
               Duplicates
             </button>
-            <button className="btn btn-secondary" type="button" onClick={() => void handleSuspendBackgroundTabs()}>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => void handleSuspendBackgroundTabs()}
+            >
               <Pause size={15} />
               Suspend tabs
             </button>
-            <button className="btn btn-primary" onClick={() => setSaveModalPrompt({ mode: "save", sourceTabId: null })}>
+            <button
+              className="btn btn-primary"
+              onClick={() => setSaveModalPrompt({ mode: "save", sourceTabId: null })}
+            >
               <PackagePlus size={16} />
               Save current window
             </button>
@@ -426,10 +465,14 @@ export default function SessionList({
         {selectMode ? (
           <div className="bulk-action-bar">
             <button className="btn btn-secondary" type="button" onClick={selectAllVisible}>
-              {visibleSessionIds.length !== 0 && visibleSessionIds.every((id) => selectedIds.includes(id))
-                ? <CheckSquare size={14} />
-                : <Square size={14} />}
-              {visibleSessionIds.length !== 0 && visibleSessionIds.every((id) => selectedIds.includes(id))
+              {visibleSessionIds.length !== 0 &&
+              visibleSessionIds.every((id) => selectedIds.includes(id)) ? (
+                <CheckSquare size={14} />
+              ) : (
+                <Square size={14} />
+              )}
+              {visibleSessionIds.length !== 0 &&
+              visibleSessionIds.every((id) => selectedIds.includes(id))
                 ? "Unselect visible"
                 : "Select visible"}
             </button>
@@ -464,7 +507,8 @@ export default function SessionList({
               onClick={handleBulkArchive}
             >
               <Archive size={14} />
-              {selectedSessions.length !== 0 && selectedSessions.every((session) => session.isArchived)
+              {selectedSessions.length !== 0 &&
+              selectedSessions.every((session) => session.isArchived)
                 ? "Restore"
                 : "Archive"}
             </button>
@@ -496,8 +540,13 @@ export default function SessionList({
             ) : (
               <div style={{ display: "grid", gap: 10, maxHeight: 220, overflow: "auto" }}>
                 {duplicateGroups.slice(0, 12).map((group) => (
-                  <div key={group.url} style={{ borderTop: "1px solid var(--color-border)", paddingTop: 10 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, wordBreak: "break-all" }}>{group.url}</div>
+                  <div
+                    key={group.url}
+                    style={{ borderTop: "1px solid var(--color-border)", paddingTop: 10 }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, wordBreak: "break-all" }}>
+                      {group.url}
+                    </div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
                       {group.appearances.map((appearance) => (
                         <button
@@ -550,7 +599,7 @@ export default function SessionList({
               : session.description || session.note || "No description yet.";
             const secondaryRanges = searchResult?.highlights.sessionNote.length
               ? searchResult.highlights.sessionNote
-              : searchResult?.highlights.sessionDescription ?? [];
+              : (searchResult?.highlights.sessionDescription ?? []);
 
             return (
               <article
@@ -585,9 +634,15 @@ export default function SessionList({
                         event.stopPropagation();
                         toggleSelected(session.id);
                       }}
-                      title={selectedIds.includes(session.id) ? "Unselect session" : "Select session"}
+                      title={
+                        selectedIds.includes(session.id) ? "Unselect session" : "Select session"
+                      }
                     >
-                      {selectedIds.includes(session.id) ? <CheckSquare size={16} /> : <Square size={16} />}
+                      {selectedIds.includes(session.id) ? (
+                        <CheckSquare size={16} />
+                      ) : (
+                        <Square size={16} />
+                      )}
                     </button>
                   ) : null}
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -608,7 +663,13 @@ export default function SessionList({
                       {session.isPinned ? <Pin size={14} color="var(--color-accent)" /> : null}
                       {editingSessionId === session.id ? (
                         <form
-                          style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            flex: 1,
+                            minWidth: 0,
+                          }}
                           onSubmit={(event) => {
                             event.preventDefault();
                             commitInlineRename(session);
@@ -630,7 +691,11 @@ export default function SessionList({
                             }}
                             style={{ minWidth: 0, height: 32, fontWeight: 700 }}
                           />
-                          <button className="btn btn-ghost btn-icon" type="submit" title="Save title">
+                          <button
+                            className="btn btn-ghost btn-icon"
+                            type="submit"
+                            title="Save title"
+                          >
                             <Check size={14} />
                           </button>
                         </form>
@@ -655,7 +720,13 @@ export default function SessionList({
                         </h3>
                       )}
                     </div>
-                    <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--color-text-secondary)" }}>
+                    <p
+                      style={{
+                        margin: "8px 0 0",
+                        fontSize: 13,
+                        color: "var(--color-text-secondary)",
+                      }}
+                    >
                       <HighlightedText text={secondaryText} ranges={secondaryRanges} />
                     </p>
                   </div>

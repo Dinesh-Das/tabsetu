@@ -134,8 +134,7 @@ body {
   background:
     radial-gradient(ellipse at 20% 0%, rgba(45, 212, 191, 0.15), transparent 50%),
     radial-gradient(ellipse at 80% 100%, rgba(99, 102, 241, 0.12), transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(14, 165, 233, 0.08), transparent 60%),
-    var(--color-bg);
+    radial-gradient(ellipse at 50% 50%, rgba(14, 165, 233, 0.08), transparent 60%), var(--color-bg);
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -205,7 +204,12 @@ textarea {
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: transform var(--transition), background var(--transition), color var(--transition), border-color var(--transition), box-shadow var(--transition);
+  transition:
+    transform var(--transition),
+    background var(--transition),
+    color var(--transition),
+    border-color var(--transition),
+    box-shadow var(--transition);
   white-space: nowrap;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -271,7 +275,9 @@ textarea {
   -webkit-backdrop-filter: blur(16px);
   color: var(--color-text-primary);
   outline: none;
-  transition: border-color var(--transition), box-shadow var(--transition);
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
 }
 
 .input::placeholder {
@@ -280,7 +286,9 @@ textarea {
 
 .input:focus {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 4px var(--color-accent-dim), 0 0 20px var(--glow-accent);
+  box-shadow:
+    0 0 0 4px var(--color-accent-dim),
+    0 0 20px var(--glow-accent);
 }
 
 textarea.input {
@@ -332,7 +340,9 @@ textarea.input {
   background: var(--color-surface-raised);
   border: var(--glass-border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 30px 80px rgba(3, 10, 22, 0.28), 0 0 40px var(--glow-accent);
+  box-shadow:
+    0 30px 80px rgba(3, 10, 22, 0.28),
+    0 0 40px var(--glow-accent);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
 }
@@ -405,7 +415,9 @@ textarea.input {
   border-radius: var(--radius-md);
   border: 2px solid transparent;
   cursor: pointer;
-  transition: transform var(--transition), border-color var(--transition);
+  transition:
+    transform var(--transition),
+    border-color var(--transition);
 }
 
 .color-swatch[data-active="true"] {
@@ -524,18 +536,25 @@ textarea.input {
   -webkit-backdrop-filter: blur(var(--glass-blur));
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
   cursor: pointer;
-  transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
+  transition:
+    transform var(--transition),
+    border-color var(--transition),
+    box-shadow var(--transition);
 }
 
 .session-card:hover {
   transform: translateY(-2px);
   border-color: rgba(45, 212, 191, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 0 20px var(--glow-accent);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    0 0 20px var(--glow-accent);
 }
 
 .session-card[data-active="true"] {
   border-color: var(--color-accent);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 0 30px var(--glow-accent);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.12),
+    0 0 30px var(--glow-accent);
 }
 
 .session-card[data-selected="true"] {
@@ -872,7 +891,11 @@ body.is-popup-root #root {
   -webkit-backdrop-filter: blur(16px);
   color: var(--mobile-text);
   cursor: pointer;
-  transition: background var(--transition), transform var(--transition), border-color var(--transition), box-shadow var(--transition);
+  transition:
+    background var(--transition),
+    transform var(--transition),
+    border-color var(--transition),
+    box-shadow var(--transition);
 }
 
 .mobile-avatar {
@@ -968,7 +991,10 @@ body.is-popup-root #root {
   color: var(--mobile-text);
   outline: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition),
+    background var(--transition);
 }
 
 .mobile-search input {
@@ -992,7 +1018,9 @@ body.is-popup-root #root {
 .mobile-select:focus,
 .mobile-textarea:focus {
   border-color: rgba(14, 165, 233, 0.5);
-  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1), 0 0 20px rgba(14, 165, 233, 0.15);
+  box-shadow:
+    0 0 0 4px rgba(14, 165, 233, 0.1),
+    0 0 20px rgba(14, 165, 233, 0.15);
   background: var(--mobile-glass-strong);
 }
 
@@ -1009,7 +1037,11 @@ body.is-popup-root #root {
   padding: 0 16px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform var(--transition), background var(--transition), border-color var(--transition), box-shadow var(--transition);
+  transition:
+    transform var(--transition),
+    background var(--transition),
+    border-color var(--transition),
+    box-shadow var(--transition);
 }
 
 .mobile-primary-button {
@@ -1092,7 +1124,10 @@ button.mobile-card {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   cursor: default;
   overflow: hidden;
-  transition: border-color var(--transition), background var(--transition), box-shadow var(--transition);
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    box-shadow var(--transition);
 }
 
 .mobile-tab-row[data-selected="true"] {
@@ -1237,8 +1272,6 @@ button.mobile-card {
   box-shadow: 0 0 16px rgba(14, 165, 233, 0.15);
 }
 
-
-
 .mobile-segmented {
   display: grid;
   grid-auto-flow: column;
@@ -1344,7 +1377,9 @@ button.mobile-card {
   backdrop-filter: blur(28px) saturate(1.5);
   -webkit-backdrop-filter: blur(28px) saturate(1.5);
   border: var(--mobile-glass-border);
-  box-shadow: 0 -18px 60px rgba(0, 0, 0, 0.15), 0 0 40px rgba(14, 165, 233, 0.08);
+  box-shadow:
+    0 -18px 60px rgba(0, 0, 0, 0.15),
+    0 0 40px rgba(14, 165, 233, 0.08);
 }
 
 .mobile-sheet-handle {
@@ -1563,8 +1598,7 @@ button.mobile-card {
   background:
     radial-gradient(ellipse at 20% 0%, rgba(45, 212, 191, 0.15), transparent 50%),
     radial-gradient(ellipse at 80% 100%, rgba(99, 102, 241, 0.1), transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(14, 165, 233, 0.06), transparent 60%),
-    var(--color-bg);
+    radial-gradient(ellipse at 50% 50%, rgba(14, 165, 233, 0.06), transparent 60%), var(--color-bg);
   color: var(--color-text-primary);
 }
 
@@ -2034,7 +2068,9 @@ button.mobile-card {
   backdrop-filter: blur(28px) saturate(1.4);
   -webkit-backdrop-filter: blur(28px) saturate(1.4);
   color: var(--mobile-text);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.2), 0 0 40px rgba(14, 165, 233, 0.1);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.2),
+    0 0 40px rgba(14, 165, 233, 0.1);
 }
 
 .onboarding-close {
@@ -2195,7 +2231,9 @@ button.mobile-card {
   background: var(--mobile-glass-strong);
   backdrop-filter: blur(24px) saturate(1.4);
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 0 20px rgba(14, 165, 233, 0.06);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.12),
+    0 0 20px rgba(14, 165, 233, 0.06);
 }
 
 .popup-action-footer .mobile-link-button {
@@ -2906,7 +2944,9 @@ button.mobile-card {
 }
 
 .mobile-color-dot[data-active="true"] {
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3), 0 4px 16px rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 0 0 3px rgba(14, 165, 233, 0.3),
+    0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .save-bottom-sheet .mobile-color-dot {
@@ -3121,6 +3161,48 @@ button.mobile-card {
   display: flex;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.loading-skeleton {
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+}
+
+.loading-skeleton > div {
+  height: 76px;
+  max-width: 520px;
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    rgba(148, 163, 184, 0.18),
+    rgba(148, 163, 184, 0.34),
+    rgba(148, 163, 184, 0.18)
+  );
+  background-size: 220% 100%;
+  animation: tabsetu-shimmer 1.4s ease-in-out infinite;
+}
+
+.popup-crash-fallback {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  min-height: 360px;
+  padding: 24px;
+  text-align: center;
+}
+
+.popup-crash-fallback .btn {
+  justify-self: center;
+}
+
+@keyframes tabsetu-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
 }
 
 @media (max-width: 500px) {

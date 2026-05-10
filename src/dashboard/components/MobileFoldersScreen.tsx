@@ -12,7 +12,13 @@ import {
   Trash2,
 } from "lucide-react";
 import MobileConfirmSheet from "@/components/mobile/MobileConfirmSheet";
-import { BottomSheet, EmptyState, GlassCard, MobileIconButton, TabRow } from "@/components/mobile/MobileUI";
+import {
+  BottomSheet,
+  EmptyState,
+  GlassCard,
+  MobileIconButton,
+  TabRow,
+} from "@/components/mobile/MobileUI";
 import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
 import type { Folder, Session, TabItem, Tag, ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
@@ -30,10 +36,7 @@ type OrganizerEditorState =
   | { type: "tag"; item: Tag | null }
   | null;
 
-type DeleteState =
-  | { type: "folder"; item: Folder }
-  | { type: "tag"; item: Tag }
-  | null;
+type DeleteState = { type: "folder"; item: Folder } | { type: "tag"; item: Tag } | null;
 
 type ActiveCollection =
   | { type: "folder"; id: string; name: string; color: string }
@@ -101,7 +104,11 @@ function TagEditor({ tag, onClose, addToast }: TagEditorProps) {
       subtitle="Make saved sessions easier to scan."
       onClose={onClose}
       footer={
-        <button className="mobile-primary-button save-sheet-primary" type="button" onClick={handleSubmit}>
+        <button
+          className="mobile-primary-button save-sheet-primary"
+          type="button"
+          onClick={handleSubmit}
+        >
           {tag ? "Save" : "Create"}
         </button>
       }
@@ -169,7 +176,11 @@ function FolderEditor({ folder, onClose, addToast }: FolderEditorProps) {
       subtitle="Keep related tab sets easy to find."
       onClose={onClose}
       footer={
-        <button className="mobile-primary-button save-sheet-primary" type="button" onClick={handleSubmit}>
+        <button
+          className="mobile-primary-button save-sheet-primary"
+          type="button"
+          onClick={handleSubmit}
+        >
           {folder ? "Save Folder" : "Create Folder"}
         </button>
       }
@@ -253,11 +264,16 @@ export default function MobileFoldersScreen({ addToast }: Props) {
   }, [sessions]);
 
   const pinnedTabs = useMemo(
-    () => sessions.filter((session) => session.isPinned).reduce((total, session) => total + session.tabs.length, 0),
-    [sessions],
+    () =>
+      sessions
+        .filter((session) => session.isPinned)
+        .reduce((total, session) => total + session.tabs.length, 0),
+    [sessions]
   );
 
-  const visibleFolders = folders.filter((folder) => folder.name.toLowerCase().includes(normalizedQuery));
+  const visibleFolders = folders.filter((folder) =>
+    folder.name.toLowerCase().includes(normalizedQuery)
+  );
   const visibleTags = tags.filter((tag) => tag.name.toLowerCase().includes(normalizedQuery));
 
   const activeSavedTabs = useMemo(() => {
@@ -270,9 +286,9 @@ export default function MobileFoldersScreen({ addToast }: Props) {
         .filter((tab) =>
           activeCollection.type === "folder"
             ? tabBelongsToFolder(session, tab, activeCollection.id)
-            : tabBelongsToTag(session, tab, activeCollection.id),
+            : tabBelongsToTag(session, tab, activeCollection.id)
         )
-        .map((tab) => ({ session, tab })),
+        .map((tab) => ({ session, tab }))
     );
   }, [activeCollection, sessions]);
 
@@ -316,28 +332,36 @@ export default function MobileFoldersScreen({ addToast }: Props) {
       return;
     }
 
-    addToast("success", `Opened ${openedCount} ${openedCount === 1 ? "tab" : "tabs"} from ${label}.`);
+    addToast(
+      "success",
+      `Opened ${openedCount} ${openedCount === 1 ? "tab" : "tabs"} from ${label}.`
+    );
   };
 
   const tabsForFolder = (folderId: string): Array<{ session: Session; tab: TabItem }> =>
     sessions.flatMap((session) =>
       session.tabs
         .filter((tab) => tabBelongsToFolder(session, tab, folderId))
-        .map((tab) => ({ session, tab })),
+        .map((tab) => ({ session, tab }))
     );
 
   const tabsForTag = (tagId: string): Array<{ session: Session; tab: TabItem }> =>
     sessions.flatMap((session) =>
       session.tabs
         .filter((tab) => tabBelongsToTag(session, tab, tagId))
-        .map((tab) => ({ session, tab })),
+        .map((tab) => ({ session, tab }))
     );
 
   if (activeCollection) {
     return (
       <>
         <div className="collection-detail-header">
-          <button className="mobile-icon-button" type="button" onClick={() => setActiveCollection(null)} title="Back">
+          <button
+            className="mobile-icon-button"
+            type="button"
+            onClick={() => setActiveCollection(null)}
+            title="Back"
+          >
             <ChevronLeft size={21} />
           </button>
           <div className="collection-detail-title">
@@ -358,7 +382,9 @@ export default function MobileFoldersScreen({ addToast }: Props) {
         {activeSessions.length === 0 ? (
           <EmptyState
             compact
-            icon={activeCollection.type === "folder" ? <FolderOpen size={42} /> : <TagIcon size={42} />}
+            icon={
+              activeCollection.type === "folder" ? <FolderOpen size={42} /> : <TagIcon size={42} />
+            }
             title="No tabs here yet"
             description={`Save tabs into this ${activeCollection.type} and they will appear here.`}
           />
@@ -396,9 +422,16 @@ export default function MobileFoldersScreen({ addToast }: Props) {
       <div className="mobile-toolbar">
         <label className="mobile-search">
           <Search size={18} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search folders and tags" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search folders and tags"
+          />
         </label>
-        <MobileIconButton title="Create folder" onClick={() => setEditor({ type: "folder", item: null })}>
+        <MobileIconButton
+          title="Create folder"
+          onClick={() => setEditor({ type: "folder", item: null })}
+        >
           <Plus size={18} />
         </MobileIconButton>
       </div>
@@ -422,9 +455,19 @@ export default function MobileFoldersScreen({ addToast }: Props) {
             <button
               className="folder-row-main-button"
               type="button"
-              onClick={() => setActiveCollection({ type: "folder", id: folder.id, name: folder.name, color: folder.color })}
+              onClick={() =>
+                setActiveCollection({
+                  type: "folder",
+                  id: folder.id,
+                  name: folder.name,
+                  color: folder.color,
+                })
+              }
             >
-              <div className="folder-row-icon" style={{ background: `${folder.color}18`, color: folder.color }}>
+              <div
+                className="folder-row-icon"
+                style={{ background: `${folder.color}18`, color: folder.color }}
+              >
                 <FolderOpen size={23} />
               </div>
               <div className="folder-row-copy">
@@ -432,7 +475,10 @@ export default function MobileFoldersScreen({ addToast }: Props) {
                 <span>{folderCounts.get(folder.id) ?? 0} tabs</span>
               </div>
             </button>
-            <MobileIconButton title="Edit folder" onClick={() => setEditor({ type: "folder", item: folder })}>
+            <MobileIconButton
+              title="Edit folder"
+              onClick={() => setEditor({ type: "folder", item: folder })}
+            >
               <Edit3 size={17} />
             </MobileIconButton>
             <MobileIconButton
@@ -441,7 +487,11 @@ export default function MobileFoldersScreen({ addToast }: Props) {
             >
               <ExternalLink size={17} />
             </MobileIconButton>
-            <MobileIconButton title="Delete folder" danger onClick={() => setPendingDelete({ type: "folder", item: folder })}>
+            <MobileIconButton
+              title="Delete folder"
+              danger
+              onClick={() => setPendingDelete({ type: "folder", item: folder })}
+            >
               <Trash2 size={17} />
             </MobileIconButton>
           </GlassCard>
@@ -460,9 +510,14 @@ export default function MobileFoldersScreen({ addToast }: Props) {
             <button
               className="folder-row-main-button"
               type="button"
-              onClick={() => setActiveCollection({ type: "tag", id: tag.id, name: tag.name, color: tag.color })}
+              onClick={() =>
+                setActiveCollection({ type: "tag", id: tag.id, name: tag.name, color: tag.color })
+              }
             >
-              <div className="folder-row-icon" style={{ background: `${tag.color}18`, color: tag.color }}>
+              <div
+                className="folder-row-icon"
+                style={{ background: `${tag.color}18`, color: tag.color }}
+              >
                 <TagIcon size={23} />
               </div>
               <div className="folder-row-copy">
@@ -470,7 +525,10 @@ export default function MobileFoldersScreen({ addToast }: Props) {
                 <span>{tagCounts.get(tag.id) ?? 0} tabs</span>
               </div>
             </button>
-            <MobileIconButton title="Edit tag" onClick={() => setEditor({ type: "tag", item: tag })}>
+            <MobileIconButton
+              title="Edit tag"
+              onClick={() => setEditor({ type: "tag", item: tag })}
+            >
               <Edit3 size={17} />
             </MobileIconButton>
             <MobileIconButton
@@ -479,7 +537,11 @@ export default function MobileFoldersScreen({ addToast }: Props) {
             >
               <ExternalLink size={17} />
             </MobileIconButton>
-            <MobileIconButton title="Delete tag" danger onClick={() => setPendingDelete({ type: "tag", item: tag })}>
+            <MobileIconButton
+              title="Delete tag"
+              danger
+              onClick={() => setPendingDelete({ type: "tag", item: tag })}
+            >
               <Trash2 size={17} />
             </MobileIconButton>
           </GlassCard>
@@ -496,7 +558,11 @@ export default function MobileFoldersScreen({ addToast }: Props) {
                   : "Create folders and tags to keep saved tab sets tidy."
               }
               action={
-                <button className="mobile-primary-button" type="button" onClick={() => setEditor({ type: "folder", item: null })}>
+                <button
+                  className="mobile-primary-button"
+                  type="button"
+                  onClick={() => setEditor({ type: "folder", item: null })}
+                >
                   Create Folder
                 </button>
               }
@@ -528,7 +594,10 @@ export default function MobileFoldersScreen({ addToast }: Props) {
               removeTagReferences(pendingDelete.item.id);
               deleteTag(pendingDelete.item.id);
             }
-            addToast("success", `${pendingDelete.type[0].toUpperCase()}${pendingDelete.type.slice(1)} deleted.`);
+            addToast(
+              "success",
+              `${pendingDelete.type[0].toUpperCase()}${pendingDelete.type.slice(1)} deleted.`
+            );
             setPendingDelete(null);
           }}
         />

@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    name: Type-check, lint, test, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Check dist size
+        run: |
+          DIST_SIZE=$(du -sk dist | cut -f1)
+          echo "dist/ size: ${DIST_SIZE}KB"
+          if [ "$DIST_SIZE" -gt 5000 ]; then
+            echo "::warning::dist/ exceeds 5MB -- check for bundle bloat"
+          fi

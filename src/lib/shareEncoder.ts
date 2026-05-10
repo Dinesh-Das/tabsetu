@@ -1,22 +1,7 @@
 import type { Session, ShareSnapshot } from "@/types";
+import LZString from "lz-string";
 
 const SHARE_BASE_URL = "https://tabsetu.app/s";
-
-function toBase64Url(value: string): string {
-  const bytes = new TextEncoder().encode(value);
-  let binary = "";
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-
-function fromBase64Url(value: string): string {
-  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
-  const binary = atob(padded);
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-}
 
 export function createShareSnapshot(session: Session): ShareSnapshot {
   return {
@@ -29,15 +14,30 @@ export function createShareSnapshot(session: Session): ShareSnapshot {
 }
 
 export function encodeShareSnapshot(snapshot: ShareSnapshot): string {
-  return toBase64Url(JSON.stringify(snapshot));
+  return LZString.compressToEncodedURIComponent(JSON.stringify(snapshot));
 }
 
 export function decodeShareSnapshot(encoded: string): ShareSnapshot {
-  const parsed = JSON.parse(fromBase64Url(encoded));
+  const decompressed = LZString.decompressFromEncodedURIComponent(encoded);
+  if (!decompressed) {
+    throw new Error("This TabSetu share link is invalid.");
+  }
+
+  const parsed = JSON.parse(decompressed);
   if (!parsed || parsed.v !== 1 || typeof parsed.name !== "string" || !Array.isArray(parsed.tabs)) {
     throw new Error("This TabSetu share link is invalid.");
   }
   return parsed as ShareSnapshot;
+}
+
+export const encodeSession = encodeShareSnapshot;
+
+export function decodeSession(encoded: string): ShareSnapshot | null {
+  try {
+    return decodeShareSnapshot(encoded);
+  } catch {
+    return null;
+  }
 }
 
 export function generateShareUrl(session: Session): string {

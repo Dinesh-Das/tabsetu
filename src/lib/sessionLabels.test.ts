@@ -26,8 +26,8 @@ function tab(id: string, title: string): TabItem {
 describe("sessionLabels", () => {
   it("uses the first tab title for generated save names", () => {
     expect(defaultSavedSessionTitle(true, [tab("docs", "Project docs")])).toBe("Project docs");
-    expect(defaultSavedSessionTitle(false, [tab("docs", "Project docs"), tab("mail", "Mail")])).toBe(
-      "Project docs + 1 tab",
-    );
+    expect(
+      defaultSavedSessionTitle(false, [tab("docs", "Project docs"), tab("mail", "Mail")])
+    ).toBe("Project docs + 1 tab");
   });
 });

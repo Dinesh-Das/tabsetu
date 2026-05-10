@@ -13,20 +13,13 @@ const COLOR_OPTIONS = [
   "#84CC16",
 ];
 
-const ICON_OPTIONS = [
-  "briefcase",
-  "book-open",
-  "home",
-  "flask-conical",
-  "sparkles",
-  "folder",
-];
+const ICON_OPTIONS = ["briefcase", "book-open", "home", "flask-conical", "sparkles", "folder"];
 
 interface Props {
   mode: "folder" | "tag";
   title: string;
   submitLabel: string;
-  initialValue?: Partial<Folder & Tag>;
+  initialValue?: Partial<Folder & Tag> | undefined;
   onSubmit: (value: { name: string; color: string; icon: string }) => void;
   onClose: () => void;
 }
@@ -58,7 +51,11 @@ export default function EntityEditorModal({
   return (
     <ModalShell
       title={title}
-      description={mode === "folder" ? "Give this folder a clear visual identity." : "Create a reusable label for filtering sessions."}
+      description={
+        mode === "folder"
+          ? "Give this folder a clear visual identity."
+          : "Create a reusable label for filtering sessions."
+      }
       onClose={onClose}
       onSubmit={handleSubmit}
       footer={

@@ -34,7 +34,7 @@ function tomorrowMorning(): number {
 function updateReminderInSession(
   session: Session,
   tabId: string,
-  updates: Partial<Pick<TabItem, "reminderAt" | "reminderSnoozedUntil" | "reminderDismissed">>,
+  updates: Partial<Pick<TabItem, "reminderAt" | "reminderSnoozedUntil" | "reminderDismissed">>
 ): TabItem[] {
   return session.tabs.map((tab) =>
     tab.id === tabId
@@ -42,7 +42,7 @@ function updateReminderInSession(
           ...tab,
           ...updates,
         }
-      : tab,
+      : tab
   );
 }
 
@@ -143,19 +143,27 @@ function ReminderList({
                     {row.dismissed ? "Dismissed" : overdue ? "Overdue" : "Upcoming"}
                   </span>
                 </div>
-                <span>{getDomainLabel(row.tab.url)} in {row.session.name}</span>
+                <span>
+                  {getDomainLabel(row.tab.url)} in {row.session.name}
+                </span>
                 <small>
                   <Clock3 size={12} />
                   {formatReminderDate(row.dueAt)}
                 </small>
                 {row.tab.note ? <p>{row.tab.note.slice(0, 180)}</p> : null}
                 {!settings.remindersEnabled ? (
-                  <small className="reminder-warning">Reminders are disabled globally in Settings.</small>
+                  <small className="reminder-warning">
+                    Reminders are disabled globally in Settings.
+                  </small>
                 ) : null}
               </div>
             </div>
             <div className="reminder-actions">
-              <button className="btn btn-primary" type="button" onClick={() => void reopenReminder(row)}>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => void reopenReminder(row)}
+              >
                 <ExternalLink size={14} />
                 Open tab
               </button>
@@ -172,7 +180,9 @@ function ReminderList({
                   <button
                     className="btn btn-secondary"
                     type="button"
-                    onClick={() => void snoozeReminder(row, tomorrowMorning(), "until tomorrow at 9 AM")}
+                    onClick={() =>
+                      void snoozeReminder(row, tomorrowMorning(), "until tomorrow at 9 AM")
+                    }
                   >
                     <Moon size={14} />
                     Tomorrow
@@ -180,7 +190,11 @@ function ReminderList({
                 </>
               ) : null}
               {onOpenSession ? (
-                <button className="btn btn-secondary" type="button" onClick={() => onOpenSession(row.session.id)}>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={() => onOpenSession(row.session.id)}
+                >
                   Session
                 </button>
               ) : null}
@@ -195,7 +209,11 @@ function ReminderList({
                 </button>
               ) : null}
               {mode === "past" ? (
-                <button className="btn btn-secondary" type="button" onClick={() => void clearReminder(row)}>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={() => void clearReminder(row)}
+                >
                   Clear
                 </button>
               ) : null}
@@ -221,7 +239,7 @@ export default function RemindersPage({ addToast, onOpenSession }: Props) {
           tab,
           dueAt: tab.reminderSnoozedUntil ?? tab.reminderAt ?? session.updatedAt,
           dismissed: tab.reminderDismissed,
-        })),
+        }))
     );
 
     return {
@@ -229,7 +247,9 @@ export default function RemindersPage({ addToast, onOpenSession }: Props) {
         .filter((row) => !row.dismissed && row.dueAt >= now)
         .sort((left, right) => left.dueAt - right.dueAt),
       pastRows: rows
-        .filter((row) => (row.dismissed || row.dueAt < now) && isReminderInPastWindow(row.dueAt, now))
+        .filter(
+          (row) => (row.dismissed || row.dueAt < now) && isReminderInPastWindow(row.dueAt, now)
+        )
         .sort((left, right) => right.dueAt - left.dueAt),
     };
   }, [sessions]);
@@ -240,7 +260,10 @@ export default function RemindersPage({ addToast, onOpenSession }: Props) {
         <div className="panel-header reminders-header">
           <div>
             <h1>Reminders</h1>
-            <p>Upcoming saved-tab nudges, overdue reminders, and recently dismissed items in one place.</p>
+            <p>
+              Upcoming saved-tab nudges, overdue reminders, and recently dismissed items in one
+              place.
+            </p>
           </div>
           <span className="badge badge-subtle">
             <Bell size={13} />

@@ -65,10 +65,18 @@ describe("exportImport", () => {
   it("omits notes from exported text and markdown when disabled", () => {
     const session = makeSession();
 
-    expect(sessionToPlainText(session, { includeNotes: false })).not.toContain("Prepare talking points");
-    expect(sessionToPlainText(session, { includeNotes: false })).not.toContain("Read before standup");
-    expect(sessionToMarkdown(session, { includeNotes: false })).not.toContain("Prepare talking points");
-    expect(sessionToMarkdown(session, { includeNotes: false })).not.toContain("Read before standup");
+    expect(sessionToPlainText(session, { includeNotes: false })).not.toContain(
+      "Prepare talking points"
+    );
+    expect(sessionToPlainText(session, { includeNotes: false })).not.toContain(
+      "Read before standup"
+    );
+    expect(sessionToMarkdown(session, { includeNotes: false })).not.toContain(
+      "Prepare talking points"
+    );
+    expect(sessionToMarkdown(session, { includeNotes: false })).not.toContain(
+      "Read before standup"
+    );
   });
 
   it("counts standalone, session, and tab notes in storage summaries", () => {
@@ -145,7 +153,9 @@ describe("exportImport", () => {
     const session = makeSession();
 
     expect(generateAIPrompt(session)).toContain("Prepare talking points");
-    expect(generateAIPrompt(session, { includeNotes: false })).not.toContain("Prepare talking points");
+    expect(generateAIPrompt(session, { includeNotes: false })).not.toContain(
+      "Prepare talking points"
+    );
   });
 
   it("adds fetched page text to AI prompts when requested", async () => {
@@ -153,12 +163,15 @@ describe("exportImport", () => {
       "fetch",
       vi.fn<() => Promise<Response>>(() =>
         Promise.resolve(
-          new Response("<html><body><h1>Fetched insight</h1><script>ignored()</script></body></html>", {
-            status: 200,
-            headers: { "content-type": "text/html" },
-          }),
-        ),
-      ),
+          new Response(
+            "<html><body><h1>Fetched insight</h1><script>ignored()</script></body></html>",
+            {
+              status: 200,
+              headers: { "content-type": "text/html" },
+            }
+          )
+        )
+      )
     );
 
     await expect(generateAIPromptWithPageText(makeSession())).resolves.toContain("Fetched insight");
@@ -168,9 +181,11 @@ describe("exportImport", () => {
     const data = await importFile(
       makeImportFile(
         "tabsetu-backup.json",
-        JSON.stringify({ sessions: [makeSession({ id: "imported-session", name: "Imported backup" })] }),
-        "application/json",
-      ),
+        JSON.stringify({
+          sessions: [makeSession({ id: "imported-session", name: "Imported backup" })],
+        }),
+        "application/json"
+      )
     );
 
     expect(data.sessions.map((session) => session.name)).toEqual(["Imported backup"]);
@@ -189,8 +204,8 @@ describe("exportImport", () => {
           "Reading",
           "https://developer.mozilla.org | MDN Web Docs",
         ].join("\n"),
-        "text/plain",
-      ),
+        "text/plain"
+      )
     );
 
     expect(data.sessions.map((session) => session.name)).toEqual(["Research", "Reading"]);
@@ -209,13 +224,13 @@ describe("exportImport", () => {
           "<!doctype html>",
           "<html><body>",
           "<h2>Project Alpha</h2>",
-          "<a href=\"https://alpha.example.com/docs\">Alpha docs</a>",
+          '<a href="https://alpha.example.com/docs">Alpha docs</a>',
           "<h2>Project Beta</h2>",
-          "<section><a href=\"https://beta.example.com/report\">Beta report</a></section>",
+          '<section><a href="https://beta.example.com/report">Beta report</a></section>',
           "</body></html>",
         ].join(""),
-        "text/html",
-      ),
+        "text/html"
+      )
     );
 
     expect(data.sessions.map((session) => session.name)).toEqual(["Project Alpha", "Project Beta"]);
@@ -246,8 +261,8 @@ describe("exportImport", () => {
             },
           ],
         }),
-        "application/json",
-      ),
+        "application/json"
+      )
     );
 
     expect(data.sessions.map((session) => session.name)).toEqual(["Morning setup", "Research"]);
@@ -273,8 +288,8 @@ describe("exportImport", () => {
             },
           ],
         }),
-        "application/json",
-      ),
+        "application/json"
+      )
     );
 
     expect(data.sessions).toHaveLength(1);
@@ -284,7 +299,7 @@ describe("exportImport", () => {
 
   it("rejects imports when no valid tabs are found", async () => {
     await expect(
-      importFile(makeImportFile("empty.txt", "not a saved tab export", "text/plain")),
+      importFile(makeImportFile("empty.txt", "not a saved tab export", "text/plain"))
     ).rejects.toThrow("No valid tabs were found");
   });
 });

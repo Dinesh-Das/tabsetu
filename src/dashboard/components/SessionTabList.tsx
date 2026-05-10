@@ -7,7 +7,12 @@ import { formatDateTime } from "@/lib/format";
 import { tomorrowAtNine } from "@/lib/reminders";
 import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
 import { reorderTabsByIndex } from "@/lib/tabOrdering";
-import { chromeTabToTabItemWithFavicon, cloneTabItem, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
+import {
+  chromeTabToTabItemWithFavicon,
+  cloneTabItem,
+  getPreferredBrowserTab,
+  isRestrictedUrl,
+} from "@/lib/tabHelpers";
 import { ReminderPicker } from "./SessionReminderPanel";
 
 function toLocalDateInputValue(value: number): string {
@@ -24,7 +29,13 @@ interface Props {
   tags: Tag[];
   remindersEnabled: boolean;
   addToast: (type: ToastMessage["type"], message: string) => void;
-  createSession: (name: string, description: string, tabs: TabItem[], folderId?: string | null, tagIds?: string[]) => Session;
+  createSession: (
+    name: string,
+    description: string,
+    tabs: TabItem[],
+    folderId?: string | null,
+    tagIds?: string[]
+  ) => Session;
   createSchedule: (schedule: {
     sessionId: string;
     type: "once";
@@ -62,7 +73,7 @@ export default function SessionTabList({
 }: Props) {
   const favicons = useFavicons();
   const [tabDraftNotes, setTabDraftNotes] = useState<Record<string, string>>(
-    Object.fromEntries(session.tabs.map((tab) => [tab.id, tab.note])),
+    Object.fromEntries(session.tabs.map((tab) => [tab.id, tab.note]))
   );
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
 
@@ -118,7 +129,7 @@ export default function SessionTabList({
       `Auto-open schedule for ${tab.url}`,
       [cloneTabItem(tab)],
       tab.folderId ?? session.folderId,
-      [...new Set([...session.tagIds, ...tab.tagIds])],
+      [...new Set([...session.tagIds, ...tab.tagIds])]
     );
 
     createSchedule({
@@ -194,7 +205,11 @@ export default function SessionTabList({
         <h3>Saved tabs</h3>
         <span className="badge badge-subtle">{session.tabs.length} total</span>
       </div>
-      <button className="btn btn-secondary" onClick={() => void handleAddActiveTab()} style={{ marginBottom: 12 }}>
+      <button
+        className="btn btn-secondary"
+        onClick={() => void handleAddActiveTab()}
+        style={{ marginBottom: 12 }}
+      >
         Add active tab
       </button>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -225,27 +240,66 @@ export default function SessionTabList({
                   <GripVertical size={15} />
                 </button>
                 <div className="tab-reorder-buttons" aria-label={`Move ${tab.title}`} role="group">
-                  <button className="btn btn-ghost btn-icon" type="button" disabled={index === 0} onClick={() => moveTabByOffset(tab.id, -1)} title="Move tab up" aria-label={`Move ${tab.title} up`}>
+                  <button
+                    className="btn btn-ghost btn-icon"
+                    type="button"
+                    disabled={index === 0}
+                    onClick={() => moveTabByOffset(tab.id, -1)}
+                    title="Move tab up"
+                    aria-label={`Move ${tab.title} up`}
+                  >
                     <ArrowUp size={14} />
                   </button>
-                  <button className="btn btn-ghost btn-icon" type="button" disabled={index === session.tabs.length - 1} onClick={() => moveTabByOffset(tab.id, 1)} title="Move tab down" aria-label={`Move ${tab.title} down`}>
+                  <button
+                    className="btn btn-ghost btn-icon"
+                    type="button"
+                    disabled={index === session.tabs.length - 1}
+                    onClick={() => moveTabByOffset(tab.id, 1)}
+                    title="Move tab down"
+                    aria-label={`Move ${tab.title} down`}
+                  >
                     <ArrowDown size={14} />
                   </button>
                 </div>
                 {favicon ? (
-                  <img src={favicon} className="favicon" alt="" onError={(event) => { (event.target as HTMLImageElement).style.display = "none"; }} />
+                  <img
+                    src={favicon}
+                    className="favicon"
+                    alt=""
+                    onError={(event) => {
+                      (event.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
                 ) : (
-                  <span className="favicon favicon-fallback"><TabSetuLogo decorative /></span>
+                  <span className="favicon favicon-fallback">
+                    <TabSetuLogo decorative />
+                  </span>
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600 }}>{tab.title}</div>
-                  <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 4 }}>{getDomainLabel(tab.url)}</div>
-                  <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 2 }}>Opened {formatDateTime(tab.lastOpenedAt)}</div>
+                  <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 4 }}>
+                    {getDomainLabel(tab.url)}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 2 }}>
+                    Opened {formatDateTime(tab.lastOpenedAt)}
+                  </div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button className="btn btn-secondary" onClick={() => void handleOpenTab(tab.id)}>Open</button>
-                  <button className="btn btn-secondary" onClick={() => createOneTimeScheduleForTab(tab)}>Schedule</button>
-                  <button className="btn btn-ghost btn-icon" style={{ color: "var(--color-danger)" }} onClick={() => removeTabFromSession(session.id, tab.id)} title="Remove tab from session">
+                  <button className="btn btn-secondary" onClick={() => void handleOpenTab(tab.id)}>
+                    Open
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => createOneTimeScheduleForTab(tab)}
+                  >
+                    Schedule
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-icon"
+                    style={{ color: "var(--color-danger)" }}
+                    onClick={() => removeTabFromSession(session.id, tab.id)}
+                    title="Remove tab from session"
+                  >
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -255,7 +309,9 @@ export default function SessionTabList({
                 <textarea
                   className="input"
                   value={tabDraftNotes[tab.id] ?? ""}
-                  onChange={(event) => setTabDraftNotes((current) => ({ ...current, [tab.id]: event.target.value }))}
+                  onChange={(event) =>
+                    setTabDraftNotes((current) => ({ ...current, [tab.id]: event.target.value }))
+                  }
                   onBlur={() => updateTabNote(session.id, tab.id, tabDraftNotes[tab.id] ?? "")}
                   placeholder="Add context for this link"
                 />
@@ -263,9 +319,20 @@ export default function SessionTabList({
               <div style={{ marginTop: 12 }}>
                 <label className="label">Tab organization</label>
                 <div className="tab-organization-controls">
-                  <select className="input" value={tab.folderId ?? ""} onChange={(event) => updateTabFolder(session.id, tab.id, event.target.value || null)} aria-label={`Folder for ${tab.title}`}>
+                  <select
+                    className="input"
+                    value={tab.folderId ?? ""}
+                    onChange={(event) =>
+                      updateTabFolder(session.id, tab.id, event.target.value || null)
+                    }
+                    aria-label={`Folder for ${tab.title}`}
+                  >
                     <option value="">Use session folder</option>
-                    {folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+                    {folders.map((folder) => (
+                      <option key={folder.id} value={folder.id}>
+                        {folder.name}
+                      </option>
+                    ))}
                   </select>
                   <div className="tab-tag-chip-row" aria-label={`Tags for ${tab.title}`}>
                     {tags.map((tag) => {
@@ -279,7 +346,11 @@ export default function SessionTabList({
                           data-active={active || undefined}
                           data-inherited={inherited || undefined}
                           onClick={() => toggleTabTag(tab.id, tag.id)}
-                          style={{ borderColor: active ? tag.color : undefined, color: active ? tag.color : undefined, background: active ? `${tag.color}22` : undefined }}
+                          style={{
+                            borderColor: active ? tag.color : undefined,
+                            color: active ? tag.color : undefined,
+                            background: active ? `${tag.color}22` : undefined,
+                          }}
                           title={inherited ? "Inherited from session" : `Toggle ${tag.name}`}
                         >
                           {tag.name}
@@ -294,7 +365,11 @@ export default function SessionTabList({
                   <Bell size={14} />
                   Reminder
                 </label>
-                <ReminderPicker tab={tab} onSet={(reminderAt) => void setTabReminderAt(tab.id, reminderAt)} onClear={() => void setTabReminderAt(tab.id, null)} />
+                <ReminderPicker
+                  tab={tab}
+                  onSet={(reminderAt) => void setTabReminderAt(tab.id, reminderAt)}
+                  onClear={() => void setTabReminderAt(tab.id, null)}
+                />
               </div>
             </div>
           );

@@ -4,8 +4,8 @@ import type { HighlightRange } from "@/lib/fuzzySearch";
 
 interface Props {
   text: string;
-  ranges?: HighlightRange[];
-  style?: CSSProperties;
+  ranges?: HighlightRange[] | undefined;
+  style?: CSSProperties | undefined;
 }
 
 export default function HighlightedText({ text, ranges = [], style }: Props) {

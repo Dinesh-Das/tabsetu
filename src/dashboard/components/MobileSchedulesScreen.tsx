@@ -1,7 +1,13 @@
 import { useMemo, useState } from "react";
 import { CalendarDays, Clock3, Edit3, Power, Trash2 } from "lucide-react";
 import MobileConfirmSheet from "@/components/mobile/MobileConfirmSheet";
-import { BottomSheet, EmptyState, GlassCard, MobileIconButton, SegmentedControl } from "@/components/mobile/MobileUI";
+import {
+  BottomSheet,
+  EmptyState,
+  GlassCard,
+  MobileIconButton,
+  SegmentedControl,
+} from "@/components/mobile/MobileUI";
 import { formatDateTime, formatScheduleLabel } from "@/lib/format";
 import { normalizeScheduleDraft, type ScheduleDraft } from "@/lib/scheduleDraft";
 import { generateId, sanitizeLabel } from "@/lib/tabHelpers";
@@ -77,7 +83,7 @@ function ScheduleEditor({ schedule, addToast, onClose, variant = "sheet" }: Sche
   const [draft, setDraft] = useState<ScheduleDraft>({
     sessionId: schedule?.sessionId ?? "",
     url: "",
-    type: (schedule?.type === "custom" ? "weekly" : schedule?.type ?? "once") as MobileScheduleType,
+    type: schedule?.type === "custom" ? "weekly" : (schedule?.type ?? "once"),
     date: schedule?.date ?? todayInputValue(),
     time: schedule?.time ?? currentTimeInputValue(),
     daysOfWeek: schedule?.daysOfWeek.length ? schedule.daysOfWeek : [new Date().getDay()],
@@ -126,102 +132,106 @@ function ScheduleEditor({ schedule, addToast, onClose, variant = "sheet" }: Sche
   };
 
   const form = (
-      <div className="mobile-form-stack">
-        <div className="mobile-field">
-          <label htmlFor="schedule-url">URL</label>
-          <input
-            id="schedule-url"
-            className="mobile-input"
-            value={draft.url}
-            onChange={(event) => updateDraft({ url: event.target.value, sessionId: "" })}
-            placeholder="https://example.com"
-          />
-        </div>
-
-        <div className="mobile-field">
-          <label htmlFor="schedule-session">Or saved session</label>
-          <select
-            id="schedule-session"
-            className="mobile-select"
-            value={draft.sessionId}
-            onChange={(event) => updateDraft({ sessionId: event.target.value, url: "" })}
-          >
-            <option value="">Select session</option>
-            {sessions.map((session) => (
-              <option key={session.id} value={session.id}>
-                {session.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="mobile-field">
-          <label>Type</label>
-          <SegmentedControl<MobileScheduleType>
-            value={draft.type}
-            onChange={(type) =>
-              updateDraft({
-                type,
-                daysOfWeek: type === "weekdays" ? [1, 2, 3, 4, 5] : draft.daysOfWeek,
-              })
-            }
-            options={[
-              { value: "once", label: "Once" },
-              { value: "daily", label: "Daily" },
-              { value: "weekly", label: "Weekly" },
-              { value: "weekdays", label: "Weekdays" },
-            ]}
-          />
-        </div>
-
-        <div className="schedule-date-grid">
-          <div className="mobile-field">
-            <label htmlFor="schedule-date">Date</label>
-            <input
-              id="schedule-date"
-              className="mobile-input"
-              type="date"
-              value={draft.date}
-              disabled={draft.type !== "once"}
-              onChange={(event) => updateDraft({ date: event.target.value })}
-            />
-          </div>
-          <div className="mobile-field">
-            <label htmlFor="schedule-time">Time</label>
-            <input
-              id="schedule-time"
-              className="mobile-input"
-              type="time"
-              value={draft.time}
-              onChange={(event) => updateDraft({ time: event.target.value })}
-            />
-          </div>
-        </div>
-
-        {draft.type === "weekly" || draft.type === "weekdays" ? (
-          <div className="schedule-days">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, index) => (
-              <button
-                key={day}
-                type="button"
-                data-active={draft.daysOfWeek.includes(index) || undefined}
-                onClick={() => {
-                  const nextDays = draft.daysOfWeek.includes(index)
-                    ? draft.daysOfWeek.filter((dayIndex) => dayIndex !== index)
-                    : [...draft.daysOfWeek, index];
-                  updateDraft({ daysOfWeek: nextDays });
-                }}
-              >
-                {day}
-              </button>
-            ))}
-          </div>
-        ) : null}
+    <div className="mobile-form-stack">
+      <div className="mobile-field">
+        <label htmlFor="schedule-url">URL</label>
+        <input
+          id="schedule-url"
+          className="mobile-input"
+          value={draft.url}
+          onChange={(event) => updateDraft({ url: event.target.value, sessionId: "" })}
+          placeholder="https://example.com"
+        />
       </div>
+
+      <div className="mobile-field">
+        <label htmlFor="schedule-session">Or saved session</label>
+        <select
+          id="schedule-session"
+          className="mobile-select"
+          value={draft.sessionId}
+          onChange={(event) => updateDraft({ sessionId: event.target.value, url: "" })}
+        >
+          <option value="">Select session</option>
+          {sessions.map((session) => (
+            <option key={session.id} value={session.id}>
+              {session.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="mobile-field">
+        <label>Type</label>
+        <SegmentedControl<MobileScheduleType>
+          value={draft.type}
+          onChange={(type) =>
+            updateDraft({
+              type,
+              daysOfWeek: type === "weekdays" ? [1, 2, 3, 4, 5] : draft.daysOfWeek,
+            })
+          }
+          options={[
+            { value: "once", label: "Once" },
+            { value: "daily", label: "Daily" },
+            { value: "weekly", label: "Weekly" },
+            { value: "weekdays", label: "Weekdays" },
+          ]}
+        />
+      </div>
+
+      <div className="schedule-date-grid">
+        <div className="mobile-field">
+          <label htmlFor="schedule-date">Date</label>
+          <input
+            id="schedule-date"
+            className="mobile-input"
+            type="date"
+            value={draft.date}
+            disabled={draft.type !== "once"}
+            onChange={(event) => updateDraft({ date: event.target.value })}
+          />
+        </div>
+        <div className="mobile-field">
+          <label htmlFor="schedule-time">Time</label>
+          <input
+            id="schedule-time"
+            className="mobile-input"
+            type="time"
+            value={draft.time}
+            onChange={(event) => updateDraft({ time: event.target.value })}
+          />
+        </div>
+      </div>
+
+      {draft.type === "weekly" || draft.type === "weekdays" ? (
+        <div className="schedule-days">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, index) => (
+            <button
+              key={day}
+              type="button"
+              data-active={draft.daysOfWeek.includes(index) || undefined}
+              onClick={() => {
+                const nextDays = draft.daysOfWeek.includes(index)
+                  ? draft.daysOfWeek.filter((dayIndex) => dayIndex !== index)
+                  : [...draft.daysOfWeek, index];
+                updateDraft({ daysOfWeek: nextDays });
+              }}
+            >
+              {day}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 
   const submitButton = (
-    <button className="mobile-primary-button save-sheet-primary" type="button" onClick={handleSubmit}>
+    <button
+      className="mobile-primary-button save-sheet-primary"
+      type="button"
+      onClick={handleSubmit}
+    >
       {schedule ? "Save Schedule" : "Create Schedule"}
     </button>
   );
@@ -260,7 +270,7 @@ export default function MobileSchedulesScreen({ addToast }: Props) {
 
   const sessionMap = useMemo(
     () => new Map(sessions.map((session) => [session.id, session])),
-    [sessions],
+    [sessions]
   );
 
   return (
@@ -311,7 +321,11 @@ export default function MobileSchedulesScreen({ addToast }: Props) {
                 <MobileIconButton title="Edit schedule" onClick={() => setEditorSchedule(schedule)}>
                   <Edit3 size={17} />
                 </MobileIconButton>
-                <MobileIconButton title="Delete schedule" danger onClick={() => setPendingDelete(schedule)}>
+                <MobileIconButton
+                  title="Delete schedule"
+                  danger
+                  onClick={() => setPendingDelete(schedule)}
+                >
                   <Trash2 size={17} />
                 </MobileIconButton>
               </div>

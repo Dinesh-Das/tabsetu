@@ -1,13 +1,11 @@
 import Fuse from "fuse.js";
-import { buildSearchIndex, searchSessions, type SearchableSession, type SessionSearchResult } from "@/lib/fuzzySearch";
-import type {
-  Folder,
-  Session,
-  Settings,
-  SortOption,
-  Tag,
-  ViewFilter,
-} from "@/types";
+import {
+  buildSearchIndex,
+  searchSessions,
+  type SearchableSession,
+  type SessionSearchResult,
+} from "@/lib/fuzzySearch";
+import type { Folder, Session, Settings, SortOption, Tag, ViewFilter } from "@/types";
 
 export interface SessionListItem {
   session: Session;
@@ -57,7 +55,7 @@ function filterSessions(
   sessions: Session[],
   viewFilter: ViewFilter,
   folderId: string | null,
-  tagId: string | null,
+  tagId: string | null
 ): Session[] {
   let visible = sessions;
 
@@ -72,16 +70,14 @@ function filterSessions(
   if (folderId) {
     visible = visible.filter(
       (session) =>
-        session.folderId === folderId ||
-        session.tabs.some((tab) => tab.folderId === folderId),
+        session.folderId === folderId || session.tabs.some((tab) => tab.folderId === folderId)
     );
   }
 
   if (tagId) {
     visible = visible.filter(
       (session) =>
-        session.tagIds.includes(tagId) ||
-        session.tabs.some((tab) => tab.tagIds.includes(tagId)),
+        session.tagIds.includes(tagId) || session.tabs.some((tab) => tab.tagIds.includes(tagId))
     );
   }
 
@@ -112,7 +108,10 @@ export function buildSessionListItems({
       return [];
     }
 
-    const searchResults = searchSessions(searchIndex ?? buildSearchIndex(visible, folders, tags, settings), trimmedQuery);
+    const searchResults = searchSessions(
+      searchIndex ?? buildSearchIndex(visible, folders, tags, settings),
+      trimmedQuery
+    );
 
     visible = searchResults.map((result) => result.session);
     for (const result of searchResults) {
@@ -122,7 +121,7 @@ export function buildSessionListItems({
 
   return sortSessions(visible, sortBy).map((session) => ({
     session,
-    folder: session.folderId ? folderMap.get(session.folderId) ?? null : null,
+    folder: session.folderId ? (folderMap.get(session.folderId) ?? null) : null,
     tags: session.tagIds
       .map((tagId) => tagMap.get(tagId) ?? null)
       .filter((tag): tag is Tag => Boolean(tag)),

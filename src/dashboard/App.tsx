@@ -2,6 +2,8 @@ import React, { type ReactNode, useEffect, useState } from "react";
 import { Download, MoreHorizontal, Settings } from "lucide-react";
 import { MobileAppShell, MobileIconButton, type MobileNavView } from "@/components/mobile/MobileUI";
 import ThemeToggle from "@/components/shared/ThemeToggle";
+import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import type { ToastMessage } from "@/types";
 import { clearAllData, loadStorage } from "@/lib/storage";
 import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
@@ -12,6 +14,7 @@ import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useShareStore } from "@/store/shareStore";
 import { useTagStore } from "@/store/tagStore";
+import { useHydrationStore } from "@/store/hydration";
 import DashToast from "./components/DashToast";
 import ImportExportPanel from "./components/ImportExportPanel";
 import MobileFoldersScreen from "./components/MobileFoldersScreen";
@@ -73,7 +76,13 @@ function getInitialDashView(): DashView {
 }
 
 function isMobileNavView(view: DashView): view is MobileNavView {
-  return view === "home" || view === "folders" || view === "schedules" || view === "reminders" || view === "notes";
+  return (
+    view === "home" ||
+    view === "folders" ||
+    view === "schedules" ||
+    view === "reminders" ||
+    view === "notes"
+  );
 }
 
 function titleForView(view: DashView): string {
@@ -112,7 +121,7 @@ function desktopViewFromDashView(view: DashView): DesktopSidebarView {
 
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() =>
-    typeof window === "undefined" ? false : window.matchMedia(query).matches,
+    typeof window === "undefined" ? false : window.matchMedia(query).matches
   );
 
   useEffect(() => {
@@ -156,7 +165,9 @@ class AppErrorBoundary extends React.Component<{ children: ReactNode }, { error:
   }
   render() {
     if (this.state.error) {
-      return <ErrorScreen error={this.state.error} onReset={() => this.setState({ error: null })} />;
+      return (
+        <ErrorScreen error={this.state.error} onReset={() => this.setState({ error: null })} />
+      );
     }
     return this.props.children;
   }
@@ -164,6 +175,7 @@ class AppErrorBoundary extends React.Component<{ children: ReactNode }, { error:
 
 function DashboardAppContent() {
   const settings = useSettingsStore((state) => state.settings);
+  const isReady = useHydrationStore((state) => state.isReady);
 
   const [view, setView] = useState<DashView>(getInitialDashView);
   const [savePrompt, setSavePrompt] = useState(getInitialSavePrompt);
@@ -180,6 +192,7 @@ function DashboardAppContent() {
       useNotesStore.getState().importNotes(data.standaloneNotes);
       useShareStore.getState().importShareLinks(data.shareLinks);
       useSettingsStore.setState({ settings: data.settings });
+      Array.from({ length: 7 }).forEach(() => useHydrationStore.getState().markOneHydrated());
     });
   }, []);
 
@@ -202,6 +215,10 @@ function DashboardAppContent() {
   };
 
   const activeNavView = isMobileNavView(view) ? view : "home";
+
+  if (!isReady) {
+    return <LoadingSkeleton />;
+  }
 
   if (isDesktop) {
     return (
@@ -234,11 +251,23 @@ function DashboardAppContent() {
             </MobileIconButton>
             {menuOpen ? (
               <div className="dashboard-overflow-menu">
-                <button type="button" onClick={() => { setView("settings"); setMenuOpen(false); }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setView("settings");
+                    setMenuOpen(false);
+                  }}
+                >
                   <Settings size={16} />
                   Settings
                 </button>
-                <button type="button" onClick={() => { setView("importexport"); setMenuOpen(false); }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setView("importexport");
+                    setMenuOpen(false);
+                  }}
+                >
                   <Download size={16} />
                   Import / Export
                 </button>
@@ -248,18 +277,36 @@ function DashboardAppContent() {
         }
       >
         {view === "home" ? (
-          <MobileHomeScreen
-            addToast={addToast}
-            initialSavePrompt={savePrompt}
-            onInitialSavePromptHandled={handleInitialSavePromptHandled}
-          />
+          <ErrorBoundary>
+            <MobileHomeScreen
+              addToast={addToast}
+              initialSavePrompt={savePrompt}
+              onInitialSavePromptHandled={handleInitialSavePromptHandled}
+            />
+          </ErrorBoundary>
         ) : null}
         {view === "folders" ? <MobileFoldersScreen addToast={addToast} /> : null}
-        {view === "schedules" ? <MobileSchedulesScreen addToast={addToast} /> : null}
-        {view === "reminders" ? <RemindersPage addToast={addToast} /> : null}
-        {view === "notes" ? <MobileNotesScreen addToast={addToast} /> : null}
+        {view === "schedules" ? (
+          <ErrorBoundary>
+            <MobileSchedulesScreen addToast={addToast} />
+          </ErrorBoundary>
+        ) : null}
+        {view === "reminders" ? (
+          <ErrorBoundary>
+            <RemindersPage addToast={addToast} />
+          </ErrorBoundary>
+        ) : null}
+        {view === "notes" ? (
+          <ErrorBoundary>
+            <MobileNotesScreen addToast={addToast} />
+          </ErrorBoundary>
+        ) : null}
         {view === "settings" ? <SettingsPanel addToast={addToast} /> : null}
-        {view === "importexport" ? <ImportExportPanel addToast={addToast} /> : null}
+        {view === "importexport" ? (
+          <ErrorBoundary>
+            <ImportExportPanel addToast={addToast} />
+          </ErrorBoundary>
+        ) : null}
       </MobileAppShell>
 
       <DashToast toasts={toasts} />

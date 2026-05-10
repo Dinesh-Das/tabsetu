@@ -2,7 +2,17 @@ import { describe, expect, it } from "vitest";
 import { countSelectedVisibleTabs, filterCapturableTabs } from "@/lib/popupTabs";
 
 function tab(id: number, title: string, url: string): chrome.tabs.Tab {
-  return { id, title, url, index: id, pinned: false, highlighted: false, active: false, incognito: false, selected: false } as chrome.tabs.Tab;
+  return {
+    id,
+    title,
+    url,
+    index: id,
+    pinned: false,
+    highlighted: false,
+    active: false,
+    incognito: false,
+    selected: false,
+  } as chrome.tabs.Tab;
 }
 
 describe("popup tab helpers", () => {
@@ -22,7 +32,7 @@ describe("popup tab helpers", () => {
         tab(1, "Design notes", "https://example.com"),
         tab(2, "Repository", "https://github.com/org/repo"),
       ],
-      "github",
+      "github"
     );
 
     expect(result.map((item) => item.id)).toEqual([2]);
@@ -35,7 +45,7 @@ describe("popup tab helpers", () => {
         tab(2, "B", "chrome://extensions"),
         tab(3, "C", "https://c.example.com"),
       ],
-      [1, 2, 4],
+      [1, 2, 4]
     );
 
     expect(result).toBe(1);

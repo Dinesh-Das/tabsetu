@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Schedule } from "@/types";
 import { nextMatchingDate } from "@/lib/alarmScheduling";
 import { loadStorage, saveSchedules } from "@/lib/storage";
+import { useHydrationStore } from "@/store/hydration";
 import { generateId } from "@/lib/tabHelpers";
 
 function alarmName(scheduleId: string): string {
@@ -26,12 +27,15 @@ async function syncScheduleAlarm(schedule: Schedule): Promise<void> {
   });
 }
 
-async function replaceBrowserAlarms(schedules: Schedule[], schedulesEnabled: boolean): Promise<void> {
+async function replaceBrowserAlarms(
+  schedules: Schedule[],
+  schedulesEnabled: boolean
+): Promise<void> {
   const alarms = await chrome.alarms.getAll();
   await Promise.all(
     alarms
       .filter((alarm) => alarm.name.startsWith("schedule_"))
-      .map((alarm) => chrome.alarms.clear(alarm.name)),
+      .map((alarm) => chrome.alarms.clear(alarm.name))
   );
 
   if (!schedulesEnabled) {
@@ -44,7 +48,9 @@ async function replaceBrowserAlarms(schedules: Schedule[], schedulesEnabled: boo
 interface ScheduleState {
   schedules: Schedule[];
   load: () => Promise<void>;
-  createSchedule: (schedule: Omit<Schedule, "id" | "createdAt" | "updatedAt" | "lastFiredAt">) => void;
+  createSchedule: (
+    schedule: Omit<Schedule, "id" | "createdAt" | "updatedAt" | "lastFiredAt">
+  ) => void;
   updateSchedule: (id: string, updates: Partial<Schedule>) => void;
   deleteSchedule: (id: string) => void;
   toggleSchedule: (id: string, enabled: boolean) => void;
@@ -65,6 +71,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   load: async () => {
     const data = await loadStorage();
     set({ schedules: data.schedules });
+    useHydrationStore.getState().markOneHydrated();
   },
 
   createSchedule: (partial) => {

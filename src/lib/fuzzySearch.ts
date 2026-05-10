@@ -1,8 +1,4 @@
-import Fuse, {
-  type FuseResult,
-  type FuseResultMatch,
-  type IFuseOptions,
-} from "fuse.js";
+import Fuse, { type FuseResult, type FuseResultMatch, type IFuseOptions } from "fuse.js";
 import type { Folder, Session, Settings, Tag } from "@/types";
 
 export interface HighlightRange {
@@ -85,13 +81,16 @@ function normalizeRanges(indices: ReadonlyArray<readonly [number, number]>): Hig
 function setMappedRanges(
   target: Record<string, HighlightRange[]>,
   key: string,
-  indices: ReadonlyArray<readonly [number, number]>,
+  indices: ReadonlyArray<readonly [number, number]>
 ): void {
-  target[key] = normalizeRanges([...(target[key] ?? []).map((range) => [range.start, range.end] as const), ...indices]);
+  target[key] = normalizeRanges([
+    ...(target[key] ?? []).map((range) => [range.start, range.end] as const),
+    ...indices,
+  ]);
 }
 
 function buildFuseOptions(
-  settings?: Pick<Settings, "searchScopes" | "fuzzySearchThreshold">,
+  settings?: Pick<Settings, "searchScopes" | "fuzzySearchThreshold">
 ): IFuseOptions<SearchableSession> {
   const scopes = settings?.searchScopes ?? {
     sessions: true,
@@ -136,18 +135,27 @@ function buildFuseOptions(
   };
 }
 
-function toSearchableSessions(sessions: Session[], folders: Folder[], tags: Tag[]): SearchableSession[] {
+function toSearchableSessions(
+  sessions: Session[],
+  folders: Folder[],
+  tags: Tag[]
+): SearchableSession[] {
   const folderMap = new Map(folders.map((folder) => [folder.id, folder.name]));
   const tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
 
   return sessions.map((session) => ({
     session,
-    folderName: session.folderId ? folderMap.get(session.folderId) ?? "" : "",
+    folderName: session.folderId ? (folderMap.get(session.folderId) ?? "") : "",
     tagIds: session.tagIds,
     tagNames: session.tagIds.map((tagId) => tagMap.get(tagId) ?? "").filter(Boolean),
-    tabFolderNames: session.tabs.map((tab) => (tab.folderId ? folderMap.get(tab.folderId) ?? "" : "")),
+    tabFolderNames: session.tabs.map((tab) =>
+      tab.folderId ? (folderMap.get(tab.folderId) ?? "") : ""
+    ),
     tabTagNames: session.tabs.map((tab) =>
-      tab.tagIds.map((tagId) => tagMap.get(tagId) ?? "").filter(Boolean).join(" "),
+      tab.tagIds
+        .map((tagId) => tagMap.get(tagId) ?? "")
+        .filter(Boolean)
+        .join(" ")
     ),
     tabTitles: session.tabs.map((tab) => tab.title),
     tabUrls: session.tabs.map((tab) => tab.url),
@@ -158,7 +166,7 @@ function toSearchableSessions(sessions: Session[], folders: Folder[], tags: Tag[
 function applyMatch(
   highlights: SessionSearchHighlights,
   searchable: SearchableSession,
-  match: FuseResultMatch,
+  match: FuseResultMatch
 ): void {
   const indices = normalizeRanges(match.indices);
   if (indices.length === 0) {
@@ -235,7 +243,10 @@ function applyMatch(
   }
 }
 
-function buildSnippets(result: FuseResult<SearchableSession>, highlights: SessionSearchHighlights): SessionSearchSnippet[] {
+function buildSnippets(
+  result: FuseResult<SearchableSession>,
+  highlights: SessionSearchHighlights
+): SessionSearchSnippet[] {
   const snippets: SessionSearchSnippet[] = [];
 
   for (const tab of result.item.session.tabs) {
@@ -277,14 +288,14 @@ export function buildSearchIndex(
   sessions: Session[],
   folders: Folder[],
   tags: Tag[],
-  settings?: Pick<Settings, "searchScopes" | "fuzzySearchThreshold">,
+  settings?: Pick<Settings, "searchScopes" | "fuzzySearchThreshold">
 ): Fuse<SearchableSession> {
   return new Fuse(toSearchableSessions(sessions, folders, tags), buildFuseOptions(settings));
 }
 
 export function searchSessions(
   fuse: Fuse<SearchableSession>,
-  query: string,
+  query: string
 ): SessionSearchResult[] {
   if (!query.trim()) {
     return [];

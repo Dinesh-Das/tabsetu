@@ -1,0 +1,38 @@
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": { "project": "./tsconfig.json" },
+  "plugins": ["@typescript-eslint", "react-hooks", "react-refresh", "jsx-a11y"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended-type-checked",
+    "plugin:react-hooks/recommended",
+    "plugin:jsx-a11y/recommended",
+    "prettier"
+  ],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-floating-promises": "error",
+    "@typescript-eslint/await-thenable": "off",
+    "@typescript-eslint/no-misused-promises": "off",
+    "@typescript-eslint/no-unsafe-assignment": "off",
+    "@typescript-eslint/no-unsafe-argument": "off",
+    "@typescript-eslint/no-unsafe-call": "off",
+    "@typescript-eslint/no-unsafe-enum-comparison": "off",
+    "@typescript-eslint/no-unsafe-member-access": "off",
+    "@typescript-eslint/prefer-promise-reject-errors": "off",
+    "@typescript-eslint/unbound-method": "off",
+    "react-hooks/exhaustive-deps": "error",
+    "react-hooks/immutability": "off",
+    "react-hooks/set-state-in-effect": "off",
+    "react-refresh/only-export-components": "off",
+    "react-hooks/purity": "off",
+    "jsx-a11y/click-events-have-key-events": "off",
+    "jsx-a11y/label-has-associated-control": "off",
+    "jsx-a11y/no-autofocus": "off",
+    "jsx-a11y/no-noninteractive-element-interactions": "off",
+    "jsx-a11y/no-static-element-interactions": "off",
+    "no-console": ["warn", { "allow": ["warn", "error"] }]
+  },
+  "env": { "browser": true, "es2022": true }
+}

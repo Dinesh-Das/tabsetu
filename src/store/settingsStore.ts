@@ -1,6 +1,7 @@
-import { create } from 'zustand';
-import type { Settings } from '@/types';
-import { DEFAULT_SETTINGS, loadStorage, saveSettings } from '@/lib/storage';
+import { create } from "zustand";
+import type { Settings } from "@/types";
+import { DEFAULT_SETTINGS, loadStorage, saveSettings } from "@/lib/storage";
+import { useHydrationStore } from "@/store/hydration";
 
 interface SettingsState {
   settings: Settings;
@@ -21,6 +22,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   load: async () => {
     const data = await loadStorage();
     set({ settings: data.settings });
+    useHydrationStore.getState().markOneHydrated();
   },
 
   updateSettings: (updates) => {

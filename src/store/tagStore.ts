@@ -1,7 +1,8 @@
-import { create } from 'zustand';
-import type { Tag } from '@/types';
-import { loadStorage, saveTags } from '@/lib/storage';
-import { clampText, generateId, stripHtml } from '@/lib/tabHelpers';
+import { create } from "zustand";
+import type { Tag } from "@/types";
+import { loadStorage, saveTags } from "@/lib/storage";
+import { useHydrationStore } from "@/store/hydration";
+import { clampText, generateId, stripHtml } from "@/lib/tabHelpers";
 
 interface TagState {
   tags: Tag[];
@@ -25,12 +26,14 @@ export const useTagStore = create<TagState>((set, get) => ({
   load: async () => {
     const data = await loadStorage();
     set({ tags: data.tags });
+    useHydrationStore.getState().markOneHydrated();
   },
 
   createTag: (name, color) => {
-    const sanitizedName = clampText(stripHtml(name).replace(/[^a-zA-Z0-9\- ]/g, ""), 30) || "New Tag";
+    const sanitizedName =
+      clampText(stripHtml(name).replace(/[^a-zA-Z0-9\- ]/g, ""), 30) || "New Tag";
     const tag: Tag = {
-      id: generateId('tag'),
+      id: generateId("tag"),
       name: sanitizedName,
       color,
       createdAt: Date.now(),
@@ -47,9 +50,7 @@ export const useTagStore = create<TagState>((set, get) => ({
         ? { name: clampText(stripHtml(updates.name).replace(/[^a-zA-Z0-9\- ]/g, ""), 30) || "Tag" }
         : {}),
     };
-    const tags = get().tags.map((t) =>
-      t.id === id ? { ...t, ...sanitizedUpdates } : t
-    );
+    const tags = get().tags.map((t) => (t.id === id ? { ...t, ...sanitizedUpdates } : t));
     set({ tags });
     persistTags(tags);
   },

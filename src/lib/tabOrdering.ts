@@ -1,6 +1,10 @@
 import type { TabItem } from "@/types";
 
-export function reorderTabsByIndex(tabs: TabItem[], fromIndex: number, toIndex: number): TabItem[] | null {
+export function reorderTabsByIndex(
+  tabs: TabItem[],
+  fromIndex: number,
+  toIndex: number
+): TabItem[] | null {
   const orderedTabs = [...tabs].sort((left, right) => left.position - right.position);
 
   if (

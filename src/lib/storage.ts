@@ -12,6 +12,7 @@ import type {
   UndoCollapseBuffer,
 } from "@/types";
 import { pruneStaleTabFavicons } from "@/lib/favicon";
+import { checkStorageQuota } from "@/lib/storageQuota";
 import { clampText, generateId, isValidUrl, sanitizeLabel, stripHtml } from "@/lib/tabHelpers";
 import { getOnboardingFolders, getOnboardingTags } from "@/lib/onboarding";
 
@@ -33,7 +34,14 @@ export const STORAGE_KEYS = {
   remindersDismissed: "TabSetu_reminders_dismissed",
 } as const;
 
-const LEGACY_KEYS = ["sessions", "folders", "tags", "schedules", "settings", "tabsetuUndoBuffer"] as const;
+const LEGACY_KEYS = [
+  "sessions",
+  "folders",
+  "tags",
+  "schedules",
+  "settings",
+  "tabsetuUndoBuffer",
+] as const;
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "system",
@@ -76,31 +84,20 @@ export const DEFAULT_AI_CONFIG: AIShareConfig = {
   promptPreamble: "",
 };
 
-const DEFAULT_STORAGE: StorageData = {
-  sessions: [],
-  folders: [],
-  tags: [],
-  schedules: [],
-  standaloneNotes: [],
-  shareLinks: [],
-  aiConfig: DEFAULT_AI_CONFIG,
-  settings: DEFAULT_SETTINGS,
-};
-
 const MIGRATIONS: Record<number, (data: StorageData) => StorageData> = {
   2: (d) => d,
   3: (d) => ({
     ...d,
     shareLinks: d.shareLinks.map((link) => {
       return {
-      id: link.id,
-      sessionId: link.sessionId,
-      type: "encoded-url",
-      encodedData: link.encodedData,
-      expiresAt: link.expiresAt,
-      createdAt: link.createdAt,
-      updatedAt: link.updatedAt,
-    };
+        id: link.id,
+        sessionId: link.sessionId,
+        type: "encoded-url",
+        encodedData: link.encodedData,
+        expiresAt: link.expiresAt,
+        createdAt: link.createdAt,
+        updatedAt: link.updatedAt,
+      };
     }),
   }),
 };
@@ -133,7 +130,9 @@ function asNumber(value: unknown, fallback = 0): number {
 }
 
 function asStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 function asNullableNumber(value: unknown): number | null {
@@ -148,8 +147,8 @@ function sourceValue<T>(
   source: Record<string, unknown>,
   prefixedKey: string,
   legacyKey: string,
-  fallback: T,
-): unknown | T {
+  fallback: T
+): unknown {
   if (hasOwnKey(source, prefixedKey)) {
     return source[prefixedKey];
   }
@@ -296,7 +295,9 @@ function normalizeSchedule(raw: unknown): Schedule | null {
     type: type as Schedule["type"],
     time: /^\d{2}:\d{2}$/.test(time) ? time : "09:00",
     daysOfWeek: Array.isArray(raw.daysOfWeek)
-      ? raw.daysOfWeek.filter((day): day is number => typeof day === "number" && day >= 0 && day <= 6)
+      ? raw.daysOfWeek.filter(
+          (day): day is number => typeof day === "number" && day >= 0 && day <= 6
+        )
       : [],
     date: raw.date == null ? null : asString(raw.date) || null,
     enabled: asBoolean(raw.enabled, true),
@@ -372,7 +373,10 @@ function normalizeAIConfig(raw: unknown): AIShareConfig {
         ? defaultProvider
         : DEFAULT_AI_CONFIG.defaultProvider,
     customProviderUrl: asString(raw.customProviderUrl, DEFAULT_AI_CONFIG.customProviderUrl),
-    customPromptTemplate: asString(raw.customPromptTemplate, DEFAULT_AI_CONFIG.customPromptTemplate),
+    customPromptTemplate: asString(
+      raw.customPromptTemplate,
+      DEFAULT_AI_CONFIG.customPromptTemplate
+    ),
     includeUrls: asBoolean(raw.includeUrls, DEFAULT_AI_CONFIG.includeUrls),
     includeTitles: asBoolean(raw.includeTitles, DEFAULT_AI_CONFIG.includeTitles),
     includeNotes: asBoolean(raw.includeNotes, DEFAULT_AI_CONFIG.includeNotes),
@@ -393,7 +397,7 @@ function normalizeSettings(raw: unknown): Settings {
   const rawScopes = isRecord(raw.searchScopes) ? raw.searchScopes : {};
   const fuzzySearchThreshold = Math.min(
     0.6,
-    Math.max(0.1, asNumber(raw.fuzzySearchThreshold, DEFAULT_SETTINGS.fuzzySearchThreshold)),
+    Math.max(0.1, asNumber(raw.fuzzySearchThreshold, DEFAULT_SETTINGS.fuzzySearchThreshold))
   );
   const autoArchiveDays =
     raw.autoArchiveDays === 30 || raw.autoArchiveDays === 60 || raw.autoArchiveDays === 90
@@ -401,14 +405,24 @@ function normalizeSettings(raw: unknown): Settings {
       : null;
 
   return {
-    theme: theme === "light" || theme === "dark" || theme === "system" ? theme : DEFAULT_SETTINGS.theme,
-    collapseIncludesPinned: asBoolean(raw.collapseIncludesPinned, DEFAULT_SETTINGS.collapseIncludesPinned),
+    theme:
+      theme === "light" || theme === "dark" || theme === "system" ? theme : DEFAULT_SETTINGS.theme,
+    collapseIncludesPinned: asBoolean(
+      raw.collapseIncludesPinned,
+      DEFAULT_SETTINGS.collapseIncludesPinned
+    ),
     openInNewWindow: asBoolean(raw.openInNewWindow, DEFAULT_SETTINGS.openInNewWindow),
     confirmBeforeDelete: asBoolean(raw.confirmBeforeDelete, DEFAULT_SETTINGS.confirmBeforeDelete),
     schedulesEnabled: asBoolean(raw.schedulesEnabled, DEFAULT_SETTINGS.schedulesEnabled),
     remindersEnabled: asBoolean(raw.remindersEnabled, DEFAULT_SETTINGS.remindersEnabled),
-    searchOverlayEnabled: asBoolean(raw.searchOverlayEnabled, DEFAULT_SETTINGS.searchOverlayEnabled),
-    searchOverlayShortcut: asString(raw.searchOverlayShortcut, DEFAULT_SETTINGS.searchOverlayShortcut),
+    searchOverlayEnabled: asBoolean(
+      raw.searchOverlayEnabled,
+      DEFAULT_SETTINGS.searchOverlayEnabled
+    ),
+    searchOverlayShortcut: asString(
+      raw.searchOverlayShortcut,
+      DEFAULT_SETTINGS.searchOverlayShortcut
+    ),
     quickInfoEnabled: asBoolean(raw.quickInfoEnabled, DEFAULT_SETTINGS.quickInfoEnabled),
     quickInfoDelayMs:
       quickInfoDelayMs === 200 || quickInfoDelayMs === 400 || quickInfoDelayMs === 700
@@ -423,10 +437,14 @@ function normalizeSettings(raw: unknown): Settings {
         ? defaultAIProvider
         : DEFAULT_SETTINGS.defaultAIProvider,
     customAIProviderUrl: asString(raw.customAIProviderUrl, DEFAULT_SETTINGS.customAIProviderUrl),
-    customAIPromptTemplate: asString(raw.customAIPromptTemplate, DEFAULT_SETTINGS.customAIPromptTemplate),
+    customAIPromptTemplate: asString(
+      raw.customAIPromptTemplate,
+      DEFAULT_SETTINGS.customAIPromptTemplate
+    ),
     exportIncludeNotes: asBoolean(raw.exportIncludeNotes, DEFAULT_SETTINGS.exportIncludeNotes),
     version: asString(raw.version, APP_VERSION),
-    dashboardLayout: layout === "focus" || layout === "split" ? layout : DEFAULT_SETTINGS.dashboardLayout,
+    dashboardLayout:
+      layout === "focus" || layout === "split" ? layout : DEFAULT_SETTINGS.dashboardLayout,
     sessionCardStyle:
       cardStyle === "compact" || cardStyle === "comfortable" || cardStyle === "grid"
         ? cardStyle
@@ -442,7 +460,7 @@ function normalizeSettings(raw: unknown): Settings {
     autoArchiveDays,
     hasCompletedOnboarding: asBoolean(
       raw.hasCompletedOnboarding,
-      typeof raw.version === "string" ? true : DEFAULT_SETTINGS.hasCompletedOnboarding,
+      typeof raw.version === "string" ? true : DEFAULT_SETTINGS.hasCompletedOnboarding
     ),
   };
 }
@@ -475,6 +493,13 @@ function storageSet(value: object): Promise<void> {
       resolve();
     });
   });
+}
+
+async function checkQuotaAfterSave(): Promise<void> {
+  const quota = await checkStorageQuota();
+  if (quota.isWarning && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("tabsetu:storage-quota-warning", { detail: quota }));
+  }
 }
 
 function storageRemove(keys: readonly string[]): Promise<void> {
@@ -513,11 +538,7 @@ function hasLegacyStorage(raw: Record<string, unknown>): boolean {
     return false;
   }
 
-  return raw.sessions.every(
-    (session) =>
-      isRecord(session) &&
-      Array.isArray(session.tabs),
-  );
+  return raw.sessions.every((session) => isRecord(session) && Array.isArray(session.tabs));
 }
 
 function applyMigrations(raw: Record<string, unknown>, data: StorageData): StorageData {
@@ -530,7 +551,10 @@ function applyMigrations(raw: Record<string, unknown>, data: StorageData): Stora
   return migrated;
 }
 
-async function migrateLegacyStorage(raw: Record<string, unknown>, data: StorageData): Promise<StorageData> {
+async function migrateLegacyStorage(
+  raw: Record<string, unknown>,
+  data: StorageData
+): Promise<StorageData> {
   const fromVersion = asNumber(raw[STORAGE_KEYS.schemaVersion] ?? raw.schemaVersion, 1);
   const migrated = applyMigrations(raw, data);
 
@@ -563,7 +587,12 @@ export function normalizeStorageData(raw: unknown): StorageData {
   const rawTags = sourceValue(source, STORAGE_KEYS.tags, "tags", []);
   const rawSessions = sourceValue(source, STORAGE_KEYS.sessions, "sessions", []);
   const rawSchedules = sourceValue(source, STORAGE_KEYS.schedules, "schedules", []);
-  const rawStandaloneNotes = sourceValue(source, STORAGE_KEYS.standaloneNotes, "standaloneNotes", []);
+  const rawStandaloneNotes = sourceValue(
+    source,
+    STORAGE_KEYS.standaloneNotes,
+    "standaloneNotes",
+    []
+  );
   const rawShareLinks = sourceValue(source, STORAGE_KEYS.shareLinks, "shareLinks", []);
   const rawSettings = sourceValue(source, STORAGE_KEYS.settings, "settings", DEFAULT_SETTINGS);
   const rawAIConfig = sourceValue(source, STORAGE_KEYS.aiConfig, "aiConfig", DEFAULT_AI_CONFIG);
@@ -645,10 +674,13 @@ export function validateImportPayload(raw: unknown): void {
     throw new Error("This file is not a TabSetu backup.");
   }
 
-  const importedSchemaVersion = asNumber(raw.schemaVersion ?? raw[STORAGE_KEYS.schemaVersion], SCHEMA_VERSION);
+  const importedSchemaVersion = asNumber(
+    raw.schemaVersion ?? raw[STORAGE_KEYS.schemaVersion],
+    SCHEMA_VERSION
+  );
   if (importedSchemaVersion > SCHEMA_VERSION) {
     throw new Error(
-      "This backup was created with a newer version of TabSetu. Please update the extension before importing.",
+      "This backup was created with a newer version of TabSetu. Please update the extension before importing."
     );
   }
 
@@ -721,16 +753,24 @@ export async function loadStorageWithUndoBuffer(): Promise<{
   }
   await pruneStaleTabFavicons(migrated.sessions);
   const rawFavicons = raw.TabSetu_favicons;
-  const favicons = rawFavicons && typeof rawFavicons === "object" ? rawFavicons as Record<string, string> : {};
+  const favicons =
+    rawFavicons && typeof rawFavicons === "object" ? (rawFavicons as Record<string, string>) : {};
   return { data: migrated, undoBuffer, favicons };
 }
 
 export async function saveSessions(sessions: Session[]): Promise<void> {
-  await storageSet({ [STORAGE_KEYS.sessions]: sessions, [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION });
+  await storageSet({
+    [STORAGE_KEYS.sessions]: sessions,
+    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  });
+  await checkQuotaAfterSave();
 }
 
 export async function saveFolders(folders: Folder[]): Promise<void> {
-  await storageSet({ [STORAGE_KEYS.folders]: folders, [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION });
+  await storageSet({
+    [STORAGE_KEYS.folders]: folders,
+    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  });
 }
 
 export async function saveTags(tags: Tag[]): Promise<void> {
@@ -738,23 +778,38 @@ export async function saveTags(tags: Tag[]): Promise<void> {
 }
 
 export async function saveSchedules(schedules: Schedule[]): Promise<void> {
-  await storageSet({ [STORAGE_KEYS.schedules]: schedules, [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION });
+  await storageSet({
+    [STORAGE_KEYS.schedules]: schedules,
+    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  });
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {
-  await storageSet({ [STORAGE_KEYS.settings]: settings, [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION });
+  await storageSet({
+    [STORAGE_KEYS.settings]: settings,
+    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  });
 }
 
 export async function saveStandaloneNotes(standaloneNotes: StandaloneNote[]): Promise<void> {
-  await storageSet({ [STORAGE_KEYS.standaloneNotes]: standaloneNotes, [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION });
+  await storageSet({
+    [STORAGE_KEYS.standaloneNotes]: standaloneNotes,
+    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  });
 }
 
 export async function saveShareLinks(shareLinks: ShareLink[]): Promise<void> {
-  await storageSet({ [STORAGE_KEYS.shareLinks]: shareLinks, [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION });
+  await storageSet({
+    [STORAGE_KEYS.shareLinks]: shareLinks,
+    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  });
 }
 
 export async function saveAIConfig(aiConfig: AIShareConfig): Promise<void> {
-  await storageSet({ [STORAGE_KEYS.aiConfig]: aiConfig, [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION });
+  await storageSet({
+    [STORAGE_KEYS.aiConfig]: aiConfig,
+    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  });
 }
 
 export async function saveStorageData(data: StorageData): Promise<void> {

@@ -5,6 +5,7 @@ import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import EntityEditorModal from "@/components/shared/EntityEditorModal";
 import { exportJSON } from "@/lib/exportImport";
 import { clearAllData, loadStorage } from "@/lib/storage";
+import { checkStorageQuota, formatBytes, type StorageQuotaStatus } from "@/lib/storageQuota";
 import { useFolderStore } from "@/store/folderStore";
 import { useNotesStore } from "@/store/notesStore";
 import { useScheduleStore } from "@/store/scheduleStore";
@@ -32,14 +33,18 @@ function ToggleRow({
     <label className="settings-row">
       <div>
         <div style={{ fontWeight: 600 }}>{label}</div>
-        <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 4 }}>{description}</div>
+        <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 4 }}>
+          {description}
+        </div>
       </div>
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
     </label>
   );
 }
-
-const STORAGE_LIMIT_BYTES = 10 * 1024 * 1024;
 
 export default function SettingsPanel({ addToast }: Props) {
   const settings = useSettingsStore((state) => state.settings);
@@ -67,18 +72,27 @@ export default function SettingsPanel({ addToast }: Props) {
   const importShareLinks = useShareStore((state) => state.importShareLinks);
   const syncAlarms = useScheduleStore((state) => state.syncAlarms);
 
-  const [storageBytes, setStorageBytes] = useState(0);
-  const [folderModal, setFolderModal] = useState<{ mode: "create" | "edit"; folder?: Folder } | null>(null);
+  const [storageQuota, setStorageQuota] = useState<StorageQuotaStatus | null>(null);
+  const [folderModal, setFolderModal] = useState<{
+    mode: "create" | "edit";
+    folder?: Folder;
+  } | null>(null);
   const [tagModal, setTagModal] = useState<{ mode: "create" | "edit"; tag?: Tag } | null>(null);
   const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null);
   const [tagToDelete, setTagToDelete] = useState<Tag | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   useEffect(() => {
-    chrome.storage.local.getBytesInUse(null, (bytes) => {
-      setStorageBytes(bytes);
-    });
-  }, [sessions.length, folders.length, tags.length, schedules.length, standaloneNotes.length, shareLinks.length, settings]);
+    void checkStorageQuota().then(setStorageQuota);
+  }, [
+    sessions.length,
+    folders.length,
+    tags.length,
+    schedules.length,
+    standaloneNotes.length,
+    shareLinks.length,
+    settings,
+  ]);
 
   const handleExport = async () => {
     const data = await loadStorage();
@@ -106,7 +120,7 @@ export default function SettingsPanel({ addToast }: Props) {
     await Promise.all(
       alarms
         .filter((alarm) => alarm.name.startsWith("reminder_"))
-        .map((alarm) => chrome.alarms.clear(alarm.name)),
+        .map((alarm) => chrome.alarms.clear(alarm.name))
     );
 
     if (!enabled) {
@@ -120,26 +134,26 @@ export default function SettingsPanel({ addToast }: Props) {
           dueAt: tab.reminderSnoozedUntil ?? tab.reminderAt,
           dismissed: tab.reminderDismissed,
         }))
-        .filter((tab): tab is { id: string; dueAt: number; dismissed: false } =>
-          Boolean(tab.dueAt) && !tab.dismissed,
-        ),
+        .filter(
+          (tab): tab is { id: string; dueAt: number; dismissed: false } =>
+            Boolean(tab.dueAt) && !tab.dismissed
+        )
     );
 
     await Promise.all(
       reminderTabs.map((tab) =>
         chrome.alarms.create(`reminder_${tab.id}`, {
           when: Math.max(tab.dueAt, Date.now() + 1000),
-        }),
-      ),
+        })
+      )
     );
   };
 
-  const storageUsageMb = storageBytes / (1024 * 1024);
-  const storageUsagePercent = Math.min(100, (storageBytes / STORAGE_LIMIT_BYTES) * 100);
+  const storageUsagePercent = Math.min(100, (storageQuota?.percentage ?? 0) * 100);
   const storageUsageColor =
-    storageUsagePercent > 80
+    storageUsagePercent >= 95
       ? "var(--color-danger)"
-      : storageUsagePercent >= 60
+      : storageUsagePercent >= 80
         ? "var(--color-warning)"
         : "var(--color-success)";
 
@@ -362,7 +376,9 @@ export default function SettingsPanel({ addToast }: Props) {
                   value={settings.quickInfoDelayMs}
                   onChange={(event) =>
                     updateSettings({
-                      quickInfoDelayMs: Number(event.target.value) as typeof settings.quickInfoDelayMs,
+                      quickInfoDelayMs: Number(
+                        event.target.value
+                      ) as typeof settings.quickInfoDelayMs,
                     })
                   }
                 >
@@ -387,15 +403,14 @@ export default function SettingsPanel({ addToast }: Props) {
                 <textarea
                   className="input"
                   value={settings.customAIPromptTemplate}
-                  onChange={(event) => updateSettings({ customAIPromptTemplate: event.target.value })}
+                  onChange={(event) =>
+                    updateSettings({ customAIPromptTemplate: event.target.value })
+                  }
                   placeholder={"Use {{session}} to insert TabSetu's generated session prompt."}
                 />
                 <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 6 }}>
-                  Leave this blank to use the default TabSetu prompt. If you add text here, include
-                  {" "}
-                  <code>{"{{session}}"}</code>
-                  {" "}
-                  where the session context should appear.
+                  Leave this blank to use the default TabSetu prompt. If you add text here, include{" "}
+                  <code>{"{{session}}"}</code> where the session context should appear.
                 </div>
               </div>
 
@@ -405,7 +420,9 @@ export default function SettingsPanel({ addToast }: Props) {
                   className="input"
                   value={settings.autoArchiveDays ?? ""}
                   onChange={(event) => {
-                    const value = event.target.value ? Number(event.target.value) as 30 | 60 | 90 : null;
+                    const value = event.target.value
+                      ? (Number(event.target.value) as 30 | 60 | 90)
+                      : null;
                     updateSettings({ autoArchiveDays: value });
                     applyAutoArchive(value);
                   }}
@@ -420,10 +437,22 @@ export default function SettingsPanel({ addToast }: Props) {
               <div>
                 <label className="label">Storage usage</label>
                 <div className="card-raised" style={{ padding: 14 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
-                    <strong>{storageUsageMb.toFixed(2)} MB used</strong>
-                    <span style={{ color: storageUsagePercent >= 60 ? storageUsageColor : "var(--color-text-muted)" }}>
-                      of 10 MB
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      marginBottom: 10,
+                    }}
+                  >
+                    <strong>{formatBytes(storageQuota?.used ?? 0)} used</strong>
+                    <span
+                      style={{
+                        color:
+                          storageUsagePercent >= 60 ? storageUsageColor : "var(--color-text-muted)",
+                      }}
+                    >
+                      of {formatBytes(storageQuota?.total ?? 10_485_760)}
                     </span>
                   </div>
                   <div className="storage-bar">
@@ -432,8 +461,8 @@ export default function SettingsPanel({ addToast }: Props) {
                       style={{ width: `${storageUsagePercent}%`, background: storageUsageColor }}
                     />
                   </div>
-                  {storageUsagePercent > 80 ? (
-                    <p style={{ color: "var(--color-danger)", fontSize: 12, margin: "10px 0 0" }}>
+                  {storageUsagePercent >= 80 ? (
+                    <p style={{ color: storageUsageColor, fontSize: 12, margin: "10px 0 0" }}>
                       Approaching storage limit. Consider exporting and clearing old sessions.
                     </p>
                   ) : null}
@@ -449,7 +478,10 @@ export default function SettingsPanel({ addToast }: Props) {
             <div>
               <div className="management-header">
                 <strong>Folders</strong>
-                <button className="btn btn-secondary" onClick={() => setFolderModal({ mode: "create" })}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setFolderModal({ mode: "create" })}
+                >
                   Add folder
                 </button>
               </div>
@@ -461,7 +493,7 @@ export default function SettingsPanel({ addToast }: Props) {
                       <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
                         {
                           sessions.filter(
-                            (session) => session.folderId === folder.id && !session.isArchived,
+                            (session) => session.folderId === folder.id && !session.isArchived
                           ).length
                         }{" "}
                         active sessions
@@ -490,7 +522,10 @@ export default function SettingsPanel({ addToast }: Props) {
             <div style={{ marginTop: 22 }}>
               <div className="management-header">
                 <strong>Tags</strong>
-                <button className="btn btn-secondary" onClick={() => setTagModal({ mode: "create" })}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setTagModal({ mode: "create" })}
+                >
                   Add tag
                 </button>
               </div>
@@ -502,7 +537,7 @@ export default function SettingsPanel({ addToast }: Props) {
                       <div style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
                         {
                           sessions.filter(
-                            (session) => session.tagIds.includes(tag.id) && !session.isArchived,
+                            (session) => session.tagIds.includes(tag.id) && !session.isArchived
                           ).length
                         }{" "}
                         active sessions
@@ -546,8 +581,9 @@ export default function SettingsPanel({ addToast }: Props) {
             </button>
           </div>
           <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 14 }}>
-            Current footprint: {sessions.length} sessions, {folders.length} folders, {tags.length} tags,{" "}
-            {schedules.length} schedules, {standaloneNotes.length} notes, {shareLinks.length} share links.
+            Current footprint: {sessions.length} sessions, {folders.length} folders, {tags.length}{" "}
+            tags, {schedules.length} schedules, {standaloneNotes.length} notes, {shareLinks.length}{" "}
+            share links.
           </div>
         </div>
       </div>

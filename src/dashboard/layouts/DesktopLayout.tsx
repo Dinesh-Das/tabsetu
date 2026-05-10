@@ -8,6 +8,7 @@ import SettingsPanel from "@/dashboard/components/SettingsPanel";
 import Sidebar, { type DesktopSidebarView } from "@/dashboard/components/Sidebar";
 import MobileSchedulesScreen from "@/dashboard/components/MobileSchedulesScreen";
 import RemindersPage from "@/dashboard/pages/RemindersPage";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import type { ToastMessage } from "@/types";
 import { useSessionStore } from "@/store/sessionStore";
 
@@ -44,7 +45,7 @@ export default function DesktopLayout({
 
   const selectedSession = useMemo(
     () => sessions.find((session) => session.id === selectedSessionId) ?? null,
-    [selectedSessionId, sessions],
+    [selectedSessionId, sessions]
   );
 
   useEffect(() => {
@@ -74,25 +75,44 @@ export default function DesktopLayout({
   };
 
   return (
-    <div className="desktop-dashboard-layout" data-detail-open={view === "sessions" && Boolean(selectedSession)}>
+    <div
+      className="desktop-dashboard-layout"
+      data-detail-open={view === "sessions" && Boolean(selectedSession)}
+    >
       <Sidebar view={view} setView={setView} addToast={addToast} />
       <main className="desktop-dashboard-main">
         {view === "sessions" ? (
-          <SessionList
-            selectedSessionId={selectedSessionId}
-            onSelect={setSelectedSessionId}
-            addToast={addToast}
-            initialSavePrompt={initialSavePrompt}
-            onInitialSavePromptHandled={onInitialSavePromptHandled}
-          />
+          <ErrorBoundary>
+            <SessionList
+              selectedSessionId={selectedSessionId}
+              onSelect={setSelectedSessionId}
+              addToast={addToast}
+              initialSavePrompt={initialSavePrompt}
+              onInitialSavePromptHandled={onInitialSavePromptHandled}
+            />
+          </ErrorBoundary>
         ) : null}
-        {view === "notes" ? <NotesPanel addToast={addToast} onOpenSession={openSessionDetail} /> : null}
+        {view === "notes" ? (
+          <ErrorBoundary>
+            <NotesPanel addToast={addToast} onOpenSession={openSessionDetail} />
+          </ErrorBoundary>
+        ) : null}
         {view === "reminders" ? (
-          <RemindersPage addToast={addToast} onOpenSession={openSessionDetail} />
+          <ErrorBoundary>
+            <RemindersPage addToast={addToast} onOpenSession={openSessionDetail} />
+          </ErrorBoundary>
         ) : null}
-        {view === "schedules" ? <MobileSchedulesScreen addToast={addToast} /> : null}
+        {view === "schedules" ? (
+          <ErrorBoundary>
+            <MobileSchedulesScreen addToast={addToast} />
+          </ErrorBoundary>
+        ) : null}
         {view === "settings" ? <SettingsPanel addToast={addToast} /> : null}
-        {view === "importexport" ? <ImportExportPanel addToast={addToast} /> : null}
+        {view === "importexport" ? (
+          <ErrorBoundary>
+            <ImportExportPanel addToast={addToast} />
+          </ErrorBoundary>
+        ) : null}
       </main>
       <AnimatePresence initial={false}>
         {view === "sessions" && selectedSession ? (
@@ -104,11 +124,13 @@ export default function DesktopLayout({
             exit={{ opacity: 0, x: 28 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
           >
-            <SessionDetail
-              session={selectedSession}
-              onClose={() => setSelectedSessionId(null)}
-              addToast={addToast}
-            />
+            <ErrorBoundary>
+              <SessionDetail
+                session={selectedSession}
+                onClose={() => setSelectedSessionId(null)}
+                addToast={addToast}
+              />
+            </ErrorBoundary>
           </motion.div>
         ) : null}
       </AnimatePresence>

@@ -45,7 +45,11 @@ function NoteEditor({ note, addToast, onClose }: NoteEditorProps) {
       subtitle="Capture the thought before the tab trail disappears."
       onClose={onClose}
       footer={
-        <button className="mobile-primary-button save-sheet-primary" type="button" onClick={handleSave}>
+        <button
+          className="mobile-primary-button save-sheet-primary"
+          type="button"
+          onClick={handleSave}
+        >
           {note ? "Save Note" : "Create Note"}
         </button>
       }
@@ -93,8 +97,7 @@ export default function MobileNotesScreen({ addToast }: Props) {
 
     return notes.filter(
       (note) =>
-        note.title.toLowerCase().includes(trimmed) ||
-        note.content.toLowerCase().includes(trimmed),
+        note.title.toLowerCase().includes(trimmed) || note.content.toLowerCase().includes(trimmed)
     );
   }, [notes, query]);
 
@@ -123,7 +126,11 @@ export default function MobileNotesScreen({ addToast }: Props) {
             <Grid2X2 size={17} />
           </button>
         </div>
-        <button className="mobile-primary-button notes-new-button" type="button" onClick={() => setEditorNote("new")}>
+        <button
+          className="mobile-primary-button notes-new-button"
+          type="button"
+          onClick={() => setEditorNote("new")}
+        >
           <Plus size={18} />
           New Note
         </button>
@@ -131,7 +138,11 @@ export default function MobileNotesScreen({ addToast }: Props) {
 
       <label className="mobile-search notes-search">
         <Search size={18} />
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search notes..." />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search notes..."
+        />
       </label>
 
       {visibleNotes.length === 0 ? (
@@ -144,7 +155,11 @@ export default function MobileNotesScreen({ addToast }: Props) {
               : "Create your first note to capture ideas and information."
           }
           action={
-            <button className="mobile-primary-button" type="button" onClick={() => setEditorNote("new")}>
+            <button
+              className="mobile-primary-button"
+              type="button"
+              onClick={() => setEditorNote("new")}
+            >
               Create New Note
             </button>
           }
@@ -162,7 +177,11 @@ export default function MobileNotesScreen({ addToast }: Props) {
                   <MobileIconButton title="Edit note" onClick={() => setEditorNote(note)}>
                     <Edit3 size={17} />
                   </MobileIconButton>
-                  <MobileIconButton title="Delete note" danger onClick={() => setPendingDelete(note)}>
+                  <MobileIconButton
+                    title="Delete note"
+                    danger
+                    onClick={() => setPendingDelete(note)}
+                  >
                     <Trash2 size={17} />
                   </MobileIconButton>
                 </div>

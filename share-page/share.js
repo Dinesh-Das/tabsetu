@@ -1,16 +1,13 @@
-function fromBase64Url(value) {
-  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
-  const binary = atob(padded);
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-}
-
 function readSnapshot() {
   const encoded = window.location.hash.slice(1);
   if (!encoded) {
     throw new Error("Missing TabSetu share data.");
   }
-  const parsed = JSON.parse(fromBase64Url(encoded));
+  const decompressed = window.LZString?.decompressFromEncodedURIComponent(encoded);
+  if (!decompressed) {
+    throw new Error("Invalid TabSetu share data.");
+  }
+  const parsed = JSON.parse(decompressed);
   if (!parsed || parsed.v !== 1 || !Array.isArray(parsed.tabs)) {
     throw new Error("Invalid TabSetu share data.");
   }

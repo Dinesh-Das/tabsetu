@@ -59,14 +59,14 @@ export default function Onboarding() {
     const updateSpotlight = (): void => {
       const rect = getSpotlightRect(current.target);
       const spotlight = spotlightRef.current;
-      
+
       if (rect && spotlight) {
         const padding = 8;
         const top = Math.max(rect.top - padding, 8);
         const left = Math.max(rect.left - padding, 8);
         const width = rect.width + padding * 2;
         const height = rect.height + padding * 2;
-        
+
         const newRectString = `${top},${left},${width},${height}`;
         if (newRectString !== lastRectString) {
           spotlight.style.top = `${top}px`;
@@ -74,13 +74,14 @@ export default function Onboarding() {
           spotlight.style.width = `${width}px`;
           spotlight.style.height = `${height}px`;
           spotlight.style.opacity = "1";
-          spotlight.style.transition = lastRectString === "" ? "none" : "all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)";
+          spotlight.style.transition =
+            lastRectString === "" ? "none" : "all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)";
           lastRectString = newRectString;
         }
       } else if (spotlight) {
         spotlight.style.opacity = "0";
       }
-      
+
       animationFrameId = requestAnimationFrame(updateSpotlight);
     };
 
@@ -100,14 +101,26 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="tabsetu-onboarding-title">
+    <div
+      className="onboarding-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tabsetu-onboarding-title"
+    >
       <div className="onboarding-backdrop" aria-hidden />
       <div ref={spotlightRef} className="onboarding-spotlight" style={{ opacity: 0 }} aria-hidden />
       <section className="onboarding-card animate-scale-in">
-        <button className="onboarding-close" type="button" onClick={finish} title="Dismiss onboarding">
+        <button
+          className="onboarding-close"
+          type="button"
+          onClick={finish}
+          title="Dismiss onboarding"
+        >
           <X size={18} />
         </button>
-        <p className="onboarding-kicker">Step {step + 1} of {STEPS.length}</p>
+        <p className="onboarding-kicker">
+          Step {step + 1} of {STEPS.length}
+        </p>
         <h2 id="tabsetu-onboarding-title">{current.title}</h2>
         <p>{current.body}</p>
         <div className="onboarding-dots" aria-label={`Step ${step + 1} of ${STEPS.length}`}>

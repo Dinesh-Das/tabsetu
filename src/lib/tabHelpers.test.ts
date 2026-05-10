@@ -33,12 +33,14 @@ describe("fetchFavIconDataUrl", () => {
           new Response(new Uint8Array([1, 2, 3]), {
             status: 200,
             headers: { "content-type": "image/png" },
-          }),
-        ),
-      ),
+          })
+        )
+      )
     );
 
-    await expect(fetchFavIconDataUrl("https://example.com/favicon.png")).resolves.toBe("data:image/png;base64,AQID");
+    await expect(fetchFavIconDataUrl("https://example.com/favicon.png")).resolves.toBe(
+      "data:image/png;base64,AQID"
+    );
   });
 
   it("returns null for a missing favicon URL", async () => {
@@ -48,7 +50,7 @@ describe("fetchFavIconDataUrl", () => {
   it("returns null for an unsuccessful response", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn<() => Promise<Response>>(() => Promise.resolve(new Response(null, { status: 404 }))),
+      vi.fn<() => Promise<Response>>(() => Promise.resolve(new Response(null, { status: 404 })))
     );
 
     await expect(fetchFavIconDataUrl("https://example.com/missing.ico")).resolves.toBeNull();
@@ -57,7 +59,7 @@ describe("fetchFavIconDataUrl", () => {
   it("returns null when the network request fails", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn<() => Promise<Response>>(() => Promise.reject(new Error("network unavailable"))),
+      vi.fn<() => Promise<Response>>(() => Promise.reject(new Error("network unavailable")))
     );
 
     await expect(fetchFavIconDataUrl("https://example.com/favicon.ico")).resolves.toBeNull();
@@ -72,9 +74,9 @@ describe("fetchFavIconDataUrl", () => {
           new Response(new Uint8Array([4, 5, 6]), {
             status: 200,
             headers: { "content-type": "image/x-icon" },
-          }),
-        ),
-      ),
+          })
+        )
+      )
     );
 
     const item = await chromeTabToTabItemWithFavicon(
@@ -83,7 +85,7 @@ describe("fetchFavIconDataUrl", () => {
         url: "https://example.com",
         favIconUrl: "https://example.com/favicon.ico",
       } as chrome.tabs.Tab,
-      2,
+      2
     );
 
     expect(item.favIconUrl).toBe("https://example.com/favicon.ico");

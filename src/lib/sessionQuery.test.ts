@@ -28,7 +28,7 @@ function createSession(
   id: string,
   lastOpenedAt: number,
   folderId: string | null,
-  tagIds: string[],
+  tagIds: string[]
 ): Session {
   return {
     id,
@@ -51,8 +51,24 @@ function createSession(
 }
 
 const folders: Folder[] = [
-  { id: "folder-work", name: "Work", color: "#3B82F6", icon: "Work", position: 0, createdAt: 1, updatedAt: 1 },
-  { id: "folder-life", name: "Life", color: "#10B981", icon: "Life", position: 1, createdAt: 1, updatedAt: 1 },
+  {
+    id: "folder-work",
+    name: "Work",
+    color: "#3B82F6",
+    icon: "Work",
+    position: 0,
+    createdAt: 1,
+    updatedAt: 1,
+  },
+  {
+    id: "folder-life",
+    name: "Life",
+    color: "#10B981",
+    icon: "Life",
+    position: 1,
+    createdAt: 1,
+    updatedAt: 1,
+  },
 ];
 
 const tags: Tag[] = [
@@ -114,7 +130,10 @@ describe("buildSessionListItems", () => {
     ];
 
     const items = buildSessionListItems({
-      sessions: [createSession("session-level", 100, "folder-life", ["tag-later"]), tabOrganizedSession],
+      sessions: [
+        createSession("session-level", 100, "folder-life", ["tag-later"]),
+        tabOrganizedSession,
+      ],
       folders,
       tags,
       settings: {
@@ -155,7 +174,11 @@ describe("sortSessions", () => {
       createdAt: 20,
       updatedAt: 60,
       lastOpenedAt: 300,
-      tabs: [createTab("charlie-tab-1", 20), createTab("charlie-tab-2", 20), createTab("charlie-tab-3", 20)],
+      tabs: [
+        createTab("charlie-tab-1", 20),
+        createTab("charlie-tab-2", 20),
+        createTab("charlie-tab-3", 20),
+      ],
     },
   ];
 

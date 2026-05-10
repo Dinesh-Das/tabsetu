@@ -45,7 +45,9 @@ export default function CurrentTabs({
   }, []);
 
   const visibleTabs = useMemo(() => filterCapturableTabs(tabs, query), [query, tabs]);
-  const selectedVisibleCount = visibleTabs.filter((tab) => tab.id && selectedIds.includes(tab.id)).length;
+  const selectedVisibleCount = visibleTabs.filter(
+    (tab) => tab.id && selectedIds.includes(tab.id)
+  ).length;
 
   useEffect(() => {
     onTabCountChange?.(visibleTabs.length);
@@ -55,7 +57,7 @@ export default function CurrentTabs({
     setSelectedIds(
       selectedIds.includes(tabId)
         ? selectedIds.filter((id) => id !== tabId)
-        : [...selectedIds, tabId],
+        : [...selectedIds, tabId]
     );
   };
 
@@ -90,9 +92,15 @@ export default function CurrentTabs({
             {selectedVisibleCount} selected - {visibleTabs.length} total
           </p>
         </div>
-        <button className="mobile-secondary-button popup-select-all" type="button" onClick={toggleAll}>
+        <button
+          className="mobile-secondary-button popup-select-all"
+          type="button"
+          onClick={toggleAll}
+        >
           <SquareCheckBig size={16} />
-          {selectedVisibleCount === visibleTabs.length && visibleTabs.length !== 0 ? "Clear" : "Select All"}
+          {selectedVisibleCount === visibleTabs.length && visibleTabs.length !== 0
+            ? "Clear"
+            : "Select All"}
         </button>
       </section>
 

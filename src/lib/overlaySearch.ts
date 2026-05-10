@@ -27,7 +27,7 @@ export interface OverlaySearchRow {
 export function scoreOverlayRows(
   rows: OverlaySearchRow[],
   query: string,
-  settings?: Pick<Settings, "searchScopes" | "fuzzySearchThreshold">,
+  settings?: Pick<Settings, "searchScopes" | "fuzzySearchThreshold">
 ): OverlaySearchRow[] {
   const trimmedQuery = query.trim();
   if (!trimmedQuery) {
@@ -57,7 +57,7 @@ export function scoreOverlayRows(
       { name: "sessionNote", weight: 0.14 },
       { name: "tabNote", weight: 0.04 },
       { name: "noteTitle", weight: 0.3 },
-      { name: "noteContent", weight: 0.14 },
+      { name: "noteContent", weight: 0.14 }
     );
   }
   if (useFolders) {
@@ -71,7 +71,7 @@ export function scoreOverlayRows(
       { name: "tabTitle", weight: 0.14 },
       { name: "tabUrl", weight: 0.1 },
       { name: "historyTitle", weight: 0.14 },
-      { name: "historyUrl", weight: 0.1 },
+      { name: "historyUrl", weight: 0.1 }
     );
   }
 
@@ -84,5 +84,7 @@ export function scoreOverlayRows(
     ignoreLocation: true,
     findAllMatches: true,
     keys,
-  }).search(trimmedQuery).map((result) => result.item);
+  })
+    .search(trimmedQuery)
+    .map((result) => result.item);
 }

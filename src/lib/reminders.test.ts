@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatReminderDate, isReminderInPastWindow, oneHourFromNow, tomorrowAtNine } from "@/lib/reminders";
+import {
+  formatReminderDate,
+  isReminderInPastWindow,
+  oneHourFromNow,
+  tomorrowAtNine,
+} from "@/lib/reminders";
 
 describe("reminder helpers", () => {
   it("formats reminders scheduled for today and tomorrow", () => {

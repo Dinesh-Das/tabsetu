@@ -12,7 +12,7 @@ export function formatDateTime(timestamp: number | null): string {
 }
 
 export function formatRelativeCount(count: number, singular: string, plural?: string): string {
-  return `${count} ${count === 1 ? singular : plural ?? `${singular}s`}`;
+  return `${count} ${count === 1 ? singular : (plural ?? `${singular}s`)}`;
 }
 
 export function formatScheduleLabel(type: string): string {

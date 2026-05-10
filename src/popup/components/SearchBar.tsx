@@ -40,11 +40,7 @@ export default function SearchBar({
         autoFocus
       />
       {value ? (
-        <button
-          className="icon-reset"
-          onClick={() => onChange("")}
-          aria-label="Clear search"
-        >
+        <button className="icon-reset" onClick={() => onChange("")} aria-label="Clear search">
           <X size={14} />
         </button>
       ) : null}

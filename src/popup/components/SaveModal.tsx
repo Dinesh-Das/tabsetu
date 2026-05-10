@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Check,
-  FolderOpen,
-  Paintbrush,
-  Plus,
-  Tag,
-} from "lucide-react";
+import { Check, FolderOpen, Paintbrush, Plus, Tag } from "lucide-react";
 import { BottomSheet } from "@/components/mobile/MobileUI";
 import type { Session, ToastMessage } from "@/types";
 import { defaultSavedSessionTitle } from "@/lib/sessionLabels";
-import { closeTabs, collectTabsForSession, chromeTabToTabItemWithFavicon, sanitizeLabel } from "@/lib/tabHelpers";
+import {
+  closeTabs,
+  collectTabsForSession,
+  chromeTabToTabItemWithFavicon,
+  sanitizeLabel,
+} from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -18,10 +17,10 @@ import { useTagStore } from "@/store/tagStore";
 interface Props {
   mode: "save" | "collapse";
   selectedTabIds: number[];
-  preferredTitleTabId?: number | null;
+  preferredTitleTabId?: number | null | undefined;
   onClose: () => void;
   addToast: (type: ToastMessage["type"], message: string) => void;
-  onCollapseSaved?: (payload: { session: Session; windowId: number | null }) => void;
+  onCollapseSaved?: ((payload: { session: Session; windowId: number | null }) => void) | undefined;
 }
 
 const COLOR_LABELS: Array<{ value: string | null; label: string }> = [
@@ -37,7 +36,9 @@ const COLOR_LABELS: Array<{ value: string | null; label: string }> = [
 ];
 
 function titleFromTabs(tabs: chrome.tabs.Tab[], preferredTitleTabId?: number | null): string {
-  const preferredTab = preferredTitleTabId ? tabs.find((tab) => tab.id === preferredTitleTabId) : null;
+  const preferredTab = preferredTitleTabId
+    ? tabs.find((tab) => tab.id === preferredTitleTabId)
+    : null;
   const titleTab = preferredTab ?? tabs.find((tab) => tab.active) ?? tabs[0];
   if (!titleTab) {
     return "";
@@ -74,7 +75,9 @@ export default function SaveModal({
   const [sessionColor, setSessionColor] = useState<string | null>(null);
   const [sessionTitle, setSessionTitle] = useState("");
   const [titleEdited, setTitleEdited] = useState(false);
-  const [includePinned, setIncludePinned] = useState(mode === "save" ? true : settings.collapseIncludesPinned);
+  const [includePinned, setIncludePinned] = useState(
+    mode === "save" ? true : settings.collapseIncludesPinned
+  );
   const [closeAfterSave, setCloseAfterSave] = useState(mode === "collapse");
   const [tabCount, setTabCount] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
@@ -116,7 +119,7 @@ export default function SaveModal({
     setSelectedTagIds((current) =>
       current.includes(tagId)
         ? current.filter((existing) => existing !== tagId)
-        : [...current, tagId],
+        : [...current, tagId]
     );
   };
 
@@ -169,7 +172,7 @@ export default function SaveModal({
       }
 
       const savedTabs = await Promise.all(
-        tabs.map((tab, index) => chromeTabToTabItemWithFavicon(tab, index)),
+        tabs.map((tab, index) => chromeTabToTabItemWithFavicon(tab, index))
       );
 
       const session = createSession(
@@ -177,7 +180,7 @@ export default function SaveModal({
         selectedFolder ? `Saved to ${selectedFolder.name}` : "",
         savedTabs,
         folderId || null,
-        selectedTagIds,
+        selectedTagIds
       );
 
       if (sessionColor) {
@@ -188,9 +191,15 @@ export default function SaveModal({
         const windowId = tabs[0]?.windowId ?? null;
         await closeTabs(tabs);
         onCollapseSaved?.({ session, windowId });
-        addToast("success", `Saved and closed ${tabs.length} ${tabs.length === 1 ? "tab" : "tabs"}.`);
+        addToast(
+          "success",
+          `Saved and closed ${tabs.length} ${tabs.length === 1 ? "tab" : "tabs"}.`
+        );
       } else {
-        addToast("success", `Saved ${tabs.length} ${tabs.length === 1 ? "tab" : "tabs"} to TabSetu.`);
+        addToast(
+          "success",
+          `Saved ${tabs.length} ${tabs.length === 1 ? "tab" : "tabs"} to TabSetu.`
+        );
       }
 
       onClose();
@@ -204,7 +213,9 @@ export default function SaveModal({
   return (
     <BottomSheet
       title={sheetTitle}
-      subtitle={closeAfterSave ? "Review details, then save and close." : "Review details before saving."}
+      subtitle={
+        closeAfterSave ? "Review details, then save and close." : "Review details before saving."
+      }
       onClose={onClose}
       className="save-bottom-sheet"
       footer={
@@ -274,7 +285,11 @@ export default function SaveModal({
               </button>
             </div>
           ) : (
-            <button className="save-sheet-inline-action" type="button" onClick={() => setCreatingFolder(true)}>
+            <button
+              className="save-sheet-inline-action"
+              type="button"
+              onClick={() => setCreatingFolder(true)}
+            >
               <Plus size={15} />
               New folder
             </button>
@@ -284,7 +299,9 @@ export default function SaveModal({
         <section className="save-sheet-panel">
           <div className="save-sheet-panel-header">
             <span>Tags</span>
-            <strong>{selectedTagIds.length ? `${selectedTagIds.length} selected` : "Optional"}</strong>
+            <strong>
+              {selectedTagIds.length ? `${selectedTagIds.length} selected` : "Optional"}
+            </strong>
           </div>
           {tags.length !== 0 ? (
             <div className="save-sheet-choice-row">
@@ -316,7 +333,11 @@ export default function SaveModal({
               </button>
             </div>
           ) : (
-            <button className="save-sheet-inline-action" type="button" onClick={() => setCreatingTag(true)}>
+            <button
+              className="save-sheet-inline-action"
+              type="button"
+              onClick={() => setCreatingTag(true)}
+            >
               <Plus size={15} />
               New tag
             </button>

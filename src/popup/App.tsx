@@ -8,8 +8,15 @@ import {
   type MobileNavView,
 } from "@/components/mobile/MobileUI";
 import ThemeToggle from "@/components/shared/ThemeToggle";
+import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import type { Session, ToastMessage, UndoCollapseBuffer } from "@/types";
-import { clearAllData, COLLAPSE_UNDO_MS, loadStorageWithUndoBuffer, saveUndoBuffer } from "@/lib/storage";
+import {
+  clearAllData,
+  COLLAPSE_UNDO_MS,
+  loadStorageWithUndoBuffer,
+  saveUndoBuffer,
+} from "@/lib/storage";
 import { seedFavicons } from "@/hooks/useFavicons";
 import { filterCapturableTabs } from "@/lib/popupTabs";
 import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
@@ -21,6 +28,7 @@ import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useShareStore } from "@/store/shareStore";
 import { useTagStore } from "@/store/tagStore";
+import { useHydrationStore } from "@/store/hydration";
 import MobileFoldersScreen from "@/dashboard/components/MobileFoldersScreen";
 import MobileHomeScreen from "@/dashboard/components/MobileHomeScreen";
 import MobileNotesScreen from "@/dashboard/components/MobileNotesScreen";
@@ -88,7 +96,9 @@ class AppErrorBoundary extends React.Component<{ children: ReactNode }, { error:
   }
   render() {
     if (this.state.error) {
-      return <ErrorScreen error={this.state.error} onReset={() => this.setState({ error: null })} />;
+      return (
+        <ErrorScreen error={this.state.error} onReset={() => this.setState({ error: null })} />
+      );
     }
     return this.props.children;
   }
@@ -97,6 +107,7 @@ class AppErrorBoundary extends React.Component<{ children: ReactNode }, { error:
 function PopupAppContent() {
   const sessions = useSessionStore((state) => state.sessions);
   const settings = useSettingsStore((state) => state.settings);
+  const isReady = useHydrationStore((state) => state.isReady);
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [view, setView] = useState<PopupView>("home");
@@ -110,28 +121,34 @@ function PopupAppContent() {
     return () => document.body.classList.remove("is-popup-root");
   }, []);
 
+  // Bootstraps persisted state once; showUndoToast is stable enough for the initial undo toast.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     let mounted = true;
-    void loadStorageWithUndoBuffer().then(({ data, undoBuffer, favicons }) => {
-      seedFavicons(favicons);
-      useSessionStore.getState().importSessions(data.sessions);
-      useFolderStore.getState().importFolders(data.folders);
-      useTagStore.getState().importTags(data.tags);
-      useScheduleStore.getState().importSchedules(data.schedules);
-      useNotesStore.getState().importNotes(data.standaloneNotes);
-      useShareStore.getState().importShareLinks(data.shareLinks);
-      useSettingsStore.setState({ settings: data.settings });
-      if (undoBuffer) {
-        showUndoToast(undoBuffer);
-      }
-    }).finally(() => {
-      if (mounted) {
-        setIsBootstrapped(true);
-      }
-    });
+    void loadStorageWithUndoBuffer()
+      .then(({ data, undoBuffer, favicons }) => {
+        seedFavicons(favicons);
+        useSessionStore.getState().importSessions(data.sessions);
+        useFolderStore.getState().importFolders(data.folders);
+        useTagStore.getState().importTags(data.tags);
+        useScheduleStore.getState().importSchedules(data.schedules);
+        useNotesStore.getState().importNotes(data.standaloneNotes);
+        useShareStore.getState().importShareLinks(data.shareLinks);
+        useSettingsStore.setState({ settings: data.settings });
+        Array.from({ length: 7 }).forEach(() => useHydrationStore.getState().markOneHydrated());
+        if (undoBuffer) {
+          showUndoToast(undoBuffer);
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setIsBootstrapped(true);
+        }
+      });
     return () => {
       mounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -146,7 +163,7 @@ function PopupAppContent() {
   const addToast = (
     type: ToastMessage["type"],
     message: string,
-    options?: Partial<ToastMessage>,
+    options?: Partial<ToastMessage>
   ) => {
     const id = options?.id ?? `toast-${Date.now()}`;
     const toast: ToastMessage = { id, type, message, ...options };
@@ -194,21 +211,23 @@ function PopupAppContent() {
 
   const showUndoToast = (buffer: UndoCollapseBuffer) => {
     const toastId = `toast-undo-${buffer.createdAt}`;
-    addToast(
-      "info",
-      `Collapsed "${buffer.sessionName}". You can undo for 10 seconds.`,
-      {
-        id: toastId,
-        actionLabel: "Undo",
-        onAction: () => {
-          void restoreUndoBuffer(buffer, toastId);
-        },
-        durationMs: Math.max(buffer.expiresAt - Date.now(), 1000),
+    addToast("info", `Collapsed "${buffer.sessionName}". You can undo for 10 seconds.`, {
+      id: toastId,
+      actionLabel: "Undo",
+      onAction: () => {
+        void restoreUndoBuffer(buffer, toastId);
       },
-    );
+      durationMs: Math.max(buffer.expiresAt - Date.now(), 1000),
+    });
   };
 
-  const handleCollapseSaved = ({ session, windowId }: { session: Session; windowId: number | null }) => {
+  const handleCollapseSaved = ({
+    session,
+    windowId,
+  }: {
+    session: Session;
+    windowId: number | null;
+  }) => {
     const createdAt = Date.now();
     const buffer: UndoCollapseBuffer = {
       sessionId: session.id,
@@ -230,7 +249,7 @@ function PopupAppContent() {
       const usesCommandShortcutModifier = event.shiftKey && (event.ctrlKey || event.metaKey);
       const usesAltShortcutModifier = event.shiftKey && event.altKey;
       const usesLegacySessionShortcutModifier =
-        event.shiftKey && ((event.ctrlKey || event.metaKey) || event.altKey);
+        event.shiftKey && (event.ctrlKey || event.metaKey || event.altKey);
 
       if (
         (usesAltShortcutModifier && event.key.toLowerCase() === "u") ||
@@ -325,14 +344,16 @@ function PopupAppContent() {
       trailing={appTrailing}
     >
       {view === "home" ? (
-        <MobileHomeScreen
-          addToast={addToast}
-          onCollapseSaved={handleCollapseSaved}
-          onSelectTabs={() => setView("capture")}
-          onQuickSave={() => openSaveModal("save")}
-          onCollapseCurrent={() => openSaveModal("collapse")}
-          currentTabCount={currentTabCount}
-        />
+        <ErrorBoundary>
+          <MobileHomeScreen
+            addToast={addToast}
+            onCollapseSaved={handleCollapseSaved}
+            onSelectTabs={() => setView("capture")}
+            onQuickSave={() => openSaveModal("save")}
+            onCollapseCurrent={() => openSaveModal("collapse")}
+            currentTabCount={currentTabCount}
+          />
+        </ErrorBoundary>
       ) : null}
       {view === "folders" ? <MobileFoldersScreen addToast={addToast} /> : null}
       {view === "schedules" ? <MobileSchedulesScreen addToast={addToast} /> : null}
@@ -354,6 +375,10 @@ function PopupAppContent() {
       ) : null}
     </MobileAppShell>
   );
+
+  if (!isReady) {
+    return <LoadingSkeleton />;
+  }
 }
 
 export default function PopupApp() {

@@ -22,7 +22,14 @@ export default function ModalShell({
 }: Props) {
   const content = (
     <>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
         <div>
           <h3 style={{ fontSize: 18 }}>{title}</h3>
           {description ? (
@@ -31,7 +38,12 @@ export default function ModalShell({
             </p>
           ) : null}
         </div>
-        <button className="btn btn-ghost btn-icon" type="button" onClick={onClose} title="Close dialog">
+        <button
+          className="btn btn-ghost btn-icon"
+          type="button"
+          onClick={onClose}
+          title="Close dialog"
+        >
           <X size={16} />
         </button>
       </div>

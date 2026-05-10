@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { ShareLink } from "@/types";
 import { loadStorage, saveShareLinks } from "@/lib/storage";
+import { useHydrationStore } from "@/store/hydration";
 import { generateId } from "@/lib/tabHelpers";
 
 interface ShareState {
@@ -23,6 +24,7 @@ export const useShareStore = create<ShareState>((set, get) => ({
   load: async () => {
     const data = await loadStorage();
     set({ shareLinks: data.shareLinks });
+    useHydrationStore.getState().markOneHydrated();
   },
 
   createShareLink: (sessionId, encodedData) => {

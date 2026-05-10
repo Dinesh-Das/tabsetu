@@ -33,16 +33,19 @@ const POPUP_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
   { value: "createdAt", label: "Recently created" },
 ];
 
-function getSessionIcon(icon: string | null): ComponentType<{ size?: number; "aria-hidden"?: boolean }> | null {
+function getSessionIcon(
+  icon: string | null
+): ComponentType<{ size?: number; "aria-hidden"?: boolean }> | null {
   if (!icon) {
     return null;
   }
 
   const iconName = toLucideExportName(icon);
-  const lucideIcons = LucideIcons as unknown as Record<string, ComponentType<{ size?: number; "aria-hidden"?: boolean }>>;
-  return iconName in LucideIcons
-    ? lucideIcons[iconName] ?? null
-    : null;
+  const lucideIcons = LucideIcons as unknown as Record<
+    string,
+    ComponentType<{ size?: number; "aria-hidden"?: boolean }>
+  >;
+  return iconName in LucideIcons ? (lucideIcons[iconName] ?? null) : null;
 }
 
 function isSortOption(value: string | null): value is SortOption {
@@ -88,7 +91,12 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
   const [activeFolderId, setActiveFolderId] = useState("");
   const [activeTagId, setActiveTagId] = useState("");
   const [keyboardIndex, setKeyboardIndex] = useState(0);
-  const [quickInfo, setQuickInfo] = useState<{ sessionId: string; tab: TabItem; x: number; y: number } | null>(null);
+  const [quickInfo, setQuickInfo] = useState<{
+    sessionId: string;
+    tab: TabItem;
+    x: number;
+    y: number;
+  } | null>(null);
   const [quickInfoDraftNote, setQuickInfoDraftNote] = useState("");
   const [quickInfoEditing, setQuickInfoEditing] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>(readStoredPopupSort);
@@ -98,7 +106,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
   const favicons = useFavicons();
   const searchIndex = useMemo(
     () => buildSearchIndex(sessions, folders, tags, settings),
-    [folders, sessions, settings.fuzzySearchThreshold, settings.searchScopes, tags],
+    [folders, sessions, settings, tags]
   );
 
   const itemsForTagFilters = useMemo(
@@ -114,7 +122,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
         tagId: null,
         searchIndex,
       }),
-    [activeFolderId, folders, query, searchIndex, sessions, settings, sortBy, tags],
+    [activeFolderId, folders, query, searchIndex, sessions, settings, sortBy, tags]
   );
 
   const availableTags = useMemo(() => {
@@ -122,7 +130,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
       itemsForTagFilters.flatMap((item) => [
         ...item.session.tagIds,
         ...item.session.tabs.flatMap((tab) => tab.tagIds),
-      ]),
+      ])
     );
     return tags.filter((tag) => visibleTagIds.has(tag.id));
   }, [itemsForTagFilters, tags]);
@@ -140,7 +148,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
         tagId: activeTagId || null,
         searchIndex,
       }),
-    [activeFolderId, activeTagId, folders, query, searchIndex, sessions, settings, sortBy, tags],
+    [activeFolderId, activeTagId, folders, query, searchIndex, sessions, settings, sortBy, tags]
   );
 
   useEffect(() => {
@@ -189,7 +197,10 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
     setKeyboardIndex((current) => Math.min(current, visibleItems.length - 1));
   }, [visibleItems.length]);
 
-  const handleOpenSession = async (session: Session, openInNewWindow = settings.openInNewWindow) => {
+  const handleOpenSession = async (
+    session: Session,
+    openInNewWindow = settings.openInNewWindow
+  ) => {
     const openedCount = await openSessionTabs(session, openInNewWindow);
     if (openedCount === 0) {
       addToast("error", "This session does not have any openable tabs.");
@@ -199,7 +210,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
     recordOpened(session.id);
     addToast(
       "success",
-      `Opened "${session.name}" with ${openedCount} ${openedCount === 1 ? "tab" : "tabs"}.`,
+      `Opened "${session.name}" with ${openedCount} ${openedCount === 1 ? "tab" : "tabs"}.`
     );
   };
 
@@ -298,7 +309,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
               note: quickInfoDraftNote,
             },
           }
-        : null,
+        : null
     );
     setQuickInfoEditing(false);
     addToast("success", "Saved tab note.");
@@ -318,6 +329,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
       block: "nearest",
       behavior: "smooth",
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyboardIndex, listKeyboardActive, visibleItems]);
 
   useEffect(() => {
@@ -346,7 +358,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
             ...current,
             tab: latestTab,
           }
-        : null,
+        : null
     );
 
     if (!quickInfoEditing) {
@@ -367,8 +379,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
       const activeElement = document.activeElement;
       const tagName = activeElement?.tagName ?? "";
       const isSearchInput =
-        activeElement instanceof HTMLInputElement &&
-        activeElement.id === "tabsetu-popup-search";
+        activeElement instanceof HTMLInputElement && activeElement.id === "tabsetu-popup-search";
       const blocksKeyboardListControl =
         tagName === "TEXTAREA" ||
         tagName === "SELECT" ||
@@ -416,6 +427,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyboardIndex, listKeyboardActive, visibleItems]);
 
   return (
@@ -432,7 +444,15 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
         <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
           {visibleItems.length} saved {visibleItems.length === 1 ? "session" : "sessions"}
         </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+            justifyContent: "flex-end",
+          }}
+        >
           <label
             htmlFor="tabsetu-popup-sort"
             style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}
@@ -458,7 +478,12 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
               ))}
             </select>
           </label>
-          <button className="btn btn-primary" type="button" style={{ fontSize: 12 }} onClick={onSaveNew}>
+          <button
+            className="btn btn-primary"
+            type="button"
+            style={{ fontSize: 12 }}
+            onClick={onSaveNew}
+          >
             <Plus size={14} />
             Save current tabs
           </button>
@@ -522,7 +547,9 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
 
       <div style={{ flex: 1, overflowY: "auto", padding: "0 12px 12px" }}>
         {visibleItems.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "44px 18px", color: "var(--color-text-muted)" }}>
+          <div
+            style={{ textAlign: "center", padding: "44px 18px", color: "var(--color-text-muted)" }}
+          >
             <div style={{ fontSize: 16, fontWeight: 600, color: "var(--color-text-secondary)" }}>
               {query ? "No sessions match that search" : "No saved sessions yet"}
             </div>
@@ -542,7 +569,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
             : session.description || session.note || "";
           const secondaryRanges = searchResult?.highlights.sessionNote.length
             ? searchResult.highlights.sessionNote
-            : searchResult?.highlights.sessionDescription ?? [];
+            : (searchResult?.highlights.sessionDescription ?? []);
           const isKeyboardSelected = listKeyboardActive && keyboardIndex === index;
 
           return (
@@ -572,7 +599,11 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                     {session.color ? (
-                      <span className="session-color-dot" style={{ background: session.color }} aria-hidden="true" />
+                      <span
+                        className="session-color-dot"
+                        style={{ background: session.color }}
+                        aria-hidden="true"
+                      />
                     ) : null}
                     {SessionIcon ? <SessionIcon size={14} aria-hidden={true} /> : null}
                     {session.isPinned ? <Pin size={12} color="var(--color-accent)" /> : null}
@@ -587,7 +618,10 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
                         textOverflow: "ellipsis",
                       }}
                     >
-                      <HighlightedText text={session.name} ranges={searchResult?.highlights.sessionName} />
+                      <HighlightedText
+                        text={session.name}
+                        ranges={searchResult?.highlights.sessionName}
+                      />
                     </div>
                   </div>
                   <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
@@ -606,7 +640,9 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
               </div>
 
               {secondaryText ? (
-                <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--color-text-secondary)" }}>
+                <p
+                  style={{ margin: "10px 0 0", fontSize: 12, color: "var(--color-text-secondary)" }}
+                >
                   <HighlightedText text={secondaryText} ranges={secondaryRanges} />
                 </p>
               ) : null}
@@ -615,12 +651,18 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
                 {folder ? (
                   <span className="badge badge-subtle">
                     <FolderOpen size={11} />
-                    <HighlightedText text={folder.name} ranges={searchResult?.highlights.folderName} />
+                    <HighlightedText
+                      text={folder.name}
+                      ranges={searchResult?.highlights.folderName}
+                    />
                   </span>
                 ) : null}
                 {sessionTags.slice(0, 3).map((tag) => (
                   <span key={tag.id} className="badge badge-subtle">
-                    <HighlightedText text={tag.name} ranges={searchResult?.highlights.tagNames[tag.id]} />
+                    <HighlightedText
+                      text={tag.name}
+                      ranges={searchResult?.highlights.tagNames[tag.id]}
+                    />
                   </span>
                 ))}
               </div>
@@ -658,7 +700,9 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
                       className="chip-link"
                       type="button"
                       onClick={() => void handleOpenTab(session, tab.id)}
-                      onMouseEnter={(event) => showQuickInfo(session.id, tab, event.clientX, event.clientY)}
+                      onMouseEnter={(event) =>
+                        showQuickInfo(session.id, tab, event.clientX, event.clientY)
+                      }
                       onMouseLeave={hideQuickInfo}
                       onFocus={(event) => {
                         const rect = event.currentTarget.getBoundingClientRect();
@@ -752,7 +796,7 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
           onMouseLeave={hideQuickInfo}
         >
           <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-            {favicons.get(quickInfo.tab.id) ?? quickInfo.tab.favIconUrl ? (
+            {(favicons.get(quickInfo.tab.id) ?? quickInfo.tab.favIconUrl) ? (
               <img
                 src={favicons.get(quickInfo.tab.id) ?? quickInfo.tab.favIconUrl ?? ""}
                 className="favicon"
@@ -764,10 +808,24 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
               </span>
             )}
             <div style={{ minWidth: 0, flex: 1 }}>
-              <strong style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <strong
+                style={{
+                  display: "block",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {quickInfo.tab.title}
               </strong>
-              <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 4, overflowWrap: "anywhere" }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--color-text-muted)",
+                  marginTop: 4,
+                  overflowWrap: "anywhere",
+                }}
+              >
                 {quickInfo.tab.url}
               </div>
             </div>
@@ -793,7 +851,9 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
             </div>
           )}
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-            <span className="badge badge-subtle">Opened {formatDateTime(quickInfo.tab.lastOpenedAt)}</span>
+            <span className="badge badge-subtle">
+              Opened {formatDateTime(quickInfo.tab.lastOpenedAt)}
+            </span>
             <span className="badge badge-subtle">{quickInfo.tab.openCount} opens</span>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
@@ -829,7 +889,11 @@ export default function SavedSessions({ query, addToast, onSaveNew, keyboardActi
                 </button>
               </>
             ) : (
-              <button className="btn btn-primary" type="button" onClick={() => setQuickInfoEditing(true)}>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => setQuickInfoEditing(true)}
+              >
                 {quickInfo.tab.note ? "Edit note" : "Add note"}
               </button>
             )}

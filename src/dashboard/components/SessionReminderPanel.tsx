@@ -27,10 +27,18 @@ export function ReminderPicker({ tab, onSet, onClear }: ReminderPickerProps) {
     <div className="reminder-picker" role="group" aria-label={`Reminder for ${tab.title}`}>
       {!activeReminderAt ? (
         <div className="reminder-chips">
-          <button className="btn btn-secondary" type="button" onClick={() => onSet(oneHourFromNow())}>
+          <button
+            className="btn btn-secondary"
+            type="button"
+            onClick={() => onSet(oneHourFromNow())}
+          >
             In 1 hour
           </button>
-          <button className="btn btn-secondary" type="button" onClick={() => onSet(tomorrowAtNine())}>
+          <button
+            className="btn btn-secondary"
+            type="button"
+            onClick={() => onSet(tomorrowAtNine())}
+          >
             Tomorrow 9 AM
           </button>
           <button className="btn btn-secondary" type="button" onClick={() => setShowPicker(true)}>

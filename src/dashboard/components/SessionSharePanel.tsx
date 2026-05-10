@@ -17,7 +17,12 @@ interface Props {
   defaultAIProvider: string;
 }
 
-export default function SessionSharePanel({ session, addToast, aiEnabled, defaultAIProvider }: Props) {
+export default function SessionSharePanel({
+  session,
+  addToast,
+  aiEnabled,
+  defaultAIProvider,
+}: Props) {
   const [showShareModal, setShowShareModal] = useState(false);
   void aiEnabled;
   void defaultAIProvider;
@@ -64,7 +69,11 @@ export default function SessionSharePanel({ session, addToast, aiEnabled, defaul
             <Sparkles size={14} />
             AI prompt
           </button>
-          <button className="btn btn-secondary" type="button" onClick={() => setShowShareModal(true)}>
+          <button
+            className="btn btn-secondary"
+            type="button"
+            onClick={() => setShowShareModal(true)}
+          >
             Share modal
           </button>
         </div>

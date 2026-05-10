@@ -48,22 +48,17 @@ function createSession(tab: TabItem): Session {
 describe("searchSessions", () => {
   it("returns highlight metadata and snippets for tab-note matches", () => {
     const tab = createTab("tab-1", "alpha release checklist");
-    const searchIndex = buildSearchIndex(
-      [createSession(tab)],
-      [],
-      [],
-      {
-        searchScopes: {
-          ...DEFAULT_SETTINGS.searchScopes,
-          sessions: false,
-          tabs: false,
-          tags: false,
-          folders: false,
-          notes: true,
-        },
-        fuzzySearchThreshold: 0.2,
+    const searchIndex = buildSearchIndex([createSession(tab)], [], [], {
+      searchScopes: {
+        ...DEFAULT_SETTINGS.searchScopes,
+        sessions: false,
+        tabs: false,
+        tags: false,
+        folders: false,
+        notes: true,
       },
-    );
+      fuzzySearchThreshold: 0.2,
+    });
 
     const results = searchSessions(searchIndex, "alpha");
 
@@ -76,7 +71,7 @@ describe("searchSessions", () => {
           kind: "tabNote",
           text: tab.note,
         }),
-      ]),
+      ])
     );
   });
 });

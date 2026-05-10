@@ -28,9 +28,10 @@ export function useFavicons(): Map<string, string> {
     const listener = (changes: Record<string, chrome.storage.StorageChange>) => {
       if (FAVICON_STORAGE_KEY in changes) {
         const raw = changes[FAVICON_STORAGE_KEY].newValue;
-        cachedFavicons = raw && typeof raw === "object"
-          ? new Map(Object.entries(raw as Record<string, string>))
-          : new Map();
+        cachedFavicons =
+          raw && typeof raw === "object"
+            ? new Map(Object.entries(raw as Record<string, string>))
+            : new Map();
         setMap(cachedFavicons);
       }
     };

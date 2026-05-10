@@ -1,14 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  Bell,
-  ChevronLeft,
-  X,
-  CalendarDays,
-  FileText,
-  FolderOpen,
-  Home,
-  User,
-} from "lucide-react";
+import { Bell, ChevronLeft, X, CalendarDays, FileText, FolderOpen, Home, User } from "lucide-react";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
 
 export type MobileNavView = "home" | "folders" | "schedules" | "reminders" | "notes";
@@ -23,14 +14,20 @@ export function MobileFrame({ children, className = "" }: MobileFrameProps) {
 }
 
 interface MobileTopBarProps {
-  title?: string;
-  subtitle?: string;
+  title?: string | undefined;
+  subtitle?: string | undefined;
   showBack?: boolean;
   onBack?: () => void;
   trailing?: ReactNode;
 }
 
-export function MobileTopBar({ title = "TabSetu", subtitle, showBack, onBack, trailing }: MobileTopBarProps) {
+export function MobileTopBar({
+  title = "TabSetu",
+  subtitle,
+  showBack,
+  onBack,
+  trailing,
+}: MobileTopBarProps) {
   return (
     <header className="mobile-topbar">
       <div className="mobile-topbar-side">
@@ -62,10 +59,10 @@ export function MobileTopBar({ title = "TabSetu", subtitle, showBack, onBack, tr
 interface MobileAppShellProps {
   activeView: MobileNavView;
   onViewChange: (view: MobileNavView) => void;
-  title?: string;
-  subtitle?: string;
-  trailing?: ReactNode;
-  className?: string;
+  title?: string | undefined;
+  subtitle?: string | undefined;
+  trailing?: ReactNode | undefined;
+  className?: string | undefined;
   children: ReactNode;
 }
 
@@ -137,11 +134,7 @@ export function GlassCard({ children, className = "", onClick }: GlassCardProps)
     );
   }
 
-  return (
-    <div className={`mobile-card ${className}`}>
-      {children}
-    </div>
-  );
+  return <div className={`mobile-card ${className}`}>{children}</div>;
 }
 
 interface MobileIconButtonProps {
@@ -181,7 +174,11 @@ interface SegmentedControlProps<T extends string> {
   onChange: (value: T) => void;
 }
 
-export function SegmentedControl<T extends string>({ options, value, onChange }: SegmentedControlProps<T>) {
+export function SegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+}: SegmentedControlProps<T>) {
   return (
     <div className="mobile-segmented" role="tablist">
       {options.map((option) => (
@@ -220,7 +217,7 @@ export function EmptyState({ icon, title, description, action, compact }: EmptyS
 interface TabRowProps {
   title: string;
   subtitle: string;
-  favIconUrl?: string | null;
+  favIconUrl?: string | null | undefined;
   selected?: boolean;
   onSelect?: () => void;
   showCheckbox?: boolean;
@@ -228,14 +225,27 @@ interface TabRowProps {
   preview?: ReactNode;
 }
 
-export function TabRow({ title, subtitle, favIconUrl, selected, onSelect, showCheckbox = true, actions, preview }: TabRowProps) {
+export function TabRow({
+  title,
+  subtitle,
+  favIconUrl,
+  selected,
+  onSelect,
+  showCheckbox = true,
+  actions,
+  preview,
+}: TabRowProps) {
   return (
     <div className="mobile-tab-row" data-selected={selected || undefined} onClick={onSelect}>
       {onSelect && showCheckbox ? (
         <span className="mobile-checkbox" data-checked={selected || undefined} aria-hidden />
       ) : null}
       <div className="mobile-favicon">
-        {favIconUrl ? <img src={favIconUrl} alt="" /> : <TabSetuLogo className="mobile-favicon-logo" decorative />}
+        {favIconUrl ? (
+          <img src={favIconUrl} alt="" />
+        ) : (
+          <TabSetuLogo className="mobile-favicon-logo" decorative />
+        )}
       </div>
       {preview ? <div className="mobile-tab-preview">{preview}</div> : null}
       <div className="mobile-tab-copy">
@@ -256,10 +266,25 @@ interface BottomSheetProps {
   className?: string;
 }
 
-export function BottomSheet({ title, subtitle, onClose, children, footer, className = "" }: BottomSheetProps) {
+export function BottomSheet({
+  title,
+  subtitle,
+  onClose,
+  children,
+  footer,
+  className = "",
+}: BottomSheetProps) {
   return (
-    <div className="mobile-sheet-overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
-      <section className={`mobile-bottom-sheet ${className}`} role="dialog" aria-modal="true" aria-labelledby="mobile-sheet-title">
+    <div
+      className="mobile-sheet-overlay"
+      onClick={(event) => event.target === event.currentTarget && onClose()}
+    >
+      <section
+        className={`mobile-bottom-sheet ${className}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mobile-sheet-title"
+      >
         <div className="mobile-sheet-handle" />
         <div className="mobile-sheet-header">
           <div>

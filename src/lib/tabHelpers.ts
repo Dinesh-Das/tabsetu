@@ -30,7 +30,10 @@ export function isRestrictedUrl(url: string): boolean {
 
 export function stripHtml(value: string): string {
   if (typeof DOMParser === "undefined") {
-    return value.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+    return value
+      .replace(/<[^>]*>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
   }
   const doc = new DOMParser().parseFromString(value, "text/html");
   return (doc.body.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -40,7 +43,11 @@ export function clampText(value: string, maxLength: number): string {
   return value.length > maxLength ? value.slice(0, maxLength).trimEnd() : value;
 }
 
-export function sanitizeLabel(value: string | undefined, fallback: string, maxLength = 200): string {
+export function sanitizeLabel(
+  value: string | undefined,
+  fallback: string,
+  maxLength = 200
+): string {
   const sanitized = clampText(stripHtml(value ?? ""), maxLength);
   return sanitized || fallback;
 }
@@ -77,7 +84,10 @@ export function chromeTabToTabItem(tab: chrome.tabs.Tab, position = 0): TabItem 
   };
 }
 
-export async function chromeTabToTabItemWithFavicon(tab: chrome.tabs.Tab, position = 0): Promise<TabItem> {
+export async function chromeTabToTabItemWithFavicon(
+  tab: chrome.tabs.Tab,
+  position = 0
+): Promise<TabItem> {
   const base = chromeTabToTabItem(tab, position);
   await storeFavicon(base.id, await fetchFavIconDataUrl(tab.favIconUrl));
   return base;

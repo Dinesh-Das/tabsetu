@@ -1,4 +1,12 @@
-import type { Schedule, Session, Settings, ShareSnapshot, StorageData, TabItem, UndoCollapseBuffer } from "@/types";
+import type {
+  Schedule,
+  Session,
+  Settings,
+  ShareSnapshot,
+  StorageData,
+  TabItem,
+  UndoCollapseBuffer,
+} from "@/types";
 import type { OverlaySearchRow } from "@/lib/overlaySearch";
 import { nextMatchingDate } from "@/lib/alarmScheduling";
 import {
@@ -25,6 +33,8 @@ const LAST_BROWSER_TAB_KEY = "tabsetuLastBrowserTab";
 const AUTO_ARCHIVE_ALARM_NAME = "tabsetu-auto-archive";
 const TIMEZONE_CHECK_ALARM_NAME = "tabsetu-timezone-check";
 const TIMEZONE_OFFSET_KEY = "TabSetu_timezone_offset_minutes";
+const KEEPALIVE_ALARM = "tabsetu-keepalive";
+const REMINDER_WINDOW_MINUTES = 5;
 
 interface StoredBrowserTab {
   tabId: number;
@@ -51,6 +61,44 @@ function alarmName(scheduleId: string): string {
 
 function reminderAlarmName(tabId: string): string {
   return `reminder_${tabId}`;
+}
+
+async function updateBadge(): Promise<void> {
+  const { sessions } = await loadRuntimeData();
+  const pending = sessions.reduce(
+    (count, session) =>
+      count +
+      session.tabs.filter(
+        (tab) => Boolean(tab.reminderAt ?? tab.reminderSnoozedUntil) && !tab.reminderDismissed
+      ).length,
+    0
+  );
+
+  if (pending === 0) {
+    await chrome.action.setBadgeText({ text: "" });
+    return;
+  }
+
+  await chrome.action.setBadgeText({ text: String(pending) });
+  await chrome.action.setBadgeBackgroundColor({ color: "#E24B4A" });
+  await chrome.action.setBadgeTextColor({ color: "#FFFFFF" });
+}
+
+async function maybeStartKeepalive(): Promise<void> {
+  const alarms = await chrome.alarms.getAll();
+  const now = Date.now();
+  const hasImminent = alarms.some(
+    (alarm) =>
+      alarm.name.startsWith("reminder_") &&
+      typeof alarm.scheduledTime === "number" &&
+      alarm.scheduledTime - now < REMINDER_WINDOW_MINUTES * 60 * 1000
+  );
+
+  if (hasImminent) {
+    await chrome.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.4 });
+  } else {
+    await chrome.alarms.clear(KEEPALIVE_ALARM);
+  }
 }
 
 function sessionStorageGet<T>(keys: string[]): Promise<T> {
@@ -97,7 +145,9 @@ async function storeBrowserTab(tab: chrome.tabs.Tab): Promise<void> {
 }
 
 async function clearStoredBrowserTab(tabId?: number): Promise<void> {
-  const result = await sessionStorageGet<Record<string, StoredBrowserTab | undefined>>([LAST_BROWSER_TAB_KEY]);
+  const result = await sessionStorageGet<Record<string, StoredBrowserTab | undefined>>([
+    LAST_BROWSER_TAB_KEY,
+  ]);
   const current = result[LAST_BROWSER_TAB_KEY];
   if (!current) {
     return;
@@ -125,7 +175,9 @@ async function rememberBrowserTab(tabId: number): Promise<void> {
 }
 
 async function resolveTrackedBrowserTab(): Promise<chrome.tabs.Tab | null> {
-  const result = await sessionStorageGet<Record<string, StoredBrowserTab | undefined>>([LAST_BROWSER_TAB_KEY]);
+  const result = await sessionStorageGet<Record<string, StoredBrowserTab | undefined>>([
+    LAST_BROWSER_TAB_KEY,
+  ]);
   const tracked = result[LAST_BROWSER_TAB_KEY];
 
   if (!tracked?.tabId) {
@@ -262,6 +314,9 @@ async function hydrateAlarms(): Promise<void> {
       });
     }
   }
+
+  await updateBadge();
+  await maybeStartKeepalive();
 }
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
@@ -283,11 +338,18 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local" || !changes[STORAGE_KEYS.settings]) {
+  if (areaName !== "local") {
     return;
   }
 
-  void hydrateAlarms();
+  if (changes[STORAGE_KEYS.settings]) {
+    void hydrateAlarms();
+  }
+
+  if (changes[STORAGE_KEYS.sessions]) {
+    void updateBadge();
+    void maybeStartKeepalive();
+  }
 });
 
 chrome.windows.onFocusChanged.addListener((windowId) => {
@@ -358,7 +420,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "tabsetu:open-dashboard") {
-    const view = typeof message.view === "string" && message.view.trim() ? `?view=${encodeURIComponent(message.view)}` : "";
+    const view =
+      typeof message.view === "string" && message.view.trim()
+        ? `?view=${encodeURIComponent(message.view)}`
+        : "";
     void chrome.tabs
       .create({ url: chrome.runtime.getURL(`dashboard.html${view}`) })
       .then(() => sendResponse({ ok: true }))
@@ -368,9 +433,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message?.type === "IMPORT_SHARED_SESSION") {
-    const snapshot = typeof message === "object" && message !== null && "snapshot" in message
-      ? (message as { snapshot?: unknown }).snapshot
-      : null;
+    const snapshot =
+      typeof message === "object" && message !== null && "snapshot" in message
+        ? (message as { snapshot?: unknown }).snapshot
+        : null;
 
     if (!isShareSnapshot(snapshot)) {
       sendResponse({ ok: false });
@@ -387,7 +453,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return undefined;
 });
 
-async function createSessionFromWindow(mode: "save" | "collapse"): Promise<SessionCaptureResult | null> {
+async function createSessionFromWindow(
+  mode: "save" | "collapse"
+): Promise<SessionCaptureResult | null> {
   const { sessions, settings } = await loadRuntimeData();
   const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
   const eligibleTabs = tabs.filter((tab) => {
@@ -407,14 +475,16 @@ async function createSessionFromWindow(mode: "save" | "collapse"): Promise<Sessi
   }
 
   const createdAt = Date.now();
-  const sessionName = `${mode === "collapse" ? "Collapse" : "Session"} ${new Date(createdAt).toLocaleString([], {
+  const sessionName = `${mode === "collapse" ? "Collapse" : "Session"} ${new Date(
+    createdAt
+  ).toLocaleString([], {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   })}`;
   const savedTabs = await Promise.all(
-    eligibleTabs.map((tab, index) => chromeTabToTabItemWithFavicon(tab, index)),
+    eligibleTabs.map((tab, index) => chromeTabToTabItemWithFavicon(tab, index))
   );
 
   const session: Session = {
@@ -472,7 +542,8 @@ async function rememberTimezoneOffset(): Promise<void> {
 
 async function rehydrateAlarmsAfterTimezoneChange(): Promise<void> {
   const result = await chrome.storage.local.get([TIMEZONE_OFFSET_KEY]);
-  const previousOffset = typeof result[TIMEZONE_OFFSET_KEY] === "number" ? result[TIMEZONE_OFFSET_KEY] : null;
+  const previousOffset =
+    typeof result[TIMEZONE_OFFSET_KEY] === "number" ? result[TIMEZONE_OFFSET_KEY] : null;
   const currentOffset = new Date().getTimezoneOffset();
 
   if (previousOffset === currentOffset) {
@@ -500,12 +571,15 @@ function isShareSnapshot(value: unknown): value is ShareSnapshot {
         typeof tab === "object" &&
         tab !== null &&
         typeof tab.title === "string" &&
-        typeof tab.url === "string",
+        typeof tab.url === "string"
     )
   );
 }
 
-function snapshotTabToTabItem(tab: ShareSnapshot["tabs"][number], position: number): TabItem | null {
+function snapshotTabToTabItem(
+  tab: ShareSnapshot["tabs"][number],
+  position: number
+): TabItem | null {
   const url = tab.url.trim();
   if (!isValidUrl(url)) {
     return null;
@@ -589,7 +663,14 @@ async function suspendBackgroundTabs(): Promise<number> {
   let discardedCount = 0;
 
   for (const tab of tabs) {
-    if (!tab.id || tab.active || tab.discarded || tab.pinned || !tab.url || isRestrictedUrl(tab.url)) {
+    if (
+      !tab.id ||
+      tab.active ||
+      tab.discarded ||
+      tab.pinned ||
+      !tab.url ||
+      isRestrictedUrl(tab.url)
+    ) {
       continue;
     }
 
@@ -644,37 +725,44 @@ async function buildOverlayPayload(data: StorageData): Promise<OverlayPayload> {
   const folderMap = new Map(data.folders.map((folder) => [folder.id, folder.name]));
   const tagMap = new Map(data.tags.map((tag) => [tag.id, tag.name]));
   const rows: OverlaySearchRow[] = data.sessions.flatMap((session) => {
-    const folderName = session.folderId ? folderMap.get(session.folderId) ?? "" : "";
-    const tagNames = session.tagIds.map((id) => tagMap.get(id) ?? "").filter(Boolean).join(" ");
+    const folderName = session.folderId ? (folderMap.get(session.folderId) ?? "") : "";
+    const tagNames = session.tagIds
+      .map((id) => tagMap.get(id) ?? "")
+      .filter(Boolean)
+      .join(" ");
     const sessionRows: OverlaySearchRow[] = session.tabs[0]?.url
-      ? [{
-          id: session.id,
-          kind: "session",
-          title: session.name || "Untitled Session",
-          subtitle: `${session.tabs.length} tabs${folderName ? ` in ${folderName}` : ""}`.trim(),
-          action: { kind: "url", url: session.tabs[0].url },
-          sessionName: session.name,
-          sessionDescription: session.description,
-          sessionNote: session.note,
-          folderName,
-          tagNames,
-        }]
+      ? [
+          {
+            id: session.id,
+            kind: "session",
+            title: session.name || "Untitled Session",
+            subtitle: `${session.tabs.length} tabs${folderName ? ` in ${folderName}` : ""}`.trim(),
+            action: { kind: "url", url: session.tabs[0].url },
+            sessionName: session.name,
+            sessionDescription: session.description,
+            sessionNote: session.note,
+            folderName,
+            tagNames,
+          },
+        ]
       : [];
-    const tabRows: OverlaySearchRow[] = session.tabs.map((tab) => ({
-      id: `${session.id}-${tab.id}`,
-      kind: "tab" as const,
-      title: tab.title || "Untitled Tab",
-      subtitle: [session.name || "Session", tab.url || ""].filter(Boolean).join(" - "),
-      action: { kind: "url" as const, url: tab.url },
-      sessionName: session.name,
-      sessionDescription: session.description,
-      sessionNote: session.note,
-      folderName,
-      tagNames,
-      tabTitle: tab.title,
-      tabUrl: tab.url,
-      tabNote: tab.note,
-    })).filter((row) => row.action.url);
+    const tabRows: OverlaySearchRow[] = session.tabs
+      .map((tab) => ({
+        id: `${session.id}-${tab.id}`,
+        kind: "tab" as const,
+        title: tab.title || "Untitled Tab",
+        subtitle: [session.name || "Session", tab.url || ""].filter(Boolean).join(" - "),
+        action: { kind: "url" as const, url: tab.url },
+        sessionName: session.name,
+        sessionDescription: session.description,
+        sessionNote: session.note,
+        folderName,
+        tagNames,
+        tabTitle: tab.title,
+        tabUrl: tab.url,
+        tabNote: tab.note,
+      }))
+      .filter((row) => row.action.url);
     return [...sessionRows, ...tabRows];
   });
   rows.push(
@@ -691,11 +779,13 @@ async function buildOverlayPayload(data: StorageData): Promise<OverlayPayload> {
       id: `note-${note.id}`,
       kind: "note" as const,
       title: note.title || "Untitled Note",
-      subtitle: note.content.trim() ? note.content.trim().slice(0, 120) : "Open the Notes view in TabSetu.",
+      subtitle: note.content.trim()
+        ? note.content.trim().slice(0, 120)
+        : "Open the Notes view in TabSetu.",
       action: { kind: "dashboard" as const, view: "notes" as const },
       noteTitle: note.title,
       noteContent: note.content,
-    })),
+    }))
   );
 
   return {
@@ -741,13 +831,15 @@ async function openSearchOverlay(): Promise<void> {
   }
 
   try {
-    await chrome.scripting.registerContentScripts([{
-      id: "tabsetu-search-overlay",
-      matches: ["*://*/*"],
-      js: ["src/content/searchOverlay.js"],
-      runAt: "document_idle",
-      persistAcrossSessions: true,
-    }]);
+    await chrome.scripting.registerContentScripts([
+      {
+        id: "tabsetu-search-overlay",
+        matches: ["*://*/*"],
+        js: ["src/content/searchOverlay.js"],
+        runAt: "document_idle",
+        persistAcrossSessions: true,
+      },
+    ]);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (!message.includes("already registered") && !message.includes("Duplicate script")) {
@@ -819,7 +911,8 @@ async function notifySessionCaptured(result: SessionCaptureResult): Promise<void
     await chrome.notifications.create(`tabsetu-${result.mode}-${result.session.id}-${Date.now()}`, {
       type: "basic",
       iconUrl: chrome.runtime.getURL("icons/icon128.png"),
-      title: result.mode === "collapse" ? "TabSetu collapsed this window" : "TabSetu saved this window",
+      title:
+        result.mode === "collapse" ? "TabSetu collapsed this window" : "TabSetu saved this window",
       message: `"${result.session.name}" - ${result.tabCount} ${result.tabCount === 1 ? "tab" : "tabs"}.`,
       priority: 2,
       ...(result.mode === "collapse" ? { buttons: [{ title: "Undo collapse" }] } : {}),
@@ -846,8 +939,13 @@ async function notifyUnassignedCommandShortcuts(): Promise<void> {
   try {
     const commands = await getRegisteredCommands();
     const unassigned = commands
-      .filter((command) => command.name && command.name in EXPECTED_COMMAND_SHORTCUTS && !command.shortcut)
-      .map((command) => EXPECTED_COMMAND_SHORTCUTS[command.name as keyof typeof EXPECTED_COMMAND_SHORTCUTS]);
+      .filter(
+        (command) => command.name && command.name in EXPECTED_COMMAND_SHORTCUTS && !command.shortcut
+      )
+      .map(
+        (command) =>
+          EXPECTED_COMMAND_SHORTCUTS[command.name as keyof typeof EXPECTED_COMMAND_SHORTCUTS]
+      );
 
     if (unassigned.length === 0) {
       return;
@@ -929,7 +1027,7 @@ async function handleReminderAlarm(tabId: string): Promise<void> {
 
 async function updateReminderTab(
   tabId: string,
-  updater: (tab: Session["tabs"][number]) => Session["tabs"][number],
+  updater: (tab: Session["tabs"][number]) => Session["tabs"][number]
 ): Promise<Session["tabs"][number] | null> {
   const { sessions } = await loadRuntimeData();
   let updatedTab: Session["tabs"][number] | null = null;
@@ -963,12 +1061,16 @@ chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) =
 
   const tabId = notificationId.replace("tabsetu-reminder-", "");
   if (buttonIndex === 0) {
-    void updateReminderTab(tabId, (tab) => ({ ...tab, reminderDismissed: true })).then((tab) => {
-      if (tab?.url) {
-        void chrome.tabs.create({ url: tab.url });
+    void updateReminderTab(tabId, (tab) => ({ ...tab, reminderDismissed: true })).then(
+      async (tab) => {
+        if (tab?.url) {
+          await chrome.tabs.create({ url: tab.url });
+        }
+        await chrome.notifications.clear(notificationId);
+        await updateBadge();
+        await maybeStartKeepalive();
       }
-      void chrome.notifications.clear(notificationId);
-    });
+    );
     return;
   }
 
@@ -982,7 +1084,9 @@ chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) =
       const name = reminderAlarmName(tabId);
       await chrome.alarms.clear(name);
       await chrome.alarms.create(name, { when: snoozedUntil });
-      void chrome.notifications.clear(notificationId);
+      await chrome.notifications.clear(notificationId);
+      await updateBadge();
+      await maybeStartKeepalive();
     });
   }
 });
@@ -994,6 +1098,10 @@ chrome.notifications.onClicked.addListener((notificationId) => {
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === KEEPALIVE_ALARM) {
+    return;
+  }
+
   if (alarm.name === TIMEZONE_CHECK_ALARM_NAME) {
     await rehydrateAlarmsAfterTimezoneChange();
     return;
@@ -1006,6 +1114,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
   if (alarm.name.startsWith("reminder_")) {
     await handleReminderAlarm(alarm.name.replace("reminder_", ""));
+    await updateBadge();
+    await maybeStartKeepalive();
     return;
   }
 
@@ -1051,36 +1161,43 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   const updatedSessions = sessions.map((item) =>
     item.id === session.id
       ? {
-            ...item,
-            openCount: (item.openCount ?? 0) + 1,
+          ...item,
+          openCount: (item.openCount ?? 0) + 1,
+          lastOpenedAt: openedAt,
+          updatedAt: openedAt,
+          tabs: item.tabs.map((tab) => ({
+            ...tab,
+            openCount: (tab.openCount ?? 0) + 1,
             lastOpenedAt: openedAt,
-            updatedAt: openedAt,
-            tabs: item.tabs.map((tab) => ({
-              ...tab,
-              openCount: (tab.openCount ?? 0) + 1,
-              lastOpenedAt: openedAt,
-            })),
-            version: Math.max(1, item.version) + 1,
+          })),
+          version: Math.max(1, item.version) + 1,
         }
-      : item,
+      : item
   );
 
   if (schedule.type === "once") {
     const updatedSchedules = schedules.map((item) =>
-      item.id === schedule.id ? { ...item, enabled: false, lastFiredAt: openedAt, updatedAt: openedAt } : item,
+      item.id === schedule.id
+        ? { ...item, enabled: false, lastFiredAt: openedAt, updatedAt: openedAt }
+        : item
     );
     await saveSessions(updatedSessions);
     await saveSchedules(updatedSchedules);
     await chrome.alarms.clear(alarm.name);
+    await updateBadge();
     return;
   }
 
   const updatedSchedules = schedules.map((item) =>
-    item.id === schedule.id ? { ...item, lastFiredAt: openedAt, updatedAt: openedAt } : item,
+    item.id === schedule.id ? { ...item, lastFiredAt: openedAt, updatedAt: openedAt } : item
   );
   await saveSessions(updatedSessions);
   await saveSchedules(updatedSchedules);
-  await createScheduleAlarm({ ...schedule, lastFiredAt: openedAt, updatedAt: openedAt }, new Date(openedAt + 1000));
+  await createScheduleAlarm(
+    { ...schedule, lastFiredAt: openedAt, updatedAt: openedAt },
+    new Date(openedAt + 1000)
+  );
+  await updateBadge();
 });
 
 chrome.runtime.onInstalled.addListener((details) => {
@@ -1092,6 +1209,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     }
 
     await hydrateAlarms();
+    await updateBadge();
     await findFallbackBrowserTab();
     await notifyUnassignedCommandShortcuts();
   })();
@@ -1100,7 +1218,10 @@ chrome.runtime.onInstalled.addListener((details) => {
 chrome.runtime.onStartup.addListener(() => {
   void (async () => {
     await hydrateAlarms();
+    await updateBadge();
     await findFallbackBrowserTab();
     await notifyUnassignedCommandShortcuts();
   })();
 });
+
+void maybeStartKeepalive();

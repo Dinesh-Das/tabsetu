@@ -13,9 +13,31 @@ interface Props {
 }
 
 type NoteRow =
-  | { id: string; kind: "standalone"; title: string; content: string; updatedAt: number; note: StandaloneNote }
-  | { id: string; kind: "session"; title: string; content: string; updatedAt: number; sessionId: string }
-  | { id: string; kind: "tab"; title: string; content: string; updatedAt: number; sessionId: string; tabId: string };
+  | {
+      id: string;
+      kind: "standalone";
+      title: string;
+      content: string;
+      updatedAt: number;
+      note: StandaloneNote;
+    }
+  | {
+      id: string;
+      kind: "session";
+      title: string;
+      content: string;
+      updatedAt: number;
+      sessionId: string;
+    }
+  | {
+      id: string;
+      kind: "tab";
+      title: string;
+      content: string;
+      updatedAt: number;
+      sessionId: string;
+      tabId: string;
+    };
 
 export default function NotesPanel({ addToast, onOpenSession }: Props) {
   const sessions = useSessionStore((state) => state.sessions);
@@ -55,7 +77,7 @@ export default function NotesPanel({ addToast, onOpenSession }: Props) {
           updatedAt: session.updatedAt,
           sessionId: session.id,
           tabId: tab.id,
-        })),
+        }))
     );
     const notes: NoteRow[] = standaloneNotes.map((note) => ({
       id: note.id,
@@ -66,7 +88,9 @@ export default function NotesPanel({ addToast, onOpenSession }: Props) {
       note,
     }));
 
-    return [...notes, ...sessionNotes, ...tabNotes].sort((left, right) => right.updatedAt - left.updatedAt);
+    return [...notes, ...sessionNotes, ...tabNotes].sort(
+      (left, right) => right.updatedAt - left.updatedAt
+    );
   }, [sessions, standaloneNotes]);
 
   const visibleRows = useMemo(() => {
@@ -140,7 +164,15 @@ export default function NotesPanel({ addToast, onOpenSession }: Props) {
           <div className="card settings-card">
             <h3>Note search</h3>
             <div style={{ position: "relative", marginTop: 18 }}>
-              <Search size={14} style={{ position: "absolute", left: 12, top: 13, color: "var(--color-text-muted)" }} />
+              <Search
+                size={14}
+                style={{
+                  position: "absolute",
+                  left: 12,
+                  top: 13,
+                  color: "var(--color-text-muted)",
+                }}
+              />
               <input
                 className="input"
                 style={{ paddingLeft: 34 }}
@@ -165,7 +197,9 @@ export default function NotesPanel({ addToast, onOpenSession }: Props) {
               <div key={row.id} className="management-item">
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {row.kind === "standalone" && row.note.isPinned ? <Pin size={14} color="var(--color-accent)" /> : null}
+                    {row.kind === "standalone" && row.note.isPinned ? (
+                      <Pin size={14} color="var(--color-accent)" />
+                    ) : null}
                     <strong>{row.title}</strong>
                     <span className="badge badge-subtle">{row.kind}</span>
                   </div>
@@ -186,7 +220,11 @@ export default function NotesPanel({ addToast, onOpenSession }: Props) {
                       Jump to session
                     </button>
                   ) : null}
-                  <button className="btn btn-secondary" type="button" onClick={() => setEditing(row)}>
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    onClick={() => setEditing(row)}
+                  >
                     Edit
                   </button>
                   {row.kind === "standalone" ? (
@@ -197,7 +235,10 @@ export default function NotesPanel({ addToast, onOpenSession }: Props) {
                         onClick={() => updateNote(row.note.id, { isPinned: !row.note.isPinned })}
                         title={row.note.isPinned ? "Unpin note" : "Pin note"}
                       >
-                        <Pin size={14} color={row.note.isPinned ? "var(--color-accent)" : undefined} />
+                        <Pin
+                          size={14}
+                          color={row.note.isPinned ? "var(--color-accent)" : undefined}
+                        />
                       </button>
                       <button
                         className="btn btn-ghost btn-icon"
@@ -224,7 +265,10 @@ export default function NotesPanel({ addToast, onOpenSession }: Props) {
       </div>
 
       {editing ? (
-        <div className="overlay" onClick={(event) => event.target === event.currentTarget && setEditing(null)}>
+        <div
+          className="overlay"
+          onClick={(event) => event.target === event.currentTarget && setEditing(null)}
+        >
           <div className="modal animate-scale-in" style={{ maxWidth: 520 }}>
             <div className="form-stack">
               <h3>Edit note</h3>
@@ -232,18 +276,28 @@ export default function NotesPanel({ addToast, onOpenSession }: Props) {
                 className="input"
                 value={editing.title}
                 disabled={editing.kind !== "standalone"}
-                onChange={(event) => setEditing({ ...editing, title: event.target.value } as NoteRow)}
+                onChange={(event) => setEditing({ ...editing, title: event.target.value })}
               />
               <textarea
                 className="input"
                 value={editing.content}
-                onChange={(event) => setEditing({ ...editing, content: event.target.value } as NoteRow)}
+                onChange={(event) => setEditing({ ...editing, content: event.target.value })}
               />
               <div style={{ display: "flex", gap: 10 }}>
-                <button className="btn btn-secondary" type="button" style={{ flex: 1 }} onClick={() => setEditing(null)}>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  style={{ flex: 1 }}
+                  onClick={() => setEditing(null)}
+                >
                   Cancel
                 </button>
-                <button className="btn btn-primary" type="button" style={{ flex: 1 }} onClick={saveEditing}>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  style={{ flex: 1 }}
+                  onClick={saveEditing}
+                >
                   Save note
                 </button>
               </div>

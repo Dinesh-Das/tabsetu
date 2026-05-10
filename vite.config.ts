@@ -29,6 +29,8 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    sourcemap: "hidden",
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       input: {
         searchOverlay: path.resolve(projectRoot, "src/content/searchOverlay.ts"),

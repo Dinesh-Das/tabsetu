@@ -80,7 +80,9 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
     if (visibleRows.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty";
-      empty.textContent = input.value.trim() ? "No tabs, sessions, or history match that search." : "Start typing to search TabSetu.";
+      empty.textContent = input.value.trim()
+        ? "No tabs, sessions, or history match that search."
+        : "Start typing to search TabSetu.";
       resultsNode.appendChild(empty);
       return;
     }
@@ -192,7 +194,8 @@ function showTabSetuOverlayDisabledToast(message: string): void {
   document.getElementById(hostId)?.remove();
   const host = document.createElement("div");
   host.id = hostId;
-  host.style.cssText = "position:fixed;right:18px;bottom:18px;z-index:2147483647;max-width:min(360px,calc(100vw - 36px));padding:12px 14px;border:1px solid rgba(132,216,234,.5);border-radius:12px;background:#101828;color:#f8fbff;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;box-shadow:0 18px 48px rgba(4,10,22,.28)";
+  host.style.cssText =
+    "position:fixed;right:18px;bottom:18px;z-index:2147483647;max-width:min(360px,calc(100vw - 36px));padding:12px 14px;border:1px solid rgba(132,216,234,.5);border-radius:12px;background:#101828;color:#f8fbff;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;box-shadow:0 18px 48px rgba(4,10,22,.28)";
   host.textContent = message;
   document.documentElement.appendChild(host);
   window.setTimeout(() => host.remove(), 2200);
@@ -203,6 +206,8 @@ chrome.runtime.onMessage.addListener((message) => {
     mountTabSetuSearchOverlay(message.payload as OverlayPayload);
   }
   if (message?.type === "tabsetu:overlay-disabled") {
-    showTabSetuOverlayDisabledToast(String(message.message ?? "TabSetu search overlay is disabled."));
+    showTabSetuOverlayDisabledToast(
+      String(message.message ?? "TabSetu search overlay is disabled.")
+    );
   }
 });

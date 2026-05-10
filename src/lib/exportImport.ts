@@ -1,4 +1,8 @@
-import { getDefaultStorageData, normalizeImportedStorageData, normalizeStorageData } from "@/lib/storage";
+import {
+  getDefaultStorageData,
+  normalizeImportedStorageData,
+  normalizeStorageData,
+} from "@/lib/storage";
 import { clampText, generateId, isValidUrl, sanitizeLabel, stripHtml } from "@/lib/tabHelpers";
 import type { AIShareConfig, Session, StorageData, TabItem } from "@/types";
 
@@ -53,7 +57,9 @@ function looksLikeTabSetuSession(value: unknown): boolean {
   return (
     typeof value.id === "string" &&
     Array.isArray(value.tabs) &&
-    (typeof value.createdAt === "number" || typeof value.updatedAt === "number" || typeof value.version === "number")
+    (typeof value.createdAt === "number" ||
+      typeof value.updatedAt === "number" ||
+      typeof value.version === "number")
   );
 }
 
@@ -62,7 +68,14 @@ function looksLikeTabSetuBackup(value: unknown): boolean {
     return false;
   }
 
-  const metadataKeys = ["folders", "tags", "schedules", "standaloneNotes", "shareLinks", "aiConfig"];
+  const metadataKeys = [
+    "folders",
+    "tags",
+    "schedules",
+    "standaloneNotes",
+    "shareLinks",
+    "aiConfig",
+  ];
   const metadataMatches = metadataKeys.filter((key) => hasOwnKey(value, key)).length;
   if (metadataMatches >= 2) {
     return true;
@@ -97,12 +110,17 @@ function decodeHtmlEntities(value: string): string {
     gt: ">",
     lt: "<",
     nbsp: " ",
-    quot: "\"",
+    quot: '"',
   };
 
   return value.replace(
     /&#(\d+);|&#x([\da-f]+);|&([a-z]+);/gi,
-    (match, decimal: string | undefined, hex: string | undefined, named: string | undefined): string => {
+    (
+      match,
+      decimal: string | undefined,
+      hex: string | undefined,
+      named: string | undefined
+    ): string => {
       if (decimal) {
         const codePoint = Number.parseInt(decimal, 10);
         return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match;
@@ -118,7 +136,7 @@ function decodeHtmlEntities(value: string): string {
       }
 
       return match;
-    },
+    }
   );
 }
 
@@ -309,7 +327,7 @@ function collectJsonSections(
   value: unknown,
   inheritedName: string | null,
   sections: LegacySection[],
-  looseTabs: LegacyTabSeed[],
+  looseTabs: LegacyTabSeed[]
 ): void {
   if (Array.isArray(value)) {
     const tabs = value
@@ -376,7 +394,11 @@ function parseJsonSections(value: unknown): LegacySection[] {
   return sections;
 }
 
-function createImportedTab(seed: LegacyTabSeed, position: number, createdAt: number): TabItem | null {
+function createImportedTab(
+  seed: LegacyTabSeed,
+  position: number,
+  createdAt: number
+): TabItem | null {
   const url = normalizeUrlCandidate(seed.url);
   if (!url) {
     return null;
@@ -408,7 +430,7 @@ function createImportedSession(
   section: LegacySection,
   index: number,
   createdAt: number,
-  sourceLabel: string,
+  sourceLabel: string
 ): Session | null {
   const tabs = section.tabs
     .map((tab, tabIndex) => createImportedTab(tab, tabIndex, createdAt))
@@ -472,7 +494,7 @@ function parseJsonImport(text: string): StorageData | null {
     const sections = parseJsonSections(parsed);
     return sections.length === 0 ? null : storageFromLegacySections(sections, "Session Buddy JSON");
   } catch (error) {
-    if (/^\s*[\[{]/.test(text)) {
+    if (/^\s*[[{]/.test(text)) {
       throw error instanceof Error ? error : new Error("This JSON file could not be parsed.");
     }
 
@@ -507,7 +529,7 @@ export function exportJSON(data: StorageData): void {
   downloadFile(
     JSON.stringify(data, null, 2),
     `tabsetu-backup-${new Date().toISOString().split("T")[0]}.json`,
-    "application/json",
+    "application/json"
   );
 }
 
@@ -515,7 +537,7 @@ export function summarizeStorageData(data: StorageData): StorageSummary {
   const sessionNoteCount = data.sessions.filter((session) => session.note.trim()).length;
   const tabNoteCount = data.sessions.reduce(
     (total, session) => total + session.tabs.filter((tab) => tab.note.trim()).length,
-    0,
+    0
   );
 
   return {
@@ -540,7 +562,7 @@ function entityTimestamp(value: {
 function mergeById<T extends { id: string }>(
   current: T[],
   imported: T[],
-  choose: (currentItem: T, importedItem: T) => T,
+  choose: (currentItem: T, importedItem: T) => T
 ): T[] {
   const merged = [...current];
   const indexById = new Map(merged.map((item, index) => [item.id, index]));
@@ -559,14 +581,13 @@ function mergeById<T extends { id: string }>(
   return merged;
 }
 
-function chooseMostRecent<T extends {
-  updatedAt?: number | null;
-  createdAt?: number | null;
-  lastOpenedAt?: number | null;
-}>(
-  currentItem: T,
-  importedItem: T,
-): T {
+function chooseMostRecent<
+  T extends {
+    updatedAt?: number | null;
+    createdAt?: number | null;
+    lastOpenedAt?: number | null;
+  },
+>(currentItem: T, importedItem: T): T {
   return entityTimestamp(importedItem) >= entityTimestamp(currentItem) ? importedItem : currentItem;
 }
 
@@ -643,7 +664,9 @@ export function sessionToMarkdown(session: Session, options?: SessionExportOptio
     "",
     "## Links",
     "",
-    ...session.tabs.map((tab) => `- [${tab.title}](${tab.url})${includeNotes && tab.note ? ` - ${tab.note}` : ""}`),
+    ...session.tabs.map(
+      (tab) => `- [${tab.title}](${tab.url})${includeNotes && tab.note ? ` - ${tab.note}` : ""}`
+    ),
   ].filter((line): line is string => typeof line === "string");
 
   return lines.join("\n");
@@ -671,7 +694,7 @@ export function downloadMarkdown(session: Session): void {
   downloadFile(
     sessionToMarkdown(session),
     `${session.name.replace(/\s+/g, "-").toLowerCase() || "session"}.md`,
-    "text/markdown",
+    "text/markdown"
   );
 }
 
@@ -679,7 +702,7 @@ export function downloadPlainText(session: Session): void {
   downloadFile(
     sessionToPlainText(session),
     `${session.name.replace(/\s+/g, "-").toLowerCase() || "session"}.txt`,
-    "text/plain",
+    "text/plain"
   );
 }
 
@@ -713,7 +736,9 @@ export function generateAIPrompt(session: Session, config?: Partial<AIShareConfi
     "",
     "Links:",
     links,
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 async function fetchTabPageText(url: string): Promise<string | null> {
@@ -736,18 +761,18 @@ async function fetchTabPageText(url: string): Promise<string | null> {
 
 export async function generateAIPromptWithPageText(
   session: Session,
-  config?: Partial<AIShareConfig>,
+  config?: Partial<AIShareConfig>
 ): Promise<string> {
   const basePrompt = generateAIPrompt(session, config);
   const pageTexts = await Promise.all(
     session.tabs.map(async (tab) => ({
       tab,
       text: await fetchTabPageText(tab.url),
-    })),
+    }))
   );
 
-  const availableTexts = pageTexts.filter((item): item is { tab: Session["tabs"][number]; text: string } =>
-    Boolean(item.text),
+  const availableTexts = pageTexts.filter(
+    (item): item is { tab: Session["tabs"][number]; text: string } => Boolean(item.text)
   );
 
   if (availableTexts.length === 0) {
@@ -758,11 +783,6 @@ export async function generateAIPromptWithPageText(
     basePrompt,
     "",
     "Page text:",
-    ...availableTexts.flatMap((item) => [
-      "",
-      `## ${item.tab.title}`,
-      item.tab.url,
-      item.text,
-    ]),
+    ...availableTexts.flatMap((item) => ["", `## ${item.tab.title}`, item.tab.url, item.text]),
   ].join("\n");
 }

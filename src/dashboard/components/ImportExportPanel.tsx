@@ -70,13 +70,13 @@ export default function ImportExportPanel({ addToast }: Props) {
       },
       settings,
     }),
-    [folders, schedules, sessions, settings, shareLinks, standaloneNotes, tags],
+    [folders, schedules, sessions, settings, shareLinks, standaloneNotes, tags]
   );
 
   const currentSummary = useMemo(() => summarizeStorageData(currentData), [currentData]);
   const incomingSummary = useMemo(
     () => (pendingImport ? summarizeStorageData(pendingImport.data) : null),
-    [pendingImport],
+    [pendingImport]
   );
   const resultData = useMemo(() => {
     if (!pendingImport) {
@@ -89,7 +89,7 @@ export default function ImportExportPanel({ addToast }: Props) {
   }, [currentData, pendingImport]);
   const resultSummary = useMemo(
     () => (resultData ? summarizeStorageData(resultData) : null),
-    [resultData],
+    [resultData]
   );
 
   const handleExportAll = async () => {
@@ -137,7 +137,7 @@ export default function ImportExportPanel({ addToast }: Props) {
         "success",
         pendingImport.mode === "replace"
           ? "Replaced your TabSetu library from the backup."
-          : "Merged the backup into your TabSetu library.",
+          : "Merged the backup into your TabSetu library."
       );
       setPendingImport(null);
     } catch (error) {
@@ -154,7 +154,10 @@ export default function ImportExportPanel({ addToast }: Props) {
         <div className="panel-header">
           <div>
             <h1>Import and export</h1>
-            <p>Back up the full library, move it between machines, or export individual sessions for sharing.</p>
+            <p>
+              Back up the full library, move it between machines, or export individual sessions for
+              sharing.
+            </p>
           </div>
         </div>
 
@@ -162,8 +165,8 @@ export default function ImportExportPanel({ addToast }: Props) {
           <div className="card settings-card">
             <h3>Full backup</h3>
             <p style={{ color: "var(--color-text-secondary)", marginTop: 8 }}>
-              JSON exports include sessions, folders, tags, notes, schedules, and settings. Imports also accept
-              OneTab text, OneTab HTML, and Session Buddy exports.
+              JSON exports include sessions, folders, tags, notes, schedules, and settings. Imports
+              also accept OneTab text, OneTab HTML, and Session Buddy exports.
             </p>
             <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
               <button className="btn btn-primary" onClick={() => void handleExportAll()}>
@@ -217,7 +220,9 @@ export default function ImportExportPanel({ addToast }: Props) {
                     {session.tabs.length} tabs
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <div
+                  style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}
+                >
                   <button className="btn btn-secondary" onClick={() => downloadMarkdown(session)}>
                     <Link2 size={14} />
                     Markdown
@@ -288,7 +293,14 @@ export default function ImportExportPanel({ addToast }: Props) {
           <div className="form-stack">
             <div className="card-raised" style={{ padding: 16 }}>
               <strong>Backup contents</strong>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 10, marginTop: 12 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                  gap: 10,
+                  marginTop: 12,
+                }}
+              >
                 <div className="detail-empty" style={{ padding: 10 }}>
                   <strong>{incomingSummary.sessions}</strong>
                   <div>Sessions</div>
@@ -325,30 +337,44 @@ export default function ImportExportPanel({ addToast }: Props) {
               <div className="form-stack">
                 <label className="toggle-row" style={{ alignItems: "flex-start", gap: 14 }}>
                   <span>
-                    <strong style={{ display: "block", marginBottom: 4 }}>Merge with current library</strong>
+                    <strong style={{ display: "block", marginBottom: 4 }}>
+                      Merge with current library
+                    </strong>
                     <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                      Sessions, folders, tags, and schedules are merged by ID, with the newer record winning when duplicates exist. Current settings stay as they are.
+                      Sessions, folders, tags, and schedules are merged by ID, with the newer record
+                      winning when duplicates exist. Current settings stay as they are.
                     </span>
                   </span>
                   <input
                     type="radio"
                     name="import-mode"
                     checked={pendingImport.mode === "merge"}
-                    onChange={() => setPendingImport((current) => (current ? { ...current, mode: "merge" } : current))}
+                    onChange={() =>
+                      setPendingImport((current) =>
+                        current ? { ...current, mode: "merge" } : current
+                      )
+                    }
                   />
                 </label>
                 <label className="toggle-row" style={{ alignItems: "flex-start", gap: 14 }}>
                   <span>
-                    <strong style={{ display: "block", marginBottom: 4 }}>Replace everything</strong>
+                    <strong style={{ display: "block", marginBottom: 4 }}>
+                      Replace everything
+                    </strong>
                     <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                      Overwrites sessions, folders, tags, schedules, and settings with the backup exactly as imported.
+                      Overwrites sessions, folders, tags, schedules, and settings with the backup
+                      exactly as imported.
                     </span>
                   </span>
                   <input
                     type="radio"
                     name="import-mode"
                     checked={pendingImport.mode === "replace"}
-                    onChange={() => setPendingImport((current) => (current ? { ...current, mode: "replace" } : current))}
+                    onChange={() =>
+                      setPendingImport((current) =>
+                        current ? { ...current, mode: "replace" } : current
+                      )
+                    }
                   />
                 </label>
               </div>
@@ -357,9 +383,18 @@ export default function ImportExportPanel({ addToast }: Props) {
             <div className="card-raised" style={{ padding: 16 }}>
               <strong>Library after import</strong>
               <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 6 }}>
-                Current library: {currentSummary.sessions} sessions, {currentSummary.tabs} tabs, {currentSummary.folders} folders, {currentSummary.tags} tags, {currentSummary.schedules} schedules, {currentSummary.notes} notes.
+                Current library: {currentSummary.sessions} sessions, {currentSummary.tabs} tabs,{" "}
+                {currentSummary.folders} folders, {currentSummary.tags} tags,{" "}
+                {currentSummary.schedules} schedules, {currentSummary.notes} notes.
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 10, marginTop: 12 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                  gap: 10,
+                  marginTop: 12,
+                }}
+              >
                 <div className="detail-empty" style={{ padding: 10 }}>
                   <strong>{resultSummary.sessions}</strong>
                   <div>Sessions</div>

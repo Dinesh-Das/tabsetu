@@ -1,7 +1,8 @@
-import { create } from 'zustand';
-import type { Folder } from '@/types';
-import { loadStorage, saveFolders } from '@/lib/storage';
-import { generateId, sanitizeLabel } from '@/lib/tabHelpers';
+import { create } from "zustand";
+import type { Folder } from "@/types";
+import { loadStorage, saveFolders } from "@/lib/storage";
+import { useHydrationStore } from "@/store/hydration";
+import { generateId, sanitizeLabel } from "@/lib/tabHelpers";
 
 interface FolderState {
   folders: Folder[];
@@ -25,13 +26,14 @@ export const useFolderStore = create<FolderState>((set, get) => ({
   load: async () => {
     const data = await loadStorage();
     set({ folders: data.folders });
+    useHydrationStore.getState().markOneHydrated();
   },
 
   createFolder: (name, color, icon) => {
     const position = get().folders.length;
     const folder: Folder = {
-      id: generateId('folder'),
-      name: sanitizeLabel(name, 'New Folder', 50),
+      id: generateId("folder"),
+      name: sanitizeLabel(name, "New Folder", 50),
       color,
       icon,
       position,
@@ -46,7 +48,9 @@ export const useFolderStore = create<FolderState>((set, get) => ({
   updateFolder: (id, updates) => {
     const sanitizedUpdates = {
       ...updates,
-      ...(typeof updates.name === "string" ? { name: sanitizeLabel(updates.name, "Folder", 50) } : {}),
+      ...(typeof updates.name === "string"
+        ? { name: sanitizeLabel(updates.name, "Folder", 50) }
+        : {}),
     };
     const folders = get().folders.map((f) =>
       f.id === id ? { ...f, ...sanitizedUpdates, updatedAt: Date.now() } : f

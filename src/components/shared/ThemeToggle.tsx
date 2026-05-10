@@ -21,7 +21,12 @@ export default function ThemeToggle({ compact = false }: Props) {
   const updateSettings = useSettingsStore((state) => state.updateSettings);
 
   return (
-    <div className="theme-toggle" data-compact={compact || undefined} role="group" aria-label="Theme">
+    <div
+      className="theme-toggle"
+      data-compact={compact || undefined}
+      role="group"
+      aria-label="Theme"
+    >
       {THEME_OPTIONS.map((option) => {
         const Icon = option.icon;
         const active = theme === option.value;

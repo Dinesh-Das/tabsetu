@@ -27,7 +27,7 @@ export function countSelectedVisibleTabs(tabs: chrome.tabs.Tab[], selectedIds: n
   const visibleIds = new Set(
     filterCapturableTabs(tabs)
       .map((tab) => tab.id)
-      .filter((id): id is number => typeof id === "number"),
+      .filter((id): id is number => typeof id === "number")
   );
 
   return selectedIds.filter((id) => visibleIds.has(id)).length;

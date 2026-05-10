@@ -115,7 +115,7 @@ describe("normalizeImportedStorageData", () => {
         schemaVersion: 999,
         sessions: [],
         folders: [],
-      }),
+      })
     ).toThrow("newer version of TabSetu");
   });
 });

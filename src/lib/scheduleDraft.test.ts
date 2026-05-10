@@ -41,13 +41,13 @@ describe("schedule draft normalization", () => {
       expect.objectContaining({
         ok: true,
         value: expect.objectContaining({ date: "2026-05-10" }),
-      }),
+      })
     );
     expect(daily).toEqual(
       expect.objectContaining({
         ok: true,
         value: expect.objectContaining({ date: null, daysOfWeek: [] }),
-      }),
+      })
     );
   });
 });

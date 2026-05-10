@@ -29,7 +29,7 @@ export function normalizeScheduleUrl(value: string): string {
 }
 
 export function normalizeScheduleDraft(
-  draft: ScheduleDraft,
+  draft: ScheduleDraft
 ): { ok: true; value: NormalizedScheduleDraft } | { ok: false; error: string } {
   const normalizedUrl = normalizeScheduleUrl(draft.url);
 

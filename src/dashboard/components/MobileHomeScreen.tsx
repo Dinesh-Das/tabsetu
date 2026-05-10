@@ -11,7 +11,13 @@ import {
   Trash2,
 } from "lucide-react";
 import * as LucideIcons from "lucide-react";
-import { EmptyState, GlassCard, MobileIconButton, SegmentedControl, TabRow } from "@/components/mobile/MobileUI";
+import {
+  EmptyState,
+  GlassCard,
+  MobileIconButton,
+  SegmentedControl,
+  TabRow,
+} from "@/components/mobile/MobileUI";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
 import { toLucideExportName } from "@/lib/sessionLabels";
@@ -36,16 +42,19 @@ interface Props {
 
 type HomeFilter = "folders" | "tags";
 
-function getSessionIcon(icon: string | null): ComponentType<{ size?: number; "aria-hidden"?: boolean }> | null {
+function getSessionIcon(
+  icon: string | null
+): ComponentType<{ size?: number; "aria-hidden"?: boolean }> | null {
   if (!icon) {
     return null;
   }
 
   const iconName = toLucideExportName(icon);
-  const lucideIcons = LucideIcons as unknown as Record<string, ComponentType<{ size?: number; "aria-hidden"?: boolean }>>;
-  return iconName in LucideIcons
-    ? lucideIcons[iconName] ?? null
-    : null;
+  const lucideIcons = LucideIcons as unknown as Record<
+    string,
+    ComponentType<{ size?: number; "aria-hidden"?: boolean }>
+  >;
+  return iconName in LucideIcons ? (lucideIcons[iconName] ?? null) : null;
 }
 
 interface SavedTab {
@@ -143,7 +152,7 @@ export default function MobileHomeScreen({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchIndex = useMemo(
     () => buildSearchIndex(sessions, folders, tags, settings),
-    [folders, sessions, settings.fuzzySearchThreshold, settings.searchScopes, tags],
+    [folders, sessions, settings, tags]
   );
 
   useEffect(() => {
@@ -179,7 +188,18 @@ export default function MobileHomeScreen({
         tagId: activeTagId,
         searchIndex,
       }),
-    [activeFolderId, activeTagId, deferredQuery, folders, searchIndex, sessions, settings, sortBy, tags, viewFilter],
+    [
+      activeFolderId,
+      activeTagId,
+      deferredQuery,
+      folders,
+      searchIndex,
+      sessions,
+      settings,
+      sortBy,
+      tags,
+      viewFilter,
+    ]
   );
 
   const visibleSessions = useMemo(() => items.map((item) => item.session), [items]);
@@ -188,7 +208,7 @@ export default function MobileHomeScreen({
 
   const savedTabCount = useMemo(
     () => sessions.reduce((total, session) => total + session.tabs.length, 0),
-    [sessions],
+    [sessions]
   );
 
   const savedTabs = useMemo<SavedTab[]>(
@@ -197,9 +217,9 @@ export default function MobileHomeScreen({
         session.tabs.map((tab) => ({
           session,
           tab,
-        })),
+        }))
       ),
-    [visibleSessions],
+    [visibleSessions]
   );
 
   const tagBuckets = useMemo<TagBucket[]>(() => {
@@ -278,40 +298,46 @@ export default function MobileHomeScreen({
         favIconUrl={tab.favIconUrl}
         preview={
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            {session.color ? <span className="session-color-dot" style={{ background: session.color }} aria-hidden="true" /> : null}
+            {session.color ? (
+              <span
+                className="session-color-dot"
+                style={{ background: session.color }}
+                aria-hidden="true"
+              />
+            ) : null}
             {SessionIcon ? <SessionIcon size={14} aria-hidden={true} /> : null}
             {tabPreview(tab)}
           </div>
         }
-      showCheckbox={false}
-      onSelect={() => void handleOpenTab(session, tab)}
-      actions={
-        <>
-          <button
-            className="mobile-row-action"
-            type="button"
-            title="Info"
-            onClick={(event) => {
-              event.stopPropagation();
-              addToast("info", tab.url);
-            }}
-          >
-            <Info size={17} />
-          </button>
-          <button
-            className="mobile-row-action"
-            type="button"
-            title="Delete tab"
-            onClick={(event) => {
-              event.stopPropagation();
-              removeTabFromSession(session.id, tab.id);
-              addToast("success", "Removed tab from session.");
-            }}
-          >
-            <Trash2 size={17} />
-          </button>
-        </>
-      }
+        showCheckbox={false}
+        onSelect={() => void handleOpenTab(session, tab)}
+        actions={
+          <>
+            <button
+              className="mobile-row-action"
+              type="button"
+              title="Info"
+              onClick={(event) => {
+                event.stopPropagation();
+                addToast("info", tab.url);
+              }}
+            >
+              <Info size={17} />
+            </button>
+            <button
+              className="mobile-row-action"
+              type="button"
+              title="Delete tab"
+              onClick={(event) => {
+                event.stopPropagation();
+                removeTabFromSession(session.id, tab.id);
+                addToast("success", "Removed tab from session.");
+              }}
+            >
+              <Trash2 size={17} />
+            </button>
+          </>
+        }
       />
     );
   };
@@ -351,8 +377,14 @@ export default function MobileHomeScreen({
 
       <GlassCard className="mobile-card-padded home-summary-card">
         <div>
-          <strong>{sessions.length ? `${savedTabCount} tabs organized` : "Your web, held together"}</strong>
-          <span>{sessions.length ? `${sessions.length} saved sessions in TabSetu` : "Save a set of tabs to begin."}</span>
+          <strong>
+            {sessions.length ? `${savedTabCount} tabs organized` : "Your web, held together"}
+          </strong>
+          <span>
+            {sessions.length
+              ? `${sessions.length} saved sessions in TabSetu`
+              : "Save a set of tabs to begin."}
+          </span>
         </div>
         <button className="mobile-primary-button" type="button" onClick={openQuickSave}>
           Quick Save
@@ -362,10 +394,18 @@ export default function MobileHomeScreen({
       <GlassCard className="mobile-card-padded home-capture-card">
         <div>
           <strong>Current active tabs</strong>
-          <span>{typeof currentTabCount === "number" ? `${currentTabCount} capturable tabs` : "Save or collapse this window."}</span>
+          <span>
+            {typeof currentTabCount === "number"
+              ? `${currentTabCount} capturable tabs`
+              : "Save or collapse this window."}
+          </span>
         </div>
         <div className="home-capture-actions">
-          <button className="mobile-secondary-button" type="button" onClick={onSelectTabs ?? openQuickSave}>
+          <button
+            className="mobile-secondary-button"
+            type="button"
+            onClick={onSelectTabs ?? openQuickSave}
+          >
             <ListChecks size={17} />
             Select Tabs
           </button>
@@ -405,7 +445,11 @@ export default function MobileHomeScreen({
           <EmptyState
             icon={<FolderOpen size={44} />}
             title={query ? "No saved tabs found" : "No tabs saved yet"}
-            description={query ? "Try a different search or clear filters." : "Save your current window to make TabSetu useful immediately."}
+            description={
+              query
+                ? "Try a different search or clear filters."
+                : "Save your current window to make TabSetu useful immediately."
+            }
             action={
               <button className="mobile-primary-button" type="button" onClick={openQuickSave}>
                 Quick Save Tabs
@@ -419,7 +463,10 @@ export default function MobileHomeScreen({
             {folderBuckets.map((folder) => (
               <GlassCard className="home-bucket-card" key={folder.id ?? "nofolder"}>
                 <div className="home-bucket-header">
-                  <div className="home-bucket-icon" style={{ background: `${folder.color}18`, color: folder.color }}>
+                  <div
+                    className="home-bucket-icon"
+                    style={{ background: `${folder.color}18`, color: folder.color }}
+                  >
                     <FolderOpen size={22} />
                   </div>
                   <div>
@@ -440,7 +487,10 @@ export default function MobileHomeScreen({
             {tagBuckets.map((tagBucket) => (
               <GlassCard className="home-bucket-card" key={tagBucket.id ?? "untagged"}>
                 <div className="home-bucket-header">
-                  <div className="home-bucket-icon" style={{ background: `${tagBucket.color}18`, color: tagBucket.color }}>
+                  <div
+                    className="home-bucket-icon"
+                    style={{ background: `${tagBucket.color}18`, color: tagBucket.color }}
+                  >
                     <Tag size={22} />
                   </div>
                   <div>

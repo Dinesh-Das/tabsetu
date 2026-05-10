@@ -64,7 +64,7 @@ export default function SessionSchedulePanel({
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
   const sessionSchedules = useMemo(
     () => schedules.filter((schedule) => schedule.sessionId === sessionId),
-    [schedules, sessionId],
+    [schedules, sessionId]
   );
 
   const resetScheduleEditor = () => {
@@ -83,7 +83,10 @@ export default function SessionSchedulePanel({
       return;
     }
 
-    if ((scheduleDraft.type === "weekly" || scheduleDraft.type === "custom") && scheduleDraft.daysOfWeek.length === 0) {
+    if (
+      (scheduleDraft.type === "weekly" || scheduleDraft.type === "custom") &&
+      scheduleDraft.daysOfWeek.length === 0
+    ) {
       addToast("error", "Choose at least one day.");
       return;
     }
@@ -111,7 +114,10 @@ export default function SessionSchedulePanel({
         return "Choose one or more days to preview the run.";
       }
       const labels = scheduleDraft.daysOfWeek
-        .map((day) => ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][day])
+        .map(
+          (day) =>
+            ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][day]
+        )
         .join(", ");
       return `Next run: ${labels} at ${scheduleDraft.time}`;
     }
@@ -154,7 +160,8 @@ export default function SessionSchedulePanel({
                   setScheduleDraft((current) => ({
                     ...current,
                     type: event.target.value as Schedule["type"],
-                    daysOfWeek: event.target.value === "weekdays" ? [1, 2, 3, 4, 5] : current.daysOfWeek,
+                    daysOfWeek:
+                      event.target.value === "weekdays" ? [1, 2, 3, 4, 5] : current.daysOfWeek,
                   }))
                 }
               >
@@ -171,7 +178,9 @@ export default function SessionSchedulePanel({
                 className="input"
                 type="time"
                 value={scheduleDraft.time}
-                onChange={(event) => setScheduleDraft((current) => ({ ...current, time: event.target.value }))}
+                onChange={(event) =>
+                  setScheduleDraft((current) => ({ ...current, time: event.target.value }))
+                }
               />
             </div>
           </div>
@@ -183,7 +192,9 @@ export default function SessionSchedulePanel({
                 className="input"
                 type="date"
                 value={scheduleDraft.date ?? ""}
-                onChange={(event) => setScheduleDraft((current) => ({ ...current, date: event.target.value || null }))}
+                onChange={(event) =>
+                  setScheduleDraft((current) => ({ ...current, date: event.target.value || null }))
+                }
               />
             </div>
           ) : null}
@@ -218,7 +229,12 @@ export default function SessionSchedulePanel({
           ) : null}
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button className="btn btn-primary" type="button" onClick={() => void handleSaveSchedule()} disabled={!schedulesEnabled}>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={() => void handleSaveSchedule()}
+              disabled={!schedulesEnabled}
+            >
               <CalendarClock size={14} />
               {editingScheduleId ? "Save schedule changes" : "Add schedule"}
             </button>
@@ -236,23 +252,42 @@ export default function SessionSchedulePanel({
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
-        {sessionSchedules.length === 0 ? <div className="detail-empty">No schedules yet for this session.</div> : null}
+        {sessionSchedules.length === 0 ? (
+          <div className="detail-empty">No schedules yet for this session.</div>
+        ) : null}
         {sessionSchedules.map((schedule) => (
           <div key={schedule.id} className="card-raised detail-card">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
               <div>
                 <div style={{ fontWeight: 600 }}>
                   {formatScheduleLabel(schedule.type)} at {schedule.time}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 4 }}>
-                  {schedule.type === "once" && schedule.date ? `Runs on ${schedule.date}` : "Runs in the browser with Chrome alarms."}
+                  {schedule.type === "once" && schedule.date
+                    ? `Runs on ${schedule.date}`
+                    : "Runs in the browser with Chrome alarms."}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-secondary" type="button" onClick={() => handleEditSchedule(schedule)}>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={() => handleEditSchedule(schedule)}
+                >
                   Edit
                 </button>
-                <button className="btn btn-secondary" type="button" onClick={() => void toggleSchedule(schedule.id, !schedule.enabled)}>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={() => void toggleSchedule(schedule.id, !schedule.enabled)}
+                >
                   {schedule.enabled ? "Disable" : "Enable"}
                 </button>
                 <button

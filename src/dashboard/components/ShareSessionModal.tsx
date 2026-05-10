@@ -8,7 +8,11 @@ import {
   sessionToMarkdown,
   sessionToPlainText,
 } from "@/lib/exportImport";
-import { createShareSnapshot, encodeShareSnapshot, generateShareUrlFromEncoded } from "@/lib/shareEncoder";
+import {
+  createShareSnapshot,
+  encodeShareSnapshot,
+  generateShareUrlFromEncoded,
+} from "@/lib/shareEncoder";
 import { copyTextToClipboard } from "@/lib/sessionBrowser";
 import { useShareStore } from "@/store/shareStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -85,7 +89,8 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
           <span>
             <strong style={{ display: "block", marginBottom: 4 }}>Include page text</strong>
             <span style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
-              Best-effort fetch from saved URLs. Pages that require sign-in or block fetches fall back to saved context.
+              Best-effort fetch from saved URLs. Pages that require sign-in or block fetches fall
+              back to saved context.
             </span>
           </span>
           <input
@@ -130,7 +135,10 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
                 createShareLink(session.id, encoded);
                 void copy("share link", shareUrl);
               } catch (error) {
-                addToast("error", error instanceof Error ? error.message : "Could not create share link.");
+                addToast(
+                  "error",
+                  error instanceof Error ? error.message : "Could not create share link."
+                );
               }
             }}
           >
