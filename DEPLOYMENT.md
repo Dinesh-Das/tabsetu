@@ -16,10 +16,18 @@ npm run type-check
 npm test
 
 # Production build
-npm run build
+npm run build:all
 ```
 
-Verify the `dist/` folder contains:
+Verify the `dist-browsers/` folder contains:
+
+- `chrome/` - Chrome Web Store package
+- `edge/` - Microsoft Edge Add-ons package
+- `brave/` - Brave / Chromium side-load package
+- `firefox/` - Firefox Add-ons package
+
+Each browser folder contains:
+
 - `manifest.json` (Manifest V3)
 - `service-worker-loader.js`
 - `src/popup/index.html` — extension popup
@@ -31,15 +39,15 @@ Verify the `dist/` folder contains:
 ### Create the Submission ZIP
 
 ```bash
-cd dist
+cd dist-browsers/chrome
 # Windows (PowerShell)
-Compress-Archive -Path * -DestinationPath ../tabsetu-v1.0.0.zip
+Compress-Archive -Path * -DestinationPath ../../tabsetu-chrome-v1.0.0.zip
 
 # macOS / Linux
-zip -r ../tabsetu-v1.0.0.zip .
+zip -r ../../tabsetu-chrome-v1.0.0.zip .
 ```
 
-> **Important:** ZIP the *contents* of `dist/`, not the `dist/` folder itself. The `manifest.json` must be at the root of the ZIP.
+> **Important:** ZIP the _contents_ of each browser folder, not the folder itself. The `manifest.json` must be at the root of the ZIP.
 
 ---
 
@@ -52,23 +60,23 @@ Brave, Vivaldi, Opera, and Arc also install from the Chrome Web Store.
 2. **Upload:** Click **+ New Item** → upload your ZIP.
 3. **Listing details:**
 
-   | Field | Value |
-   |:---|:---|
-   | **Name** | TabSetu |
-   | **Summary** | Save, organize, and restore browser sessions. Unlimited tabs, folders, and tags. Free forever. |
-   | **Category** | Productivity |
-   | **Language** | English |
+   | Field        | Value                                                                                          |
+   | :----------- | :--------------------------------------------------------------------------------------------- |
+   | **Name**     | TabSetu                                                                                        |
+   | **Summary**  | Save, organize, and restore browser sessions. Unlimited tabs, folders, and tags. Free forever. |
+   | **Category** | Productivity                                                                                   |
+   | **Language** | English                                                                                        |
 
 4. **Permissions justification:**
 
-   | Permission | Justification |
-   |:---|:---|
-   | `tabs` | Read tab URLs and titles to save sessions |
-   | `storage` | Store sessions, folders, tags, and settings locally |
-   | `alarms` | Fire scheduled auto-open and reminder alarms |
-   | `notifications` | Show reminder notifications |
-   | `scripting` | Inject the global search overlay on the active tab |
-   | `activeTab` | Access the current tab for search overlay injection |
+   | Permission                     | Justification                                                 |
+   | :----------------------------- | :------------------------------------------------------------ |
+   | `tabs`                         | Read tab URLs and titles to save sessions                     |
+   | `storage`                      | Store sessions, folders, tags, and settings locally           |
+   | `alarms`                       | Fire scheduled auto-open and reminder alarms                  |
+   | `notifications`                | Show reminder notifications                                   |
+   | `scripting`                    | Inject the global search overlay on the active tab            |
+   | `activeTab`                    | Access the current tab for search overlay injection           |
    | `host_permissions: <all_urls>` | Fetch favicon data URLs and inject search overlay on any page |
 
 5. **Privacy practices:**
@@ -83,10 +91,10 @@ Brave, Vivaldi, Opera, and Arc also install from the Chrome Web Store.
 
 ## 🟢 Microsoft Edge Add-ons
 
-The same build works on Edge without changes.
+Use the generated `dist-browsers/edge` package.
 
 1. **Register:** Go to the [Microsoft Partner Center](https://partner.microsoft.com/en-us/dashboard/microsoftedge/overview) (free, Microsoft account required).
-2. **Create new extension** → upload the same ZIP.
+2. **Create new extension** → upload a ZIP of the `dist-browsers/edge` contents.
 3. **Listing details:** Same as Chrome (see above).
 4. **Review:** Typically 1–3 business days.
 
@@ -94,23 +102,13 @@ The same build works on Edge without changes.
 
 ## 🟠 Firefox Add-ons (AMO)
 
-Firefox supports Manifest V3 but requires a Gecko ID.
+Firefox supports Manifest V3 with a different background manifest shape. Use the generated `dist-browsers/firefox` package; it includes `background.scripts`, a Gecko ID, and a Firefox minimum version.
 
-1. **Add Gecko ID** — add this to `src/manifest.json` before building:
-
-   ```json
-   "browser_specific_settings": {
-     "gecko": {
-       "id": "tabsetu@dinesh-das.dev",
-       "strict_min_version": "109.0"
-     }
-   }
-   ```
-
-2. **Rebuild:** `npm run build`
+1. **Build:** `npm run build:all`
+2. **Zip:** zip the contents of `dist-browsers/firefox`.
 3. **Submit:** Go to the [Firefox Add-ons Developer Hub](https://addons.mozilla.org/en-US/developers/) → upload your ZIP.
 4. **Visibility:** Choose **Listed** to appear in the public directory.
-5. **Source code:** AMO may ask for source code for review — upload a ZIP of the full repo (excluding `node_modules/` and `dist/`).
+5. **Source code:** AMO may ask for source code for review — upload a ZIP of the full repo (excluding `node_modules/`, `dist/`, and `dist-browsers/`).
 
 ---
 
@@ -118,13 +116,13 @@ Firefox supports Manifest V3 but requires a Gecko ID.
 
 Prepare these assets before submission:
 
-| Asset | Dimensions | Format | Required By |
-|:---|:---|:---|:---|
-| **Extension icon** | 128×128 | PNG | All stores |
-| **Store icon** | 128×128 | PNG | Chrome, Edge |
-| **Screenshot** | 1280×800 or 640×400 | PNG/JPEG | All stores |
-| **Small tile** | 440×280 | PNG | Chrome |
-| **Marquee / promo** | 1400×560 | PNG | Chrome, Edge |
+| Asset               | Dimensions          | Format   | Required By  |
+| :------------------ | :------------------ | :------- | :----------- |
+| **Extension icon**  | 128×128             | PNG      | All stores   |
+| **Store icon**      | 128×128             | PNG      | Chrome, Edge |
+| **Screenshot**      | 1280×800 or 640×400 | PNG/JPEG | All stores   |
+| **Small tile**      | 440×280             | PNG      | Chrome       |
+| **Marquee / promo** | 1400×560            | PNG      | Chrome, Edge |
 
 > **Tip:** Take screenshots in both dark and light modes. Show the popup, dashboard, and search overlay.
 
@@ -163,7 +161,7 @@ After approval:
 
 ---
 
-**TabSetu** — *Modern, Secure, and Ready for the World.*
+**TabSetu** — _Modern, Secure, and Ready for the World._
 
 ## Storage Permission Note
 

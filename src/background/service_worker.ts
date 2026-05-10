@@ -35,6 +35,7 @@ const TIMEZONE_CHECK_ALARM_NAME = "tabsetu-timezone-check";
 const TIMEZONE_OFFSET_KEY = "TabSetu_timezone_offset_minutes";
 const KEEPALIVE_ALARM = "tabsetu-keepalive";
 const REMINDER_WINDOW_MINUTES = 5;
+const transientStorage = chrome.storage.session ?? chrome.storage.local;
 
 interface StoredBrowserTab {
   tabId: number;
@@ -81,7 +82,7 @@ async function updateBadge(): Promise<void> {
 
   await chrome.action.setBadgeText({ text: String(pending) });
   await chrome.action.setBadgeBackgroundColor({ color: "#E24B4A" });
-  await chrome.action.setBadgeTextColor({ color: "#FFFFFF" });
+  await chrome.action.setBadgeTextColor?.({ color: "#FFFFFF" });
 }
 
 async function maybeStartKeepalive(): Promise<void> {
@@ -103,7 +104,7 @@ async function maybeStartKeepalive(): Promise<void> {
 
 function sessionStorageGet<T>(keys: string[]): Promise<T> {
   return new Promise((resolve, reject) => {
-    chrome.storage.session.get(keys, (result) => {
+    transientStorage.get(keys, (result) => {
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
         return;
@@ -116,7 +117,7 @@ function sessionStorageGet<T>(keys: string[]): Promise<T> {
 
 function sessionStorageSet(value: object): Promise<void> {
   return new Promise((resolve, reject) => {
-    chrome.storage.session.set(value, () => {
+    transientStorage.set(value, () => {
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
         return;

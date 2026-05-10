@@ -2,7 +2,7 @@
 
 > **Save your tabs. Clear your mind.**
 
-TabSetu is a **free, local-first Chrome extension** that transforms browser tab chaos into organized, searchable sessions. Built with a stunning Glassmorphism UI, it goes beyond session saving — it's a full workspace orchestrator with folders, tags, notes, reminders, scheduled auto-open, fuzzy search, AI prompts, and a shareable session link system.
+TabSetu is a **free, local-first browser extension** for Chrome, Edge, Brave, Firefox, and other compatible browsers that transforms tab chaos into organized, searchable sessions. Built with a stunning Glassmorphism UI, it goes beyond session saving — it's a full workspace orchestrator with folders, tags, notes, reminders, scheduled auto-open, fuzzy search, AI prompts, and a shareable session link system.
 
 **No accounts. No cloud. No limits. Free forever.**
 
@@ -11,11 +11,13 @@ TabSetu is a **free, local-first Chrome extension** that transforms browser tab 
 ## ✨ Features
 
 ### 🧊 Glassmorphism Design System
+
 - **Frosted glass panels** with luminous borders and animated gradient mesh backgrounds
 - **Dark / Light / System** theme with seamless live switching
 - **Responsive layout** — popup (mobile-style) and full-page dashboard (split-pane desktop)
 
 ### 🗂️ Session Management
+
 - **One-click save** — snapshot your entire window in milliseconds
 - **Smart collapse** — save all tabs and close the window with a **10-second undo buffer**
 - **Folders & Tags** — organize sessions with nested folders and color-coded tags
@@ -23,27 +25,32 @@ TabSetu is a **free, local-first Chrome extension** that transforms browser tab 
 - **Drag-and-drop** tab reordering within sessions
 
 ### 📝 Notes
+
 - **Tab notes** — attach notes to individual tabs
 - **Session notes** — add rich notes to entire sessions
 - **Standalone notes** — keep research logs independent of any session
 
 ### ⏰ Reminders & Schedules
+
 - **Tab reminders** — "Remind me in 1 hour" or "Tomorrow at 9 AM" for any tab
 - **Snooze / Dismiss / Reopen** — full reminder lifecycle management
 - **Recurring schedules** — auto-open tab sets daily, on weekdays, or custom days
 - **One-time schedules** — fire once at a specific date and time
 
 ### 🔍 Search
+
 - **Global search overlay** — press `Ctrl+Shift+F` on any webpage to search your entire TabSetu history without leaving the page
 - **Fuzzy matching** — powered by Fuse.js, finds results even with partial or misspelled queries
 - **Highlighted snippets** — matching text highlighted inline in search results
 
 ### 🤖 AI Integration
+
 - **AI-ready prompts** — generate context-rich prompts for ChatGPT, Claude, or Gemini from saved tabs
 - **Page text extraction** — optionally include page content in prompts for deeper context
 - **Custom providers** — configure your own AI endpoint and prompt template
 
 ### 🔗 Sharing
+
 - **Session share links** — generate a URL-encoded snapshot anyone can import
 - **Export formats** — JSON backup, Markdown, plain text, or clipboard links
 - **Universal import** — parse JSON, HTML bookmarks, and plain text URL lists from any tab manager
@@ -52,30 +59,43 @@ TabSetu is a **free, local-first Chrome extension** that transforms browser tab 
 
 ## ⌨️ Keyboard Shortcuts
 
-| Shortcut | Action |
-|:---|:---|
-| `Alt+Shift+Y` | **Save** the current window as a session |
-| `Alt+Shift+U` | **Collapse** — save + close the window |
+| Shortcut       | Action                                         |
+| :------------- | :--------------------------------------------- |
+| `Alt+Shift+Y`  | **Save** the current window as a session       |
+| `Alt+Shift+U`  | **Collapse** — save + close the window         |
 | `Ctrl+Shift+F` | Open the **Global Search Overlay** on any page |
-| `Alt+Shift+D` | Open the **TabSetu Dashboard** |
-| `Ctrl+K` | Focus the search bar (inside popup) |
-| `Escape` | Close modals and overlays |
+| `Alt+Shift+D`  | Open the **TabSetu Dashboard**                 |
+| `Ctrl+K`       | Focus the search bar (inside popup)            |
+| `Escape`       | Close modals and overlays                      |
 
 ---
 
 ## 🏗️ Tech Stack
 
-| Layer | Technology |
-|:---|:---|
-| **UI** | React 18, TypeScript, Tailwind CSS |
-| **Animations** | Framer Motion |
-| **Icons** | Lucide React |
-| **State** | Zustand (7 stores: sessions, folders, tags, schedules, notes, shares, settings) |
-| **Search** | Fuse.js with custom highlight engine |
-| **Build** | Vite + @crxjs/vite-plugin |
-| **Testing** | Vitest (43 tests across 12 modules) |
-| **Extension** | Chrome Manifest V3, service worker module |
-| **Storage** | `chrome.storage.local` — fully offline, no server |
+| Layer          | Technology                                                                      |
+| :------------- | :------------------------------------------------------------------------------ |
+| **UI**         | React 18, TypeScript, Tailwind CSS                                              |
+| **Animations** | Framer Motion                                                                   |
+| **Icons**      | Lucide React                                                                    |
+| **State**      | Zustand (7 stores: sessions, folders, tags, schedules, notes, shares, settings) |
+| **Search**     | Fuse.js with custom highlight engine                                            |
+| **Build**      | Vite + @crxjs/vite-plugin                                                       |
+| **Testing**    | Vitest (43 tests across 12 modules)                                             |
+| **Extension**  | Cross-browser Manifest V3 packages for Chromium and Firefox                     |
+| **Storage**    | `chrome.storage.local` — fully offline, no server                               |
+
+---
+
+## Browser Builds
+
+Run `npm run build:all` to create browser-specific packages:
+
+- `dist-browsers/chrome`
+- `dist-browsers/edge`
+- `dist-browsers/brave`
+- `dist-browsers/firefox`
+
+Chrome, Edge, and Brave use the Chromium MV3 service worker package. Firefox gets a Firefox-specific MV3 manifest with `background.scripts` and `browser_specific_settings.gecko`.
 
 ---
 
@@ -130,6 +150,7 @@ tabsetu/
 ## 🚀 Getting Started
 
 ### Prerequisites
+
 - **Node.js** 18+ and **npm**
 - **Google Chrome** (or any Chromium browser)
 
@@ -146,10 +167,10 @@ npm install
 # Start dev build (watches for changes)
 npm run dev
 
-# Load in Chrome:
-# 1. Open chrome://extensions
+# Load in a Chromium browser:
+# 1. Open chrome://extensions, edge://extensions, or brave://extensions
 # 2. Enable "Developer mode"
-# 3. Click "Load unpacked" → select the dist/ folder
+# 3. Click "Load unpacked" → select the matching dist-browsers/<browser>/ folder
 ```
 
 ### Testing
@@ -221,4 +242,4 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
-**TabSetu** — *Save your tabs. Clear your mind.*
+**TabSetu** — _Save your tabs. Clear your mind._

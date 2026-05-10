@@ -12,10 +12,14 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci
-      - run: npm run build
-      - name: Zip dist
-        run: zip -r tabsetu-${{ github.ref_name }}.zip dist/
+      - run: npm run build:all
+      - name: Zip browser builds
+        run: |
+          cd dist-browsers
+          for browser in chrome edge brave firefox; do
+            (cd "$browser" && zip -r "../../tabsetu-${browser}-${{ github.ref_name }}.zip" .)
+          done
       - uses: actions/upload-artifact@v4
         with:
-          name: tabsetu-${{ github.ref_name }}
+          name: tabsetu-browser-builds-${{ github.ref_name }}
           path: tabsetu-*.zip
