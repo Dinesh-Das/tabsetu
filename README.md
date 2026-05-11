@@ -2,9 +2,9 @@
 
 > **Save your tabs. Clear your mind.**
 
-TabSetu is a **free, local-first browser extension** for Chrome, Edge, Brave, Firefox, and other compatible browsers that transforms tab chaos into organized, searchable sessions. Built with a stunning Glassmorphism UI, it goes beyond session saving — it's a full workspace orchestrator with folders, tags, notes, reminders, scheduled auto-open, fuzzy search, AI prompts, and a shareable session link system.
+TabSetu is a **free, local-first browser extension** for Chrome, Edge, Brave, Firefox, and other compatible browsers that transforms tab chaos into organized, searchable sessions. Built with a stunning Glassmorphism UI, it goes beyond session saving — it's a full workspace orchestrator with folders, tags, notes, reminders, scheduled auto-open, fuzzy search, Google Drive sync, AI prompts, and a shareable session link system.
 
-**No accounts. No cloud. No limits. Free forever.**
+**Local-first storage. User-owned Google Drive sync. No backend. No limits. Free forever.**
 
 ---
 
@@ -19,10 +19,19 @@ TabSetu is a **free, local-first browser extension** for Chrome, Edge, Brave, Fi
 ### 🗂️ Session Management
 
 - **One-click save** — snapshot your entire window in milliseconds
+- **Context menu capture** — save a tab or whole window from Chrome's right-click menu
 - **Smart collapse** — save all tabs and close the window with a **10-second undo buffer**
 - **Folders & Tags** — organize sessions with nested folders and color-coded tags
 - **Bulk actions** — select, archive, move, or delete multiple sessions at once
 - **Drag-and-drop** tab reordering within sessions
+
+### 🔄 Sync
+
+- **Google Drive app data sync** — cross-device session sync using the user's own hidden `appDataFolder`
+- **No TabSetu backend** — sync talks directly to Google Drive with the `drive.appdata` scope
+- **Synced preferences** — lightweight settings and AI configuration live in `chrome.storage.sync`
+- **Local library storage** — sessions, folders, tags, schedules, notes, and share links stay in `chrome.storage.local`
+- **Last-write-wins merge** — remote and local libraries are unioned by entity ID using `updatedAt`
 
 ### 📝 Notes
 
@@ -52,6 +61,7 @@ TabSetu is a **free, local-first browser extension** for Chrome, Edge, Brave, Fi
 ### 🔗 Sharing
 
 - **Session share links** — generate a URL-encoded snapshot anyone can import
+- **Large-session fallback** — oversized URL shares point users to Markdown export instead of failing silently
 - **Export formats** — JSON backup, Markdown, plain text, or clipboard links
 - **Universal import** — parse JSON, HTML bookmarks, and plain text URL lists from any tab manager
 
@@ -72,17 +82,17 @@ TabSetu is a **free, local-first browser extension** for Chrome, Edge, Brave, Fi
 
 ## 🏗️ Tech Stack
 
-| Layer          | Technology                                                                      |
-| :------------- | :------------------------------------------------------------------------------ |
-| **UI**         | React 18, TypeScript, Tailwind CSS                                              |
-| **Animations** | Framer Motion                                                                   |
-| **Icons**      | Lucide React                                                                    |
-| **State**      | Zustand (7 stores: sessions, folders, tags, schedules, notes, shares, settings) |
-| **Search**     | Fuse.js with custom highlight engine                                            |
-| **Build**      | Vite + @crxjs/vite-plugin                                                       |
-| **Testing**    | Vitest (43 tests across 12 modules)                                             |
-| **Extension**  | Cross-browser Manifest V3 packages for Chromium and Firefox                     |
-| **Storage**    | `chrome.storage.local` — fully offline, no server                               |
+| Layer          | Technology                                                                            |
+| :------------- | :------------------------------------------------------------------------------------ |
+| **UI**         | React 18, TypeScript, Tailwind CSS                                                    |
+| **Animations** | Framer Motion                                                                         |
+| **Icons**      | Lucide React                                                                          |
+| **State**      | Zustand (8 stores: sessions, folders, tags, schedules, notes, shares, settings, sync) |
+| **Search**     | Fuse.js with custom highlight engine                                                  |
+| **Build**      | Vite + @crxjs/vite-plugin                                                             |
+| **Testing**    | Vitest (51 tests across 15 modules)                                                   |
+| **Extension**  | Cross-browser Manifest V3 packages for Chromium and Firefox                           |
+| **Storage**    | `chrome.storage.local`, `chrome.storage.sync`, optional Google Drive `appDataFolder`  |
 
 ---
 
@@ -115,7 +125,9 @@ tabsetu/
 │   │   └── pages/           # RemindersPage
 │   ├── hooks/               # useDebouncedValue
 │   ├── lib/                 # Pure logic — no React, fully testable
-│   │   ├── storage.ts       # Normalization, persistence, migration (25 KB)
+│   │   ├── storage.ts       # Normalization, persistence, migration
+│   │   ├── googleSync.ts    # Google Drive appDataFolder sync helpers
+│   │   ├── syncMerge.ts     # Last-write-wins storage merge
 │   │   ├── exportImport.ts  # Multi-format import/export engine (21 KB)
 │   │   ├── fuzzySearch.ts   # Fuse.js integration + highlight builder
 │   │   ├── tabHelpers.ts    # ID generation, URL validation, favicon caching
@@ -132,7 +144,7 @@ tabsetu/
 │   │   └── popupTabs.ts     # Capturable tab filtering
 │   ├── popup/               # Extension popup (browser action)
 │   │   └── components/      # CurrentTabs, SaveModal, SavedSessions, SearchBar, Onboarding, Toast
-│   ├── store/               # Zustand stores (session, folder, tag, schedule, notes, share, settings)
+│   ├── store/               # Zustand stores (session, folder, tag, schedule, notes, share, settings, sync)
 │   ├── types/               # TypeScript interfaces (TabItem, Session, Folder, Tag, Schedule, etc.)
 │   └── manifest.json        # Chrome MV3 manifest
 ├── share-page/              # Standalone HTML page for opening shared session links
@@ -183,6 +195,26 @@ npm test
 npm run type-check
 ```
 
+### Google Drive Sync Setup
+
+The extension uses `identity.launchWebAuthFlow`, so Google Cloud should use a **Web application** OAuth client with one authorized redirect URI per browser/build.
+
+Create a local env file from the example and set your public Web OAuth client ID:
+
+```bash
+cp .env.example .env
+```
+
+```env
+GOOGLE_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
+```
+
+`vite.config.ts` injects `GOOGLE_CLIENT_ID` into the built extension manifest. Do not add a Google client secret to the extension.
+
+For Chromium builds, add redirect URIs like `https://<extension-id>.chromiumapp.org/google` to that Web client. Add each browser or local development extension ID you want to support.
+
+See [GOOGLE_CONFIG.md](GOOGLE_CONFIG.md) for the full Google Cloud and OAuth setup checklist.
+
 ### Production Build
 
 ```bash
@@ -194,8 +226,10 @@ npm run build
 
 ## 🛡️ Privacy & Philosophy
 
-- **Local-first** — all data stored in `chrome.storage.local`. Nothing leaves your device.
-- **No accounts** — no sign-up, no login, no cloud sync.
+- **Local-first** — sessions, folders, tags, schedules, notes, and share links stay in `chrome.storage.local`.
+- **Google sign-in at startup** — the dashboard starts with login so sync is connected before session work begins.
+- **User-owned sync** — synced session data is stored in the user's Google Drive `appDataFolder`, hidden from normal Drive UI and not hosted by TabSetu.
+- **Synced preferences** — settings and AI config use `chrome.storage.sync` for lightweight browser preference sync.
 - **No tracking** — zero analytics, zero telemetry.
 - **Manifest V3** — built on Chrome's latest, most secure extension architecture.
 - **Free forever** — no premium tiers, no limits on tabs, folders, or sessions.

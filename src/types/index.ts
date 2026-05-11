@@ -141,6 +141,14 @@ export interface StorageData {
   settings: Settings;
 }
 
+export interface SyncState {
+  enabled: boolean;
+  email: string | null;
+  lastSyncedAt: number | null;
+  isSyncing: boolean;
+  syncError: string | null;
+}
+
 export type SortOption = "createdAt" | "updatedAt" | "lastOpenedAt" | "name" | "tabCount";
 export type ViewFilter = "all" | "pinned" | "archived";
 

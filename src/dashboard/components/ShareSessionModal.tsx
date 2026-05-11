@@ -3,16 +3,13 @@ import { Bot, ClipboardCopy, ExternalLink, Link2 } from "lucide-react";
 import ModalShell from "@/components/shared/ModalShell";
 import {
   copyLinksToClipboard,
+  downloadMarkdown,
   generateAIPrompt,
   generateAIPromptWithPageText,
   sessionToMarkdown,
   sessionToPlainText,
 } from "@/lib/exportImport";
-import {
-  createShareSnapshot,
-  encodeShareSnapshot,
-  generateShareUrlFromEncoded,
-} from "@/lib/shareEncoder";
+import { createShareSnapshot, encodeShareSnapshot, tryGenerateShareUrl } from "@/lib/shareEncoder";
 import { copyTextToClipboard } from "@/lib/sessionBrowser";
 import { useShareStore } from "@/store/shareStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -35,6 +32,7 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
   const createShareLink = useShareStore((state) => state.createShareLink);
   const [includeNotes, setIncludeNotes] = useState(settings.exportIncludeNotes);
   const [includePageText, setIncludePageText] = useState(false);
+  const [tooLargeTabCount, setTooLargeTabCount] = useState<number | null>(null);
 
   const promptConfig = {
     includeTitles: true,
@@ -129,11 +127,16 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
             className="btn btn-secondary"
             type="button"
             onClick={() => {
+              const result = tryGenerateShareUrl(session);
+              if (!result.ok) {
+                setTooLargeTabCount(result.tabCount);
+                return;
+              }
+
               try {
                 const encoded = encodeShareSnapshot(createShareSnapshot(session));
-                const shareUrl = generateShareUrlFromEncoded(encoded);
                 createShareLink(session.id, encoded);
-                void copy("share link", shareUrl);
+                void copy("share link", result.url);
               } catch (error) {
                 addToast(
                   "error",
@@ -161,6 +164,23 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
             Copy AI prompt
           </button>
         </div>
+
+        {tooLargeTabCount ? (
+          <div className="card-raised share-too-large">
+            <p>
+              This session has {tooLargeTabCount} tabs and is too large to share via link. Use{" "}
+              <strong>Export - Markdown</strong> to share it instead.
+            </p>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => downloadMarkdown(session)}
+            >
+              <Link2 size={14} />
+              Export Markdown
+            </button>
+          </div>
+        ) : null}
 
         <div className="card-raised" style={{ padding: 14 }}>
           <strong>Open with AI</strong>

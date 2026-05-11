@@ -469,9 +469,11 @@ function hasOwnKey(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
-function storageGet<T>(keys: string[] | null): Promise<T> {
+type StorageArea = chrome.storage.StorageArea;
+
+function storageGet<T>(area: StorageArea, keys: string[] | null): Promise<T> {
   return new Promise((resolve, reject) => {
-    chrome.storage.local.get(keys, (result) => {
+    area.get(keys, (result) => {
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
         return;
@@ -482,9 +484,9 @@ function storageGet<T>(keys: string[] | null): Promise<T> {
   });
 }
 
-function storageSet(value: object): Promise<void> {
+function storageSet(area: StorageArea, value: object): Promise<void> {
   return new Promise((resolve, reject) => {
-    chrome.storage.local.set(value, () => {
+    area.set(value, () => {
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
         return;
@@ -502,9 +504,9 @@ async function checkQuotaAfterSave(): Promise<void> {
   }
 }
 
-function storageRemove(keys: readonly string[]): Promise<void> {
+function storageRemove(area: StorageArea, keys: readonly string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    chrome.storage.local.remove([...keys], () => {
+    area.remove([...keys], () => {
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
         return;
@@ -515,7 +517,7 @@ function storageRemove(keys: readonly string[]): Promise<void> {
   });
 }
 
-function toStorageRecord(data: StorageData): Record<string, unknown> {
+function toLocalStorageRecord(data: StorageData): Record<string, unknown> {
   return {
     [STORAGE_KEYS.sessions]: data.sessions,
     [STORAGE_KEYS.folders]: data.folders,
@@ -523,9 +525,14 @@ function toStorageRecord(data: StorageData): Record<string, unknown> {
     [STORAGE_KEYS.schedules]: data.schedules,
     [STORAGE_KEYS.standaloneNotes]: data.standaloneNotes,
     [STORAGE_KEYS.shareLinks]: data.shareLinks,
+    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  };
+}
+
+function toSyncStorageRecord(data: StorageData): Record<string, unknown> {
+  return {
     [STORAGE_KEYS.aiConfig]: data.aiConfig,
     [STORAGE_KEYS.settings]: data.settings,
-    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   };
 }
 
@@ -562,8 +569,7 @@ async function migrateLegacyStorage(
     return migrated;
   }
 
-  await storageSet(toStorageRecord(migrated));
-  await storageRemove(LEGACY_KEYS);
+  await saveStorageData(migrated, { scheduleSync: false });
   return migrated;
 }
 
@@ -722,12 +728,41 @@ export function normalizeImportedStorageData(raw: unknown): StorageData {
   return applyMigrations(isRecord(raw) ? raw : {}, normalizeStorageData(raw));
 }
 
+function mergeLocalAndSyncRaw(
+  localRaw: Record<string, unknown>,
+  syncRaw: Record<string, unknown>
+): Record<string, unknown> {
+  return {
+    ...localRaw,
+    ...(hasOwnKey(syncRaw, STORAGE_KEYS.settings)
+      ? { [STORAGE_KEYS.settings]: syncRaw[STORAGE_KEYS.settings] }
+      : {}),
+    ...(hasOwnKey(syncRaw, STORAGE_KEYS.aiConfig)
+      ? { [STORAGE_KEYS.aiConfig]: syncRaw[STORAGE_KEYS.aiConfig] }
+      : {}),
+  };
+}
+
 export async function loadStorage(): Promise<StorageData> {
-  const raw = await storageGet<Record<string, unknown>>(null);
+  const [localRaw, syncRaw] = await Promise.all([
+    storageGet<Record<string, unknown>>(chrome.storage.local, null),
+    storageGet<Record<string, unknown>>(chrome.storage.sync, [
+      STORAGE_KEYS.settings,
+      STORAGE_KEYS.aiConfig,
+    ]),
+  ]);
+  const raw = mergeLocalAndSyncRaw(localRaw, syncRaw);
   const data = normalizeStorageData(raw);
-  const migrated = await migrateLegacyStorage(raw, data);
+  const migrated = await migrateLegacyStorage(localRaw, data);
   await pruneStaleTabFavicons(migrated.sessions);
   return migrated;
+}
+
+export async function loadSettings(): Promise<Settings> {
+  const raw = await storageGet<Record<string, unknown>>(chrome.storage.sync, [
+    STORAGE_KEYS.settings,
+  ]);
+  return normalizeSettings(raw[STORAGE_KEYS.settings]);
 }
 
 function normalizeUndoBuffer(raw: unknown): UndoCollapseBuffer | null {
@@ -744,77 +779,140 @@ export async function loadStorageWithUndoBuffer(): Promise<{
   undoBuffer: UndoCollapseBuffer | null;
   favicons: Record<string, string>;
 }> {
-  const raw = await storageGet<Record<string, unknown>>(null);
+  const [localRaw, syncRaw] = await Promise.all([
+    storageGet<Record<string, unknown>>(chrome.storage.local, null),
+    storageGet<Record<string, unknown>>(chrome.storage.sync, [
+      STORAGE_KEYS.settings,
+      STORAGE_KEYS.aiConfig,
+    ]),
+  ]);
+  const raw = mergeLocalAndSyncRaw(localRaw, syncRaw);
   const data = normalizeStorageData(raw);
-  const migrated = await migrateLegacyStorage(raw, data);
-  const undoBuffer = normalizeUndoBuffer(raw[STORAGE_KEYS.undoBuffer] ?? raw.tabsetuUndoBuffer);
-  if (!undoBuffer && raw[STORAGE_KEYS.undoBuffer]) {
+  const migrated = await migrateLegacyStorage(localRaw, data);
+  const undoBuffer = normalizeUndoBuffer(
+    localRaw[STORAGE_KEYS.undoBuffer] ?? localRaw.tabsetuUndoBuffer
+  );
+  if (!undoBuffer && localRaw[STORAGE_KEYS.undoBuffer]) {
     await saveUndoBuffer(null);
   }
   await pruneStaleTabFavicons(migrated.sessions);
-  const rawFavicons = raw.TabSetu_favicons;
+  const rawFavicons = localRaw.TabSetu_favicons;
   const favicons =
     rawFavicons && typeof rawFavicons === "object" ? (rawFavicons as Record<string, string>) : {};
   return { data: migrated, undoBuffer, favicons };
 }
 
+type DebouncedTask = () => void;
+
+function debounceTask(task: () => Promise<void>, waitMs: number): DebouncedTask {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+
+  return () => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+
+    timeout = setTimeout(() => {
+      timeout = null;
+      void task();
+    }, waitMs);
+  };
+}
+
+const syncUploadDelayMs =
+  typeof process !== "undefined" && process.env.NODE_ENV === "test" ? 0 : 5_000;
+
+const scheduleSyncUpload = debounceTask(async () => {
+  const { useSyncStore } = await import("@/store/syncStore");
+  const { enabled, syncNow } = useSyncStore.getState();
+  if (enabled) {
+    await syncNow();
+  }
+}, syncUploadDelayMs);
+
+function scheduleAutoSyncUpload(): void {
+  scheduleSyncUpload();
+}
+
 export async function saveSessions(sessions: Session[]): Promise<void> {
-  await storageSet({
+  await storageSet(chrome.storage.local, {
     [STORAGE_KEYS.sessions]: sessions,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
   await checkQuotaAfterSave();
+  scheduleAutoSyncUpload();
 }
 
 export async function saveFolders(folders: Folder[]): Promise<void> {
-  await storageSet({
+  await storageSet(chrome.storage.local, {
     [STORAGE_KEYS.folders]: folders,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
+  scheduleAutoSyncUpload();
 }
 
 export async function saveTags(tags: Tag[]): Promise<void> {
-  await storageSet({ [STORAGE_KEYS.tags]: tags, [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION });
+  await storageSet(chrome.storage.local, {
+    [STORAGE_KEYS.tags]: tags,
+    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  });
+  scheduleAutoSyncUpload();
 }
 
 export async function saveSchedules(schedules: Schedule[]): Promise<void> {
-  await storageSet({
+  await storageSet(chrome.storage.local, {
     [STORAGE_KEYS.schedules]: schedules,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
+  scheduleAutoSyncUpload();
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {
-  await storageSet({
+  await storageSet(chrome.storage.sync, {
     [STORAGE_KEYS.settings]: settings,
-    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
 }
 
 export async function saveStandaloneNotes(standaloneNotes: StandaloneNote[]): Promise<void> {
-  await storageSet({
+  await storageSet(chrome.storage.local, {
     [STORAGE_KEYS.standaloneNotes]: standaloneNotes,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
+  scheduleAutoSyncUpload();
 }
 
 export async function saveShareLinks(shareLinks: ShareLink[]): Promise<void> {
-  await storageSet({
+  await storageSet(chrome.storage.local, {
     [STORAGE_KEYS.shareLinks]: shareLinks,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
+  scheduleAutoSyncUpload();
 }
 
 export async function saveAIConfig(aiConfig: AIShareConfig): Promise<void> {
-  await storageSet({
+  await storageSet(chrome.storage.sync, {
     [STORAGE_KEYS.aiConfig]: aiConfig,
-    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
 }
 
-export async function saveStorageData(data: StorageData): Promise<void> {
-  await storageSet(toStorageRecord(normalizeStorageData(data)));
-  await storageRemove(LEGACY_KEYS);
+export async function saveStorageData(
+  data: StorageData,
+  options: { scheduleSync?: boolean } = {}
+): Promise<void> {
+  const normalized = normalizeStorageData(data);
+  await Promise.all([
+    storageSet(chrome.storage.local, toLocalStorageRecord(normalized)),
+    storageSet(chrome.storage.sync, toSyncStorageRecord(normalized)),
+  ]);
+  await storageRemove(chrome.storage.local, [
+    ...LEGACY_KEYS,
+    "aiConfig",
+    STORAGE_KEYS.settings,
+    STORAGE_KEYS.aiConfig,
+  ]);
+  if (options.scheduleSync !== false) {
+    scheduleAutoSyncUpload();
+  }
 }
 
 export async function clearAllData(): Promise<void> {
@@ -822,11 +920,11 @@ export async function clearAllData(): Promise<void> {
 }
 
 export async function saveUndoBuffer(buffer: UndoCollapseBuffer | null): Promise<void> {
-  await storageSet({ [STORAGE_KEYS.undoBuffer]: buffer });
+  await storageSet(chrome.storage.local, { [STORAGE_KEYS.undoBuffer]: buffer });
 }
 
 export async function loadUndoBuffer(): Promise<UndoCollapseBuffer | null> {
-  const result = await storageGet<Record<string, UndoCollapseBuffer | null>>([
+  const result = await storageGet<Record<string, UndoCollapseBuffer | null>>(chrome.storage.local, [
     STORAGE_KEYS.undoBuffer,
     "tabsetuUndoBuffer",
   ]);
@@ -847,4 +945,37 @@ export async function initializeStorageForInstall(): Promise<void> {
     folders: getOnboardingFolders(),
     tags: getOnboardingTags(),
   });
+}
+
+export async function migrateSettingsToSync(): Promise<void> {
+  const localRaw = await storageGet<Record<string, unknown>>(chrome.storage.local, [
+    STORAGE_KEYS.settings,
+    STORAGE_KEYS.aiConfig,
+    "settings",
+    "aiConfig",
+  ]);
+  const nextSync: Record<string, unknown> = {};
+
+  if (hasOwnKey(localRaw, STORAGE_KEYS.settings) || hasOwnKey(localRaw, "settings")) {
+    nextSync[STORAGE_KEYS.settings] = normalizeSettings(
+      localRaw[STORAGE_KEYS.settings] ?? localRaw.settings
+    );
+  }
+
+  if (hasOwnKey(localRaw, STORAGE_KEYS.aiConfig) || hasOwnKey(localRaw, "aiConfig")) {
+    nextSync[STORAGE_KEYS.aiConfig] = normalizeAIConfig(
+      localRaw[STORAGE_KEYS.aiConfig] ?? localRaw.aiConfig
+    );
+  }
+
+  if (Object.keys(nextSync).length !== 0) {
+    await storageSet(chrome.storage.sync, nextSync);
+  }
+
+  await storageRemove(chrome.storage.local, [
+    STORAGE_KEYS.settings,
+    STORAGE_KEYS.aiConfig,
+    "settings",
+    "aiConfig",
+  ]);
 }

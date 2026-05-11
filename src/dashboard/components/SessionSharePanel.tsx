@@ -7,6 +7,7 @@ import {
   downloadPlainText,
   generateAIPrompt,
 } from "@/lib/exportImport";
+import { tryGenerateShareUrl } from "@/lib/shareEncoder";
 import { copyTextToClipboard } from "@/lib/sessionBrowser";
 import ShareSessionModal from "./ShareSessionModal";
 
@@ -24,6 +25,7 @@ export default function SessionSharePanel({
   defaultAIProvider,
 }: Props) {
   const [showShareModal, setShowShareModal] = useState(false);
+  const shareResult = tryGenerateShareUrl(session);
   void aiEnabled;
   void defaultAIProvider;
 
@@ -77,6 +79,22 @@ export default function SessionSharePanel({
             Share modal
           </button>
         </div>
+        {!shareResult.ok ? (
+          <div className="card-raised share-too-large">
+            <p>
+              This session has {shareResult.tabCount} tabs and is too large to share via link. Use{" "}
+              <strong>Export - Markdown</strong> to share it instead.
+            </p>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => downloadMarkdown(session)}
+            >
+              <Link2 size={14} />
+              Export Markdown
+            </button>
+          </div>
+        ) : null}
       </section>
 
       {showShareModal ? (

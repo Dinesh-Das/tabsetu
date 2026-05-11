@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Download, RotateCcw, Trash2 } from "lucide-react";
+import { CheckCircle2, Cloud, Download, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import type { Folder, Tag, ToastMessage } from "@/types";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import EntityEditorModal from "@/components/shared/EntityEditorModal";
 import { exportJSON } from "@/lib/exportImport";
+import { formatRelativeTime } from "@/lib/format";
 import { clearAllData, loadStorage } from "@/lib/storage";
 import { checkStorageQuota, formatBytes, type StorageQuotaStatus } from "@/lib/storageQuota";
 import { useFolderStore } from "@/store/folderStore";
@@ -12,6 +13,7 @@ import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useShareStore } from "@/store/shareStore";
+import { useSyncStore } from "@/store/syncStore";
 import { useTagStore } from "@/store/tagStore";
 
 interface Props {
@@ -71,6 +73,15 @@ export default function SettingsPanel({ addToast }: Props) {
   const shareLinks = useShareStore((state) => state.shareLinks);
   const importShareLinks = useShareStore((state) => state.importShareLinks);
   const syncAlarms = useScheduleStore((state) => state.syncAlarms);
+  const syncEnabled = useSyncStore((state) => state.enabled);
+  const syncEmail = useSyncStore((state) => state.email);
+  const lastSyncedAt = useSyncStore((state) => state.lastSyncedAt);
+  const isSyncing = useSyncStore((state) => state.isSyncing);
+  const syncError = useSyncStore((state) => state.syncError);
+  const signIn = useSyncStore((state) => state.signIn);
+  const signOut = useSyncStore((state) => state.signOut);
+  const syncNow = useSyncStore((state) => state.syncNow);
+  const refreshSyncStatus = useSyncStore((state) => state.refreshStatus);
 
   const [storageQuota, setStorageQuota] = useState<StorageQuotaStatus | null>(null);
   const [folderModal, setFolderModal] = useState<{
@@ -93,6 +104,10 @@ export default function SettingsPanel({ addToast }: Props) {
     shareLinks.length,
     settings,
   ]);
+
+  useEffect(() => {
+    void refreshSyncStatus();
+  }, [refreshSyncStatus]);
 
   const handleExport = async () => {
     const data = await loadStorage();
@@ -563,6 +578,60 @@ export default function SettingsPanel({ addToast }: Props) {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="card settings-card sync-settings-card">
+          {syncEnabled ? (
+            <>
+              <div className="sync-card-header">
+                <span className="sync-icon sync-icon-success">
+                  <CheckCircle2 size={20} />
+                </span>
+                <div className="sync-copy">
+                  <h3>Synced as {syncEmail ?? "Google account"}</h3>
+                  <p>Last synced: {formatRelativeTime(lastSyncedAt)}</p>
+                </div>
+              </div>
+              <div className="sync-actions">
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={isSyncing}
+                  onClick={() => void syncNow()}
+                >
+                  {isSyncing ? <Loader2 className="sync-spinner" size={15} /> : <Cloud size={15} />}
+                  {isSyncing ? "Syncing..." : "Sync now"}
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  disabled={isSyncing}
+                  onClick={() => void signOut()}
+                >
+                  Sign out
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="sync-card-header">
+                <span className="sync-icon">
+                  <Cloud size={20} />
+                </span>
+                <div className="sync-copy">
+                  <h3>Sign in with Google</h3>
+                  <p>Sync your sessions across all your devices.</p>
+                </div>
+              </div>
+              <div className="sync-actions">
+                <button className="btn btn-primary" type="button" onClick={() => void signIn()}>
+                  <Cloud size={15} />
+                  Sign in with Google
+                </button>
+              </div>
+            </>
+          )}
+          {syncError ? <p className="sync-error">{syncError}</p> : null}
         </div>
 
         <div className="card settings-card" style={{ marginTop: 22 }}>

@@ -22,12 +22,15 @@ import {
   initializeStorageForInstall,
   loadStorage,
   loadUndoBuffer,
+  migrateSettingsToSync,
   saveSchedules,
   saveSessions,
   saveUndoBuffer,
   COLLAPSE_UNDO_MS,
   STORAGE_KEYS,
 } from "@/lib/storage";
+import { useSettingsStore } from "@/store/settingsStore";
+import { useSyncStore } from "@/store/syncStore";
 
 const LAST_BROWSER_TAB_KEY = "tabsetuLastBrowserTab";
 const AUTO_ARCHIVE_ALARM_NAME = "tabsetu-auto-archive";
@@ -339,12 +342,17 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "local") {
+  if (areaName === "sync" && changes[STORAGE_KEYS.settings]) {
+    const nextSettings = changes[STORAGE_KEYS.settings].newValue;
+    if (nextSettings) {
+      useSettingsStore.setState({ settings: nextSettings as Settings });
+    }
+    void hydrateAlarms();
     return;
   }
 
-  if (changes[STORAGE_KEYS.settings]) {
-    void hydrateAlarms();
+  if (areaName !== "local") {
+    return;
   }
 
   if (changes[STORAGE_KEYS.sessions]) {
@@ -991,6 +999,35 @@ chrome.commands.onCommand.addListener((command) => {
   }
 });
 
+function registerContextMenus(): void {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: "tabsetu-save-tab",
+      title: "Save tab to TabSetu",
+      contexts: ["page", "link"],
+    });
+    chrome.contextMenus.create({
+      id: "tabsetu-save-window",
+      title: "Save window as TabSetu session",
+      contexts: ["page"],
+    });
+  });
+}
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "tabsetu-save-tab" && tab) {
+    void storeBrowserTab(tab);
+  }
+
+  if (info.menuItemId === "tabsetu-save-window") {
+    void createSessionFromWindow("save").then((result) => {
+      if (result) {
+        void notifySessionCaptured(result);
+      }
+    });
+  }
+});
+
 chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
   if (!notificationId.startsWith("tabsetu-collapse-") || buttonIndex !== 0) {
     return;
@@ -1206,10 +1243,16 @@ chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason === "install") {
       await initializeStorageForInstall();
     } else {
+      await migrateSettingsToSync();
       await loadStorage();
     }
 
+    registerContextMenus();
     await hydrateAlarms();
+    await useSyncStore.getState().refreshStatus();
+    if (useSyncStore.getState().enabled) {
+      await useSyncStore.getState().pullNow();
+    }
     await updateBadge();
     await findFallbackBrowserTab();
     await notifyUnassignedCommandShortcuts();
@@ -1219,6 +1262,10 @@ chrome.runtime.onInstalled.addListener((details) => {
 chrome.runtime.onStartup.addListener(() => {
   void (async () => {
     await hydrateAlarms();
+    await useSyncStore.getState().refreshStatus();
+    if (useSyncStore.getState().enabled) {
+      await useSyncStore.getState().pullNow();
+    }
     await updateBadge();
     await findFallbackBrowserTab();
     await notifyUnassignedCommandShortcuts();

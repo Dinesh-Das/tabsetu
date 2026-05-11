@@ -61,10 +61,18 @@
     "scripting",
     "activeTab",
     "contextMenus",
-    "history"
+    "history",
+    "identity"
   ],
+  "oauth2": {
+    "client_id": "__REPLACE_WITH_CLIENT_ID__",
+    "scopes": [
+      "https://www.googleapis.com/auth/drive.appdata",
+      "https://www.googleapis.com/auth/userinfo.email"
+    ]
+  },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com"
   },
   "optional_host_permissions": ["*://*/*"],
   "options_page": "dashboard.html",

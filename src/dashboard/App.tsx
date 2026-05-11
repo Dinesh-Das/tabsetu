@@ -5,7 +5,7 @@ import ThemeToggle from "@/components/shared/ThemeToggle";
 import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import type { ToastMessage } from "@/types";
-import { clearAllData, loadStorage } from "@/lib/storage";
+import { clearAllData } from "@/lib/storage";
 import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
 import { useFolderStore } from "@/store/folderStore";
 import { useNotesStore } from "@/store/notesStore";
@@ -14,7 +14,7 @@ import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useShareStore } from "@/store/shareStore";
 import { useTagStore } from "@/store/tagStore";
-import { useHydrationStore } from "@/store/hydration";
+import { loadHydratedStorage, useHydrationStore } from "@/store/hydration";
 import DashToast from "./components/DashToast";
 import ImportExportPanel from "./components/ImportExportPanel";
 import MobileFoldersScreen from "./components/MobileFoldersScreen";
@@ -22,9 +22,11 @@ import MobileHomeScreen from "./components/MobileHomeScreen";
 import MobileNotesScreen from "./components/MobileNotesScreen";
 import MobileSchedulesScreen from "./components/MobileSchedulesScreen";
 import SettingsPanel from "./components/SettingsPanel";
+import SyncGate from "./components/SyncGate";
 import DesktopLayout from "./layouts/DesktopLayout";
 import RemindersPage from "./pages/RemindersPage";
 import type { DesktopSidebarView } from "./components/Sidebar";
+import { useSyncStore } from "@/store/syncStore";
 
 type DashView = MobileNavView | "settings" | "importexport";
 type SavePromptMode = "save" | "collapse";
@@ -176,15 +178,18 @@ class AppErrorBoundary extends React.Component<{ children: ReactNode }, { error:
 function DashboardAppContent() {
   const settings = useSettingsStore((state) => state.settings);
   const isReady = useHydrationStore((state) => state.isReady);
+  const syncEnabled = useSyncStore((state) => state.enabled);
+  const refreshSyncStatus = useSyncStore((state) => state.refreshStatus);
 
   const [view, setView] = useState<DashView>(getInitialDashView);
   const [savePrompt, setSavePrompt] = useState(getInitialSavePrompt);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [syncStatusReady, setSyncStatusReady] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const isDesktop = useMediaQuery("(min-width: 900px)");
 
   useEffect(() => {
-    void loadStorage().then((data) => {
+    void loadHydratedStorage().then((data) => {
       useSessionStore.getState().importSessions(data.sessions);
       useFolderStore.getState().importFolders(data.folders);
       useTagStore.getState().importTags(data.tags);
@@ -195,6 +200,19 @@ function DashboardAppContent() {
       Array.from({ length: 7 }).forEach(() => useHydrationStore.getState().markOneHydrated());
     });
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void refreshSyncStatus().finally(() => {
+      if (!cancelled) {
+        setSyncStatusReady(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshSyncStatus]);
 
   useEffect(() => {
     applyTheme(settings.theme);
@@ -216,8 +234,24 @@ function DashboardAppContent() {
 
   const activeNavView = isMobileNavView(view) ? view : "home";
 
-  if (!isReady) {
+  if (!isReady || !syncStatusReady) {
     return <LoadingSkeleton />;
+  }
+
+  if (!syncEnabled) {
+    return isDesktop ? (
+      <div className="desktop-dashboard-stage">
+        <SyncGate />
+        <DashToast toasts={toasts} />
+      </div>
+    ) : (
+      <div className="mobile-dashboard-stage">
+        <div className="mobile-frame">
+          <SyncGate compact />
+        </div>
+        <DashToast toasts={toasts} />
+      </div>
+    );
   }
 
   if (isDesktop) {

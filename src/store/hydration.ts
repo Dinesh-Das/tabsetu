@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import type { StorageData } from "@/types";
+import { loadSettings, loadStorage } from "@/lib/storage";
 
 const TOTAL_STORES = 7;
 
@@ -16,3 +18,8 @@ export const useHydrationStore = create<HydrationState>((set, get) => ({
     set({ hydratedCount: next, isReady: next >= TOTAL_STORES });
   },
 }));
+
+export async function loadHydratedStorage(): Promise<StorageData> {
+  const [data, settings] = await Promise.all([loadStorage(), loadSettings()]);
+  return { ...data, settings };
+}

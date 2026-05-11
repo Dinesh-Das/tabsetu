@@ -33,11 +33,13 @@ import MobileFoldersScreen from "@/dashboard/components/MobileFoldersScreen";
 import MobileHomeScreen from "@/dashboard/components/MobileHomeScreen";
 import MobileNotesScreen from "@/dashboard/components/MobileNotesScreen";
 import MobileSchedulesScreen from "@/dashboard/components/MobileSchedulesScreen";
+import SyncGate from "@/dashboard/components/SyncGate";
 import RemindersPage from "@/dashboard/pages/RemindersPage";
 import CurrentTabs from "./components/CurrentTabs";
 import Onboarding from "./components/Onboarding";
 import SaveModal from "./components/SaveModal";
 import Toast from "./components/Toast";
+import { useSyncStore } from "@/store/syncStore";
 
 type SaveMode = "save" | "collapse";
 // "capture" is the popup-only tab selection workflow used before opening SaveModal.
@@ -108,6 +110,8 @@ function PopupAppContent() {
   const sessions = useSessionStore((state) => state.sessions);
   const settings = useSettingsStore((state) => state.settings);
   const isReady = useHydrationStore((state) => state.isReady);
+  const syncEnabled = useSyncStore((state) => state.enabled);
+  const refreshSyncStatus = useSyncStore((state) => state.refreshStatus);
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [view, setView] = useState<PopupView>("home");
@@ -115,6 +119,7 @@ function PopupAppContent() {
   const [saveModalState, setSaveModalState] = useState<SaveModalState | null>(null);
   const [currentTabCount, setCurrentTabCount] = useState(0);
   const [isBootstrapped, setIsBootstrapped] = useState(false);
+  const [syncStatusReady, setSyncStatusReady] = useState(false);
 
   useEffect(() => {
     document.body.classList.add("is-popup-root");
@@ -155,6 +160,19 @@ function PopupAppContent() {
     applyTheme(settings.theme);
     return subscribeToSystemTheme(settings.theme, () => applyTheme("system"));
   }, [settings.theme]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void refreshSyncStatus().finally(() => {
+      if (!cancelled) {
+        setSyncStatusReady(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshSyncStatus]);
 
   useEffect(() => {
     void getCurrentTabs().then((tabs) => setCurrentTabCount(filterCapturableTabs(tabs).length));
@@ -297,6 +315,32 @@ function PopupAppContent() {
     </div>
   );
 
+  if (!isReady || !isBootstrapped || !syncStatusReady) {
+    return (
+      <MobileFrame className="mobile-popup-frame">
+        <LoadingSkeleton />
+      </MobileFrame>
+    );
+  }
+
+  if (!syncEnabled) {
+    const openDashboardSignIn = async (): Promise<void> => {
+      await chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html"), active: true });
+      window.close();
+    };
+
+    return (
+      <MobileFrame className="mobile-popup-frame">
+        <SyncGate
+          compact
+          buttonLabel="Open Google sign-in"
+          onContinue={() => void openDashboardSignIn()}
+        />
+        <Toast toasts={toasts} />
+      </MobileFrame>
+    );
+  }
+
   if (view === "capture") {
     return (
       <MobileFrame className="mobile-popup-frame">
@@ -375,10 +419,6 @@ function PopupAppContent() {
       ) : null}
     </MobileAppShell>
   );
-
-  if (!isReady) {
-    return <LoadingSkeleton />;
-  }
 }
 
 export default function PopupApp() {

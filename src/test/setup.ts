@@ -3,8 +3,9 @@ import { beforeEach, vi } from "vitest";
 
 globalThis.chrome = mockedChrome;
 
-// Stub chrome.storage.local with an in-memory map
-const store: Record<string, unknown> = {};
+// Stub chrome.storage.local/sync with in-memory maps
+const localStore: Record<string, unknown> = {};
+const syncStore: Record<string, unknown> = {};
 
 type Mockable<T> = {
   mockImplementation: (implementation: T) => void;
@@ -14,23 +15,28 @@ function mockImplementation<T>(target: unknown, implementation: T): void {
   (target as Mockable<T>).mockImplementation(implementation);
 }
 
-vi.mocked(chrome.storage.local.get).mockImplementation((keys, cb) => {
-  if (typeof keys === "string") cb?.({ [keys]: store[keys] });
-  else if (Array.isArray(keys)) cb?.(Object.fromEntries(keys.map((k) => [k, store[k]])));
-  else cb?.({ ...store });
-});
+function mockStorageArea(area: chrome.storage.StorageArea, store: Record<string, unknown>): void {
+  vi.mocked(area.get).mockImplementation((keys, cb) => {
+    if (typeof keys === "string") cb?.({ [keys]: store[keys] });
+    else if (Array.isArray(keys)) cb?.(Object.fromEntries(keys.map((k) => [k, store[k]])));
+    else cb?.({ ...store });
+  });
 
-vi.mocked(chrome.storage.local.set).mockImplementation((items, cb) => {
-  Object.assign(store, items);
-  cb?.();
-});
+  vi.mocked(area.set).mockImplementation((items, cb) => {
+    Object.assign(store, items);
+    cb?.();
+  });
 
-vi.mocked(chrome.storage.local.remove).mockImplementation((keys, cb) => {
-  (Array.isArray(keys) ? keys : [keys]).forEach((k) => delete store[k]);
-  cb?.();
-});
+  vi.mocked(area.remove).mockImplementation((keys, cb) => {
+    (Array.isArray(keys) ? keys : [keys]).forEach((k) => delete store[k]);
+    cb?.();
+  });
 
-vi.mocked(chrome.storage.local.getBytesInUse).mockImplementation((_keys, cb) => cb?.(0));
+  vi.mocked(area.getBytesInUse).mockImplementation((_keys, cb) => cb?.(0));
+}
+
+mockStorageArea(chrome.storage.local, localStore);
+mockStorageArea(chrome.storage.sync, syncStore);
 
 // Stub chrome.runtime
 vi.mocked(chrome.runtime.sendMessage).mockImplementation(() => Promise.resolve());
@@ -56,5 +62,6 @@ vi.mocked(chrome.tabs.create).mockImplementation((opts) => Promise.resolve({ id:
 
 // Reset store between tests
 beforeEach(() => {
-  Object.keys(store).forEach((k) => delete store[k]);
+  Object.keys(localStore).forEach((k) => delete localStore[k]);
+  Object.keys(syncStore).forEach((k) => delete syncStore[k]);
 });
