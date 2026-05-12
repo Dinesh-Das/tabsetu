@@ -38,10 +38,10 @@ coverage/
 .npm/
 *.tgz
 
-# Graphify cache (regenerable — keep outputs)
+# Graphify outputs (regenerable)
 .graphify_cached.json
 .graphify_semantic_new.json
-graphify-out/cache/
+graphify-out/
 
 # Stitch design assets (design reference only)
 stitch_tabsetu/
