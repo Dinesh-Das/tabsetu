@@ -497,10 +497,36 @@ function storageSet(area: StorageArea, value: object): Promise<void> {
   });
 }
 
+function createNotification(
+  notificationId: string,
+  options: chrome.notifications.NotificationOptions<true>
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    chrome.notifications.create(notificationId, options, (createdId) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+        return;
+      }
+
+      resolve(createdId);
+    });
+  });
+}
+
 async function checkQuotaAfterSave(): Promise<void> {
   const quota = await checkStorageQuota();
-  if (quota.isWarning && typeof window !== "undefined") {
+  if (!quota.isWarning) return;
+  if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("tabsetu:storage-quota-warning", { detail: quota }));
+  } else {
+    await createNotification("tabsetu-quota-warning", {
+      type: "basic",
+      iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+      title: "TabSetu storage is almost full",
+      message: `${Math.round(quota.percentage * 100)}% used. Export a backup in Settings.`,
+      priority: 1,
+    })
+      .catch(() => {});
   }
 }
 
@@ -803,6 +829,13 @@ export async function loadStorageWithUndoBuffer(): Promise<{
 }
 
 type DebouncedTask = () => void;
+type AutoSyncUploadHandler = () => Promise<void>;
+
+let autoSyncUploadHandler: AutoSyncUploadHandler | null = null;
+
+export function registerAutoSyncUploadHandler(handler: AutoSyncUploadHandler): void {
+  autoSyncUploadHandler = handler;
+}
 
 function debounceTask(task: () => Promise<void>, waitMs: number): DebouncedTask {
   let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -823,10 +856,8 @@ const syncUploadDelayMs =
   typeof process !== "undefined" && process.env.NODE_ENV === "test" ? 0 : 5_000;
 
 const scheduleSyncUpload = debounceTask(async () => {
-  const { useSyncStore } = await import("@/store/syncStore");
-  const { enabled, syncNow } = useSyncStore.getState();
-  if (enabled) {
-    await syncNow();
+  if (autoSyncUploadHandler) {
+    await autoSyncUploadHandler();
   }
 }, syncUploadDelayMs);
 
@@ -848,6 +879,7 @@ export async function saveFolders(folders: Folder[]): Promise<void> {
     [STORAGE_KEYS.folders]: folders,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
+  await checkQuotaAfterSave();
   scheduleAutoSyncUpload();
 }
 
@@ -856,6 +888,7 @@ export async function saveTags(tags: Tag[]): Promise<void> {
     [STORAGE_KEYS.tags]: tags,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
+  await checkQuotaAfterSave();
   scheduleAutoSyncUpload();
 }
 
@@ -864,6 +897,7 @@ export async function saveSchedules(schedules: Schedule[]): Promise<void> {
     [STORAGE_KEYS.schedules]: schedules,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
+  await checkQuotaAfterSave();
   scheduleAutoSyncUpload();
 }
 
@@ -878,6 +912,7 @@ export async function saveStandaloneNotes(standaloneNotes: StandaloneNote[]): Pr
     [STORAGE_KEYS.standaloneNotes]: standaloneNotes,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
+  await checkQuotaAfterSave();
   scheduleAutoSyncUpload();
 }
 
@@ -886,6 +921,7 @@ export async function saveShareLinks(shareLinks: ShareLink[]): Promise<void> {
     [STORAGE_KEYS.shareLinks]: shareLinks,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
+  await checkQuotaAfterSave();
   scheduleAutoSyncUpload();
 }
 

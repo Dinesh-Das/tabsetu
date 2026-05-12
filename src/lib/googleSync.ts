@@ -94,7 +94,7 @@ function storageGetToken(): Promise<StoredToken | null> {
         return;
       }
 
-      const token = result[TOKEN_STORAGE_KEY];
+      const token: unknown = result[TOKEN_STORAGE_KEY];
       resolve(isStoredToken(token) ? token : null);
     });
   });
@@ -405,7 +405,7 @@ export async function downloadSync(): Promise<Partial<StorageData> | null> {
 
   try {
     const body: unknown = await response.json();
-    return isRecord(body) ? (body as Partial<StorageData>) : null;
+    return isRecord(body) ? body : null;
   } catch {
     return null;
   }

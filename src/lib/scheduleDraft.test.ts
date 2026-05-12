@@ -37,17 +37,14 @@ describe("schedule draft normalization", () => {
       daysOfWeek: [1],
     });
 
-    expect(once).toEqual(
-      expect.objectContaining({
-        ok: true,
-        value: expect.objectContaining({ date: "2026-05-10" }),
-      })
-    );
-    expect(daily).toEqual(
-      expect.objectContaining({
-        ok: true,
-        value: expect.objectContaining({ date: null, daysOfWeek: [] }),
-      })
-    );
+    expect(once.ok).toBe(true);
+    if (once.ok) {
+      expect(once.value.date).toBe("2026-05-10");
+    }
+    expect(daily.ok).toBe(true);
+    if (daily.ok) {
+      expect(daily.value.date).toBeNull();
+      expect(daily.value.daysOfWeek).toEqual([]);
+    }
   });
 });

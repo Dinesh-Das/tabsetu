@@ -7,6 +7,45 @@ type OverlayPayload = {
   fuzzySearchThreshold: number;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isSearchScopes(value: unknown): value is Settings["searchScopes"] {
+  return (
+    isRecord(value) &&
+    typeof value.sessions === "boolean" &&
+    typeof value.tabs === "boolean" &&
+    typeof value.notes === "boolean" &&
+    typeof value.tags === "boolean" &&
+    typeof value.folders === "boolean"
+  );
+}
+
+function isOverlaySearchRow(value: unknown): value is OverlaySearchRow {
+  if (!isRecord(value) || !isRecord(value.action)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === "string" &&
+    typeof value.kind === "string" &&
+    typeof value.title === "string" &&
+    typeof value.subtitle === "string" &&
+    typeof value.action.kind === "string"
+  );
+}
+
+function isOverlayPayload(value: unknown): value is OverlayPayload {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.rows) &&
+    value.rows.every(isOverlaySearchRow) &&
+    isSearchScopes(value.searchScopes) &&
+    typeof value.fuzzySearchThreshold === "number"
+  );
+}
+
 function openRow(row: OverlaySearchRow): void {
   if (row.action.kind === "url") {
     void chrome.runtime.sendMessage({ type: "tabsetu:open-url", url: row.action.url });
@@ -18,12 +57,15 @@ function openRow(row: OverlaySearchRow): void {
 }
 
 async function fetchHistoryRows(query: string): Promise<OverlaySearchRow[]> {
-  const response = await chrome.runtime.sendMessage({ type: "tabsetu:search-history", query });
-  if (!response?.ok || !Array.isArray(response.rows)) {
+  const response: unknown = await chrome.runtime.sendMessage({
+    type: "tabsetu:search-history",
+    query,
+  });
+  if (!isRecord(response) || response.ok !== true || !Array.isArray(response.rows)) {
     return [];
   }
 
-  return response.rows as OverlaySearchRow[];
+  return response.rows.filter(isOverlaySearchRow);
 }
 
 function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
@@ -201,13 +243,19 @@ function showTabSetuOverlayDisabledToast(message: string): void {
   window.setTimeout(() => host.remove(), 2200);
 }
 
-chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type === "tabsetu:open-overlay") {
-    mountTabSetuSearchOverlay(message.payload as OverlayPayload);
+chrome.runtime.onMessage.addListener((message: unknown) => {
+  if (!isRecord(message)) {
+    return;
   }
-  if (message?.type === "tabsetu:overlay-disabled") {
+
+  if (message.type === "tabsetu:open-overlay" && isOverlayPayload(message.payload)) {
+    mountTabSetuSearchOverlay(message.payload);
+  }
+  if (message.type === "tabsetu:overlay-disabled") {
     showTabSetuOverlayDisabledToast(
-      String(message.message ?? "TabSetu search overlay is disabled.")
+      typeof message.message === "string"
+        ? message.message
+        : "TabSetu search overlay is disabled."
     );
   }
 });

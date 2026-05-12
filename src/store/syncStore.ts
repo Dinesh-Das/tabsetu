@@ -12,7 +12,7 @@ import {
   signOut as googleSignOut,
   uploadSync,
 } from "@/lib/googleSync";
-import { loadStorage, saveStorageData } from "@/lib/storage";
+import { loadStorage, registerAutoSyncUploadHandler, saveStorageData } from "@/lib/storage";
 import { mergeStorageData } from "@/lib/syncMerge";
 import { useFolderStore } from "@/store/folderStore";
 import { useNotesStore } from "@/store/notesStore";
@@ -137,3 +137,10 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
     }
   },
 }));
+
+registerAutoSyncUploadHandler(async () => {
+  const { enabled, syncNow } = useSyncStore.getState();
+  if (enabled) {
+    await syncNow();
+  }
+});

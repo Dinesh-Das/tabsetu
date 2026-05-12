@@ -1,8 +1,14 @@
 import type { Session, ShareSnapshot } from "@/types";
 import LZString from "lz-string";
 
-const SHARE_BASE_URL = "https://tabsetu.app/s";
-const MAX_SHARE_URL_LENGTH = 4000;
+const MAX_SHARE_URL_LENGTH = 8000;
+
+function getShareBaseUrl(): string {
+  if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
+    return chrome.runtime.getURL("share-page/index.html");
+  }
+  return "share-page/index.html";
+}
 
 export type ShareResult =
   | { ok: true; url: string }
@@ -22,17 +28,35 @@ export function encodeShareSnapshot(snapshot: ShareSnapshot): string {
   return LZString.compressToEncodedURIComponent(JSON.stringify(snapshot));
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isShareSnapshot(value: unknown): value is ShareSnapshot {
+  return (
+    isRecord(value) &&
+    value.v === 1 &&
+    typeof value.name === "string" &&
+    typeof value.description === "string" &&
+    Array.isArray(value.tabs) &&
+    value.tabs.every(
+      (tab) => isRecord(tab) && typeof tab.title === "string" && typeof tab.url === "string"
+    ) &&
+    typeof value.createdAt === "number"
+  );
+}
+
 export function decodeShareSnapshot(encoded: string): ShareSnapshot {
   const decompressed = LZString.decompressFromEncodedURIComponent(encoded);
   if (!decompressed) {
     throw new Error("This TabSetu share link is invalid.");
   }
 
-  const parsed = JSON.parse(decompressed);
-  if (!parsed || parsed.v !== 1 || typeof parsed.name !== "string" || !Array.isArray(parsed.tabs)) {
+  const parsed: unknown = JSON.parse(decompressed);
+  if (!isShareSnapshot(parsed)) {
     throw new Error("This TabSetu share link is invalid.");
   }
-  return parsed as ShareSnapshot;
+  return parsed;
 }
 
 export const encodeSession = encodeShareSnapshot;
@@ -46,7 +70,7 @@ export function decodeSession(encoded: string): ShareSnapshot | null {
 }
 
 export function tryGenerateShareUrl(session: Session): ShareResult {
-  const url = `${SHARE_BASE_URL}#${encodeShareSnapshot(createShareSnapshot(session))}`;
+  const url = `${getShareBaseUrl()}#${encodeShareSnapshot(createShareSnapshot(session))}`;
   if (url.length > MAX_SHARE_URL_LENGTH) {
     return { ok: false, reason: "too-large", tabCount: session.tabs.length };
   }
@@ -69,7 +93,7 @@ export function generateShareUrl(session: Session): string {
  * @deprecated Use tryGenerateShareUrl when a Session is available.
  */
 export function generateShareUrlFromEncoded(encoded: string): string {
-  const url = `${SHARE_BASE_URL}#${encoded}`;
+  const url = `${getShareBaseUrl()}#${encoded}`;
   if (url.length > MAX_SHARE_URL_LENGTH) {
     throw new Error("This session is too large to share via URL. Use Export instead.");
   }

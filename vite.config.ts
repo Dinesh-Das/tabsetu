@@ -57,6 +57,29 @@ export default defineConfig(({ mode }) => {
         output: {
           entryFileNames: (chunk) =>
             chunk.name === "searchOverlay" ? "src/content/searchOverlay.js" : "assets/[name]-[hash].js",
+          manualChunks: (id) => {
+            if (!id.includes("node_modules")) {
+              return undefined;
+            }
+
+            if (id.includes("lucide-react")) {
+              return "vendor-icons";
+            }
+            if (id.includes("framer-motion")) {
+              return "vendor-motion";
+            }
+            if (id.includes("fuse.js")) {
+              return "vendor-search";
+            }
+            if (id.includes("lz-string")) {
+              return "vendor-compression";
+            }
+            if (id.includes("react")) {
+              return "vendor-react";
+            }
+
+            return undefined;
+          },
         },
       },
     },

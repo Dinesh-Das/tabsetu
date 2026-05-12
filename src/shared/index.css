@@ -3346,6 +3346,21 @@ button.mobile-card {
   justify-self: center;
 }
 
+.dashboard-crash-fallback {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  min-height: 100vh;
+  padding: 32px;
+  text-align: center;
+}
+
+.dashboard-crash-fallback p {
+  max-width: 420px;
+  color: var(--color-text-secondary);
+}
+
 @keyframes tabsetu-shimmer {
   from {
     background-position: 100% 0;

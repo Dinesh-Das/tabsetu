@@ -28,7 +28,7 @@ import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useShareStore } from "@/store/shareStore";
 import { useTagStore } from "@/store/tagStore";
-import { useHydrationStore } from "@/store/hydration";
+import { TOTAL_STORES, useHydrationStore } from "@/store/hydration";
 import MobileFoldersScreen from "@/dashboard/components/MobileFoldersScreen";
 import MobileHomeScreen from "@/dashboard/components/MobileHomeScreen";
 import MobileNotesScreen from "@/dashboard/components/MobileNotesScreen";
@@ -140,7 +140,9 @@ function PopupAppContent() {
         useNotesStore.getState().importNotes(data.standaloneNotes);
         useShareStore.getState().importShareLinks(data.shareLinks);
         useSettingsStore.setState({ settings: data.settings });
-        Array.from({ length: 7 }).forEach(() => useHydrationStore.getState().markOneHydrated());
+        Array.from({ length: TOTAL_STORES }).forEach(() =>
+          useHydrationStore.getState().markOneHydrated()
+        );
         if (undoBuffer) {
           showUndoToast(undoBuffer);
         }

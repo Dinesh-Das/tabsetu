@@ -1,4 +1,4 @@
-import { type ComponentType, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArrowUpRight,
@@ -14,13 +14,12 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import * as LucideIcons from "lucide-react";
 import HighlightedText from "@/components/shared/HighlightedText";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
+import { getSessionIcon } from "@/components/shared/sessionIconRegistry";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatDateTime, formatScheduleLabel } from "@/lib/format";
 import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
-import { toLucideExportName } from "@/lib/sessionLabels";
 import { getDomainLabel, openSessionTabs } from "@/lib/sessionBrowser";
 import type { Session, SortOption, ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
@@ -39,14 +38,12 @@ interface Props {
   onInitialSavePromptHandled?: (() => void) | undefined;
 }
 
-function getSessionIcon(icon: string | null): ComponentType<{ size?: number }> | null {
-  if (!icon) {
-    return null;
-  }
-
-  const iconName = toLucideExportName(icon);
-  const lucideIcons = LucideIcons as unknown as Record<string, ComponentType<{ size?: number }>>;
-  return iconName in LucideIcons ? (lucideIcons[iconName] ?? null) : null;
+function isSuspendResponse(value: unknown): value is { ok: boolean; count?: number } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { ok?: unknown }).ok === "boolean"
+  );
 }
 
 export default function SessionList({
@@ -350,13 +347,15 @@ export default function SessionList({
   };
 
   const handleSuspendBackgroundTabs = async () => {
-    const response = await chrome.runtime.sendMessage({ type: "tabsetu:suspend-background-tabs" });
-    if (!response?.ok) {
+    const response: unknown = await chrome.runtime.sendMessage({
+      type: "tabsetu:suspend-background-tabs",
+    });
+    if (!isSuspendResponse(response) || !response.ok) {
       addToast("error", "TabSetu could not suspend background tabs.");
       return;
     }
 
-    const count = Number(response.count ?? 0);
+    const count = response.count ?? 0;
     addToast(
       count === 0 ? "info" : "success",
       count === 0

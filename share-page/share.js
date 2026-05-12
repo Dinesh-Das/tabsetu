@@ -1,3 +1,10 @@
+if (typeof window.LZString === "undefined") {
+  document.getElementById("session-name").textContent = "Could not open share link";
+  document.getElementById("session-description").textContent =
+    "LZString failed to load — try disabling your ad blocker or opening in incognito.";
+  throw new Error("LZString not loaded");
+}
+
 function readSnapshot() {
   const encoded = window.location.hash.slice(1);
   if (!encoded) {

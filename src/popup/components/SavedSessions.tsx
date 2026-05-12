@@ -1,12 +1,11 @@
-import { type ComponentType, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, ExternalLink, FolderOpen, Pin, Plus, Trash2 } from "lucide-react";
-import * as LucideIcons from "lucide-react";
 import HighlightedText from "@/components/shared/HighlightedText";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
+import { getSessionIcon } from "@/components/shared/sessionIconRegistry";
 import { useFavicons } from "@/hooks/useFavicons";
 import { formatDateTime } from "@/lib/format";
-import { toLucideExportName } from "@/lib/sessionLabels";
 import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
 import { getDomainLabel, openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
 import { chromeTabToTabItem, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
@@ -32,21 +31,6 @@ const POPUP_SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
   { value: "tabCount", label: "Tab count" },
   { value: "createdAt", label: "Recently created" },
 ];
-
-function getSessionIcon(
-  icon: string | null
-): ComponentType<{ size?: number; "aria-hidden"?: boolean }> | null {
-  if (!icon) {
-    return null;
-  }
-
-  const iconName = toLucideExportName(icon);
-  const lucideIcons = LucideIcons as unknown as Record<
-    string,
-    ComponentType<{ size?: number; "aria-hidden"?: boolean }>
-  >;
-  return iconName in LucideIcons ? (lucideIcons[iconName] ?? null) : null;
-}
 
 function isSortOption(value: string | null): value is SortOption {
   switch (value) {

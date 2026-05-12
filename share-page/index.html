@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self'; img-src 'none'; connect-src 'none'"
+    />
     <title>TabSetu Share</title>
     <link rel="stylesheet" href="./share.css" />
   </head>
@@ -24,7 +28,12 @@
         <ol id="tabs"></ol>
       </section>
     </main>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"
+      integrity="sha512-6mHn5WNbEGAGl8QFKF4x4FjXtXoT3oTHj3khNpEO15F1FYQiDfDjMBGxiSbXkYc1tCsz3B5NUBfbIDjqFe0w=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
     <script src="./share.js"></script>
   </body>
 </html>

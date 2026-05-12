@@ -2,6 +2,14 @@ import type { Session } from "@/types";
 
 export const FAVICON_STORAGE_KEY = "TabSetu_favicons";
 
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Object.values(value).every((item) => typeof item === "string")
+  );
+}
+
 const TRACKER_DOMAIN_BLOCKLIST = new Set([
   "doubleclick.net",
   "googletagmanager.com",
@@ -75,8 +83,8 @@ function getStoredFavicons(): Promise<Record<string, string>> {
         return;
       }
 
-      const value = result[FAVICON_STORAGE_KEY];
-      resolve(value && typeof value === "object" ? (value as Record<string, string>) : {});
+      const value: unknown = result[FAVICON_STORAGE_KEY];
+      resolve(isStringRecord(value) ? value : {});
     });
   });
 }

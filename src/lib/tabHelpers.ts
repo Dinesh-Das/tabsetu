@@ -104,7 +104,7 @@ export async function getActiveTab(): Promise<chrome.tabs.Tab | null> {
 
 async function requestPreferredBrowserTab(): Promise<chrome.tabs.Tab | null> {
   try {
-    const response = await chrome.runtime.sendMessage({
+    const response: unknown = await chrome.runtime.sendMessage({
       type: "tabsetu:get-preferred-browser-tab",
     });
 

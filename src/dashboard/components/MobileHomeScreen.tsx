@@ -1,4 +1,4 @@
-import { type ComponentType, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Filter,
   FolderOpen,
@@ -10,7 +10,6 @@ import {
   Tag,
   Trash2,
 } from "lucide-react";
-import * as LucideIcons from "lucide-react";
 import {
   EmptyState,
   GlassCard,
@@ -18,9 +17,9 @@ import {
   SegmentedControl,
   TabRow,
 } from "@/components/mobile/MobileUI";
+import { getSessionIcon } from "@/components/shared/sessionIconRegistry";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
-import { toLucideExportName } from "@/lib/sessionLabels";
 import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
 import type { Folder, Session, SortOption, TabItem, Tag as TagItem, ToastMessage } from "@/types";
 import { useFolderStore } from "@/store/folderStore";
@@ -41,21 +40,6 @@ interface Props {
 }
 
 type HomeFilter = "folders" | "tags";
-
-function getSessionIcon(
-  icon: string | null
-): ComponentType<{ size?: number; "aria-hidden"?: boolean }> | null {
-  if (!icon) {
-    return null;
-  }
-
-  const iconName = toLucideExportName(icon);
-  const lucideIcons = LucideIcons as unknown as Record<
-    string,
-    ComponentType<{ size?: number; "aria-hidden"?: boolean }>
-  >;
-  return iconName in LucideIcons ? (lucideIcons[iconName] ?? null) : null;
-}
 
 interface SavedTab {
   session: Session;

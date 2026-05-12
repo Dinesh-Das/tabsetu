@@ -59,6 +59,39 @@ type SessionCaptureResult = {
   mode: "save" | "collapse";
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function createNotification(
+  notificationId: string,
+  options: chrome.notifications.NotificationOptions<true>
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    chrome.notifications.create(notificationId, options, (createdId) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+        return;
+      }
+
+      resolve(createdId);
+    });
+  });
+}
+
+function clearNotification(notificationId: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    chrome.notifications.clear(notificationId, (wasCleared) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+        return;
+      }
+
+      resolve(wasCleared);
+    });
+  });
+}
+
 function alarmName(scheduleId: string): string {
   return `schedule_${scheduleId}`;
 }
@@ -230,7 +263,7 @@ async function resolvePreferredBrowserTab(): Promise<chrome.tabs.Tab | null> {
 
 async function notifyScheduledSessionOpened(session: Session, tabCount: number): Promise<void> {
   try {
-    await chrome.notifications.create(`tabsetu-schedule-${session.id}-${Date.now()}`, {
+    await createNotification(`tabsetu-schedule-${session.id}-${Date.now()}`, {
       type: "basic",
       iconUrl: chrome.runtime.getURL("icons/icon128.png"),
       title: `TabSetu opened "${session.name}"`,
@@ -343,7 +376,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === "sync" && changes[STORAGE_KEYS.settings]) {
-    const nextSettings = changes[STORAGE_KEYS.settings].newValue;
+    const nextSettings: unknown = changes[STORAGE_KEYS.settings].newValue;
     if (nextSettings) {
       useSettingsStore.setState({ settings: nextSettings as Settings });
     }
@@ -379,8 +412,12 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
     .catch(() => undefined);
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === "tabsetu:get-preferred-browser-tab") {
+chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+  if (!isRecord(message)) {
+    return undefined;
+  }
+
+  if (message.type === "tabsetu:get-preferred-browser-tab") {
     void resolvePreferredBrowserTab()
       .then((tab) => sendResponse(tab))
       .catch(() => sendResponse(null));
@@ -388,23 +425,25 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type === "tabsetu:open-url" && typeof message.url === "string") {
+  if (message.type === "tabsetu:open-url" && typeof message.url === "string") {
+    const url = message.url;
     void chrome.tabs
-      .create({ url: message.url })
+      .create({ url })
       .then(() => sendResponse({ ok: true }))
       .catch(() => sendResponse({ ok: false }));
 
     return true;
   }
 
-  if (message?.type === "tabsetu:switch-to-tab" && typeof message.tabId === "number") {
+  if (message.type === "tabsetu:switch-to-tab" && typeof message.tabId === "number") {
+    const tabId = message.tabId;
     void chrome.tabs
-      .get(message.tabId)
+      .get(tabId)
       .then(async (tab) => {
         if (typeof tab.windowId === "number") {
           await chrome.windows.update(tab.windowId, { focused: true });
         }
-        await chrome.tabs.update(message.tabId, { active: true });
+        await chrome.tabs.update(tabId, { active: true });
         sendResponse({ ok: true });
       })
       .catch(() => sendResponse({ ok: false }));
@@ -412,7 +451,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type === "tabsetu:suspend-background-tabs") {
+  if (message.type === "tabsetu:suspend-background-tabs") {
     void suspendBackgroundTabs()
       .then((count) => sendResponse({ ok: true, count }))
       .catch(() => sendResponse({ ok: false, count: 0 }));
@@ -420,15 +459,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type === "tabsetu:search-history" && typeof message.query === "string") {
-    void searchBrowserHistory(message.query)
+  if (message.type === "tabsetu:search-history" && typeof message.query === "string") {
+    const query = message.query;
+    void searchBrowserHistory(query)
       .then((rows) => sendResponse({ ok: true, rows }))
       .catch(() => sendResponse({ ok: false, rows: [] }));
 
     return true;
   }
 
-  if (message?.type === "tabsetu:open-dashboard") {
+  if (message.type === "tabsetu:open-dashboard") {
     const view =
       typeof message.view === "string" && message.view.trim()
         ? `?view=${encodeURIComponent(message.view)}`
@@ -441,11 +481,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type === "IMPORT_SHARED_SESSION") {
-    const snapshot =
-      typeof message === "object" && message !== null && "snapshot" in message
-        ? (message as { snapshot?: unknown }).snapshot
-        : null;
+  if (message.type === "IMPORT_SHARED_SESSION") {
+    const snapshot = message.snapshot;
 
     if (!isShareSnapshot(snapshot)) {
       sendResponse({ ok: false });
@@ -564,21 +601,19 @@ async function rehydrateAlarmsAfterTimezoneChange(): Promise<void> {
 }
 
 function isShareSnapshot(value: unknown): value is ShareSnapshot {
-  if (!value || typeof value !== "object") {
+  if (!isRecord(value)) {
     return false;
   }
 
-  const snapshot = value as Partial<ShareSnapshot>;
   return (
-    snapshot.v === 1 &&
-    typeof snapshot.name === "string" &&
-    typeof snapshot.description === "string" &&
-    typeof snapshot.createdAt === "number" &&
-    Array.isArray(snapshot.tabs) &&
-    snapshot.tabs.every(
+    value.v === 1 &&
+    typeof value.name === "string" &&
+    typeof value.description === "string" &&
+    typeof value.createdAt === "number" &&
+    Array.isArray(value.tabs) &&
+    value.tabs.every(
       (tab) =>
-        typeof tab === "object" &&
-        tab !== null &&
+        isRecord(tab) &&
         typeof tab.title === "string" &&
         typeof tab.url === "string"
     )
@@ -692,7 +727,7 @@ async function suspendBackgroundTabs(): Promise<number> {
   }
 
   if (discardedCount !== 0) {
-    await chrome.notifications.create(`tabsetu-suspend-${Date.now()}`, {
+    await createNotification(`tabsetu-suspend-${Date.now()}`, {
       type: "basic",
       iconUrl: chrome.runtime.getURL("icons/icon128.png"),
       title: "TabSetu suspended background tabs",
@@ -917,7 +952,7 @@ async function runAutoArchive(): Promise<number> {
 
 async function notifySessionCaptured(result: SessionCaptureResult): Promise<void> {
   try {
-    await chrome.notifications.create(`tabsetu-${result.mode}-${result.session.id}-${Date.now()}`, {
+    await createNotification(`tabsetu-${result.mode}-${result.session.id}-${Date.now()}`, {
       type: "basic",
       iconUrl: chrome.runtime.getURL("icons/icon128.png"),
       title:
@@ -960,7 +995,7 @@ async function notifyUnassignedCommandShortcuts(): Promise<void> {
       return;
     }
 
-    await chrome.notifications.create(`tabsetu-shortcuts-${Date.now()}`, {
+    await createNotification(`tabsetu-shortcuts-${Date.now()}`, {
       type: "basic",
       iconUrl: chrome.runtime.getURL("icons/icon128.png"),
       title: "TabSetu shortcuts need assigning",
@@ -1053,7 +1088,7 @@ async function handleReminderAlarm(tabId: string): Promise<void> {
     return;
   }
 
-  await chrome.notifications.create(`tabsetu-reminder-${tab.id}`, {
+  await createNotification(`tabsetu-reminder-${tab.id}`, {
     type: "basic",
     iconUrl: chrome.runtime.getURL("icons/icon128.png"),
     title: tab.title || "Saved tab reminder",
@@ -1104,7 +1139,7 @@ chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) =
         if (tab?.url) {
           await chrome.tabs.create({ url: tab.url });
         }
-        await chrome.notifications.clear(notificationId);
+        await clearNotification(notificationId);
         await updateBadge();
         await maybeStartKeepalive();
       }
@@ -1122,7 +1157,7 @@ chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) =
       const name = reminderAlarmName(tabId);
       await chrome.alarms.clear(name);
       await chrome.alarms.create(name, { when: snoozedUntil });
-      await chrome.notifications.clear(notificationId);
+      await clearNotification(notificationId);
       await updateBadge();
       await maybeStartKeepalive();
     });
@@ -1135,7 +1170,7 @@ chrome.notifications.onClicked.addListener((notificationId) => {
   }
 });
 
-chrome.alarms.onAlarm.addListener(async (alarm) => {
+async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
   if (alarm.name === KEEPALIVE_ALARM) {
     return;
   }
@@ -1236,6 +1271,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     new Date(openedAt + 1000)
   );
   await updateBadge();
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  void handleAlarm(alarm);
 });
 
 chrome.runtime.onInstalled.addListener((details) => {
