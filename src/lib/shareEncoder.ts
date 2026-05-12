@@ -77,25 +77,3 @@ export function tryGenerateShareUrl(session: Session): ShareResult {
 
   return { ok: true, url };
 }
-
-/**
- * @deprecated Use tryGenerateShareUrl to handle oversized sessions without throwing.
- */
-export function generateShareUrl(session: Session): string {
-  const result = tryGenerateShareUrl(session);
-  if (!result.ok) {
-    throw new Error("This session is too large to share via URL. Use Export instead.");
-  }
-  return result.url;
-}
-
-/**
- * @deprecated Use tryGenerateShareUrl when a Session is available.
- */
-export function generateShareUrlFromEncoded(encoded: string): string {
-  const url = `${getShareBaseUrl()}#${encoded}`;
-  if (url.length > MAX_SHARE_URL_LENGTH) {
-    throw new Error("This session is too large to share via URL. Use Export instead.");
-  }
-  return url;
-}

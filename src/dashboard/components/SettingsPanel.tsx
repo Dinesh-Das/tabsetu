@@ -590,6 +590,10 @@ export default function SettingsPanel({ addToast }: Props) {
                 <div className="sync-copy">
                   <h3>Synced as {syncEmail ?? "Google account"}</h3>
                   <p>Last synced: {formatRelativeTime(lastSyncedAt)}</p>
+                  <p className="sync-helper">
+                    Session data, folders, tags, and notes sync via Google Drive. Browser theme is
+                    kept per device.
+                  </p>
                 </div>
               </div>
               <div className="sync-actions">

@@ -1,7 +1,7 @@
 /**
  * Merges local TabSetu storage with a partial remote Google Drive snapshot.
  */
-import type { AIShareConfig, StorageData } from "@/types";
+import type { AIShareConfig, Settings, StorageData } from "@/types";
 
 type MergeableEntity = {
   id: string;
@@ -49,7 +49,31 @@ function mergeAIConfig(local: AIShareConfig, remote: AIShareConfig | undefined):
   return remote;
 }
 
-export function mergeStorageData(local: StorageData, remote: Partial<StorageData>): StorageData {
+function settingsTimestamp(settings: Settings): number | null {
+  const timestamp = Number(settings.version);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function mergeSettings(local: Settings, remote: Settings | undefined, enabled: boolean): Settings {
+  if (!enabled || !remote) {
+    return local;
+  }
+
+  const localTimestamp = settingsTimestamp(local);
+  const remoteTimestamp = settingsTimestamp(remote);
+  const chosen =
+    localTimestamp !== null && remoteTimestamp !== null && localTimestamp > remoteTimestamp
+      ? local
+      : remote;
+
+  return { ...chosen, theme: local.theme };
+}
+
+export function mergeStorageData(
+  local: StorageData,
+  remote: Partial<StorageData>,
+  options: { mergeSettings?: boolean } = {}
+): StorageData {
   return {
     sessions: mergeByUpdatedAt(local.sessions, remote.sessions),
     folders: mergeByUpdatedAt(local.folders, remote.folders),
@@ -57,7 +81,7 @@ export function mergeStorageData(local: StorageData, remote: Partial<StorageData
     schedules: mergeByUpdatedAt(local.schedules, remote.schedules),
     standaloneNotes: mergeByUpdatedAt(local.standaloneNotes, remote.standaloneNotes),
     shareLinks: mergeByUpdatedAt(local.shareLinks, remote.shareLinks),
-    settings: local.settings,
+    settings: mergeSettings(local.settings, remote.settings, options.mergeSettings ?? false),
     aiConfig: mergeAIConfig(local.aiConfig, remote.aiConfig),
   };
 }

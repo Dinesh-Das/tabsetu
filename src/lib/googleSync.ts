@@ -8,6 +8,7 @@ const DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files";
 const DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files";
 const USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const TOKEN_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 const TOKEN_STORAGE_KEY = "TabSetu_google_oauth_token";
 const REDIRECT_PATH = "google";
@@ -16,6 +17,7 @@ const TOKEN_EXPIRY_SKEW_MS = 60_000;
 interface StoredToken {
   accessToken: string;
   expiresAt: number;
+  refreshToken?: string;
 }
 
 interface DriveFile {
@@ -29,6 +31,12 @@ interface DriveFilesResponse {
 
 interface UserInfoResponse {
   email?: string;
+}
+
+interface TokenEndpointResponse {
+  access_token: string;
+  expires_in: number;
+  refresh_token?: string;
 }
 
 type IdentityApi = typeof chrome.identity;
@@ -84,6 +92,38 @@ function randomState(): string {
   const values = new Uint8Array(16);
   crypto.getRandomValues(values);
   return Array.from(values, (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+function base64UrlEncode(bytes: Uint8Array): string {
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function randomBase64Url(byteLength: number): string {
+  const values = new Uint8Array(byteLength);
+  crypto.getRandomValues(values);
+  return base64UrlEncode(values);
+}
+
+async function createPkcePair(): Promise<{ verifier: string; challenge: string }> {
+  const verifier = randomBase64Url(64);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return {
+    verifier,
+    challenge: base64UrlEncode(new Uint8Array(digest)),
+  };
+}
+
+function isTokenEndpointResponse(value: unknown): value is TokenEndpointResponse {
+  return (
+    isRecord(value) &&
+    typeof value.access_token === "string" &&
+    typeof value.expires_in === "number" &&
+    (!("refresh_token" in value) || typeof value.refresh_token === "string")
+  );
 }
 
 function storageGetToken(): Promise<StoredToken | null> {
@@ -147,45 +187,126 @@ function getRedirectUrl(): string | null {
   }
 }
 
-function buildAuthUrl(interactive: boolean, state: string): string | null {
+async function buildAuthRequest(
+  interactive: boolean,
+  state: string
+): Promise<{ authUrl: string; codeVerifier: string; redirectUri: string } | null> {
   const config = getOAuthConfig();
   const redirectUri = getRedirectUrl();
   if (!config || !redirectUri) {
     return null;
   }
 
+  const pkce = await createPkcePair();
   const url = new URL(AUTH_URL);
   url.searchParams.set("client_id", config.clientId);
   url.searchParams.set("redirect_uri", redirectUri);
-  url.searchParams.set("response_type", "token");
+  url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", config.scopes.join(" "));
   url.searchParams.set("state", state);
   url.searchParams.set("include_granted_scopes", "true");
+  url.searchParams.set("access_type", "offline");
+  url.searchParams.set("code_challenge", pkce.challenge);
+  url.searchParams.set("code_challenge_method", "S256");
   if (!interactive) {
     url.searchParams.set("prompt", "none");
   }
 
-  return url.toString();
+  return { authUrl: url.toString(), codeVerifier: pkce.verifier, redirectUri };
 }
 
-function parseTokenFromRedirect(redirectUrl: string, expectedState: string): StoredToken | null {
+function parseCodeFromRedirect(redirectUrl: string, expectedState: string): string | null {
   try {
     const url = new URL(redirectUrl);
-    const params = new URLSearchParams(url.hash.replace(/^#/, ""));
-    if (params.get("state") !== expectedState) {
+    if (url.searchParams.get("state") !== expectedState) {
       return null;
     }
 
-    const accessToken = params.get("access_token");
-    const expiresInSeconds = Number(params.get("expires_in"));
-    if (!accessToken || !Number.isFinite(expiresInSeconds)) {
+    return url.searchParams.get("code");
+  } catch {
+    return null;
+  }
+}
+
+async function exchangeCodeForToken(
+  code: string,
+  codeVerifier: string,
+  redirectUri: string
+): Promise<StoredToken | null> {
+  const config = getOAuthConfig();
+  if (!config) {
+    return null;
+  }
+
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    code_verifier: codeVerifier,
+    client_id: config.clientId,
+    redirect_uri: redirectUri,
+  });
+
+  try {
+    const response = await fetch(TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
+    if (!response.ok) {
+      return null;
+    }
+
+    const json: unknown = await response.json();
+    if (!isTokenEndpointResponse(json)) {
       return null;
     }
 
     return {
-      accessToken,
-      expiresAt: Date.now() + expiresInSeconds * 1000,
+      accessToken: json.access_token,
+      expiresAt: Date.now() + json.expires_in * 1000,
+      ...(json.refresh_token ? { refreshToken: json.refresh_token } : {}),
     };
+  } catch {
+    return null;
+  }
+}
+
+async function refreshAccessToken(refreshToken: string): Promise<string | null> {
+  const config = getOAuthConfig();
+  if (!config) {
+    return null;
+  }
+
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    client_id: config.clientId,
+  });
+
+  try {
+    const response = await fetch(TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
+    if (!response.ok) {
+      await storageRemoveToken();
+      return null;
+    }
+
+    const json: unknown = await response.json();
+    if (!isTokenEndpointResponse(json)) {
+      await storageRemoveToken();
+      return null;
+    }
+
+    const token: StoredToken = {
+      accessToken: json.access_token,
+      expiresAt: Date.now() + json.expires_in * 1000,
+      refreshToken: json.refresh_token ?? refreshToken,
+    };
+    await storageSetToken(token);
+    return token.accessToken;
   } catch {
     return null;
   }
@@ -193,17 +314,22 @@ function parseTokenFromRedirect(redirectUrl: string, expectedState: string): Sto
 
 async function requestToken(interactive: boolean): Promise<string | null> {
   const state = randomState();
-  const authUrl = buildAuthUrl(interactive, state);
-  if (!authUrl) {
+  const authRequest = await buildAuthRequest(interactive, state);
+  if (!authRequest) {
     return null;
   }
 
-  const redirectUrl = await launchWebAuthFlow(authUrl, interactive);
+  const redirectUrl = await launchWebAuthFlow(authRequest.authUrl, interactive);
   if (!redirectUrl) {
     return null;
   }
 
-  const token = parseTokenFromRedirect(redirectUrl, state);
+  const code = parseCodeFromRedirect(redirectUrl, state);
+  if (!code) {
+    return null;
+  }
+
+  const token = await exchangeCodeForToken(code, authRequest.codeVerifier, authRequest.redirectUri);
   if (!token) {
     return null;
   }
@@ -218,7 +344,11 @@ async function getSilentToken(): Promise<string | null> {
     return stored.accessToken;
   }
 
-  return requestToken(false);
+  if (stored?.refreshToken) {
+    return refreshAccessToken(stored.refreshToken);
+  }
+
+  return null;
 }
 
 async function revokeToken(token: string): Promise<void> {

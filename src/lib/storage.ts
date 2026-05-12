@@ -18,10 +18,12 @@ import { getOnboardingFolders, getOnboardingTags } from "@/lib/onboarding";
 
 const APP_VERSION = "1.0.0";
 const SCHEMA_VERSION = 3;
+const SESSION_CHUNK_SIZE = 200;
 export const COLLAPSE_UNDO_MS = 10_000;
 
 export const STORAGE_KEYS = {
   sessions: "TabSetu_sessions",
+  sessionsChunkPrefix: "TabSetu_sessions_",
   folders: "TabSetu_folders",
   tags: "TabSetu_tags",
   schedules: "TabSetu_schedules",
@@ -35,6 +37,7 @@ export const STORAGE_KEYS = {
 } as const;
 
 const LEGACY_KEYS = [
+  STORAGE_KEYS.sessions,
   "sessions",
   "folders",
   "tags",
@@ -158,6 +161,38 @@ function sourceValue<T>(
   }
 
   return fallback;
+}
+
+function sessionChunkIndex(key: string): number | null {
+  if (!key.startsWith(STORAGE_KEYS.sessionsChunkPrefix)) {
+    return null;
+  }
+
+  const index = Number(key.slice(STORAGE_KEYS.sessionsChunkPrefix.length));
+  return Number.isInteger(index) && index >= 0 ? index : null;
+}
+
+function sessionChunkKeys(source: Record<string, unknown>): string[] {
+  return Object.keys(source).filter((key) => sessionChunkIndex(key) !== null);
+}
+
+function sourceSessions(source: Record<string, unknown>): unknown {
+  const chunkKeys = sessionChunkKeys(source).sort(
+    (left, right) => (sessionChunkIndex(left) ?? 0) - (sessionChunkIndex(right) ?? 0)
+  );
+
+  if (chunkKeys.length !== 0) {
+    const sessions: unknown[] = [];
+    for (const key of chunkKeys) {
+      const chunk = source[key];
+      if (Array.isArray(chunk)) {
+        sessions.push(...(chunk as unknown[]));
+      }
+    }
+    return sessions;
+  }
+
+  return sourceValue(source, STORAGE_KEYS.sessions, "sessions", []);
 }
 
 function normalizeTabItem(raw: unknown): TabItem | null {
@@ -542,9 +577,56 @@ function storageRemove(area: StorageArea, keys: readonly string[]): Promise<void
   });
 }
 
+function sessionChunksRecord(sessions: Session[]): Record<string, Session[]> {
+  const chunks: Record<string, Session[]> = {};
+  for (let index = 0; index < sessions.length; index += SESSION_CHUNK_SIZE) {
+    const chunkIndex = index / SESSION_CHUNK_SIZE;
+    chunks[`${STORAGE_KEYS.sessionsChunkPrefix}${chunkIndex}`] = sessions.slice(
+      index,
+      index + SESSION_CHUNK_SIZE
+    );
+  }
+
+  return chunks;
+}
+
+async function saveSessionChunks(sessions: Session[]): Promise<void> {
+  const existing = await storageGet<Record<string, unknown>>(chrome.storage.local, null);
+  const nextChunks = sessionChunksRecord(sessions);
+  const staleChunkKeys = sessionChunkKeys(existing).filter((key) => !hasOwnKey(nextChunks, key));
+
+  await storageSet(chrome.storage.local, {
+    ...nextChunks,
+    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  });
+
+  await storageRemove(chrome.storage.local, [...staleChunkKeys, STORAGE_KEYS.sessions, "sessions"]);
+}
+
+async function saveLocalStorageData(data: StorageData): Promise<void> {
+  await Promise.all([
+    storageSet(chrome.storage.local, toLocalStorageRecord(data)),
+    saveSessionChunks(data.sessions),
+  ]);
+}
+
+function isQuotaError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return /quota|QUOTA_BYTES|exceeded/i.test(message);
+}
+
+function dispatchStorageQuotaError(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("tabsetu:storage-quota-error", {
+        detail: { reason: "quota-exceeded" },
+      })
+    );
+  }
+}
+
 function toLocalStorageRecord(data: StorageData): Record<string, unknown> {
   return {
-    [STORAGE_KEYS.sessions]: data.sessions,
     [STORAGE_KEYS.folders]: data.folders,
     [STORAGE_KEYS.tags]: data.tags,
     [STORAGE_KEYS.schedules]: data.schedules,
@@ -566,11 +648,12 @@ function hasLegacyStorage(raw: Record<string, unknown>): boolean {
     return false;
   }
 
-  if (!Array.isArray(raw.sessions)) {
-    return false;
+  const rawSessions = raw.sessions ?? raw[STORAGE_KEYS.sessions];
+  if (Array.isArray(rawSessions)) {
+    return rawSessions.every((session) => isRecord(session) && Array.isArray(session.tabs));
   }
 
-  return raw.sessions.every((session) => isRecord(session) && Array.isArray(session.tabs));
+  return true;
 }
 
 function applyMigrations(raw: Record<string, unknown>, data: StorageData): StorageData {
@@ -616,7 +699,7 @@ export function normalizeStorageData(raw: unknown): StorageData {
   const defaultData = getDefaultStorageData();
   const rawFolders = sourceValue(source, STORAGE_KEYS.folders, "folders", []);
   const rawTags = sourceValue(source, STORAGE_KEYS.tags, "tags", []);
-  const rawSessions = sourceValue(source, STORAGE_KEYS.sessions, "sessions", []);
+  const rawSessions = sourceSessions(source);
   const rawSchedules = sourceValue(source, STORAGE_KEYS.schedules, "schedules", []);
   const rawStandaloneNotes = sourceValue(
     source,
@@ -865,10 +948,7 @@ function scheduleAutoSyncUpload(): void {
 }
 
 export async function saveSessions(sessions: Session[]): Promise<void> {
-  await storageSet(chrome.storage.local, {
-    [STORAGE_KEYS.sessions]: sessions,
-    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
-  });
+  await saveSessionChunks(sessions);
   await checkQuotaAfterSave();
   scheduleAutoSyncUpload();
 }
@@ -935,10 +1015,18 @@ export async function saveStorageData(
   options: { scheduleSync?: boolean } = {}
 ): Promise<void> {
   const normalized = normalizeStorageData(data);
-  await Promise.all([
-    storageSet(chrome.storage.local, toLocalStorageRecord(normalized)),
-    storageSet(chrome.storage.sync, toSyncStorageRecord(normalized)),
-  ]);
+  try {
+    await Promise.all([
+      saveLocalStorageData(normalized),
+      storageSet(chrome.storage.sync, toSyncStorageRecord(normalized)),
+    ]);
+  } catch (error) {
+    if (isQuotaError(error)) {
+      dispatchStorageQuotaError();
+    }
+    throw error;
+  }
+
   await storageRemove(chrome.storage.local, [
     ...LEGACY_KEYS,
     "aiConfig",

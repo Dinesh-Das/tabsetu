@@ -1,0 +1,511 @@
+import type {
+  Session,
+  Settings,
+  ShareSnapshot,
+  StorageData,
+  TabItem,
+  UndoCollapseBuffer,
+} from "@/types";
+import type { OverlaySearchRow } from "@/lib/overlaySearch";
+import {
+  chromeTabToTabItemWithFavicon,
+  clampText,
+  generateId,
+  isRestrictedUrl,
+  isValidUrl,
+  sanitizeLabel,
+  stripHtml,
+} from "@/lib/tabHelpers";
+import { COLLAPSE_UNDO_MS, loadStorage, saveSessions, saveUndoBuffer } from "@/lib/storage";
+import { notifyBackgroundTabsSuspended, notifySessionCaptured } from "@/background/notifications";
+import { resolvePreferredBrowserTab, storeBrowserTab } from "@/background/tabTracking";
+
+type OverlayPayload = {
+  rows: OverlaySearchRow[];
+  searchScopes: Settings["searchScopes"];
+  fuzzySearchThreshold: number;
+};
+
+type SessionCaptureResult = {
+  session: Session;
+  tabCount: number;
+  mode: "save" | "collapse";
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+export async function createSessionFromWindow(
+  mode: "save" | "collapse"
+): Promise<SessionCaptureResult | null> {
+  const { sessions, settings } = await loadStorage();
+  const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
+  const eligibleTabs = tabs.filter((tab) => {
+    if (!tab.url || isRestrictedUrl(tab.url)) {
+      return false;
+    }
+
+    if (mode === "collapse" && !settings.collapseIncludesPinned && tab.pinned) {
+      return false;
+    }
+
+    return true;
+  });
+
+  if (eligibleTabs.length === 0) {
+    return null;
+  }
+
+  const createdAt = Date.now();
+  const sessionName = `${mode === "collapse" ? "Collapse" : "Session"} ${new Date(
+    createdAt
+  ).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+  const savedTabs = await Promise.all(
+    eligibleTabs.map((tab, index) => chromeTabToTabItemWithFavicon(tab, index))
+  );
+
+  const session: Session = {
+    id: generateId("session"),
+    name: sessionName,
+    description: "",
+    folderId: null,
+    tagIds: [],
+    tabs: savedTabs,
+    note: "",
+    color: null,
+    icon: null,
+    openCount: 0,
+    createdAt,
+    updatedAt: createdAt,
+    lastOpenedAt: null,
+    version: 1,
+    isPinned: false,
+    isArchived: false,
+  };
+
+  await saveSessions([session, ...sessions]);
+
+  if (mode === "collapse") {
+    const tabIds = eligibleTabs
+      .map((tab) => tab.id)
+      .filter((tabId): tabId is number => typeof tabId === "number");
+    const buffer: UndoCollapseBuffer = {
+      sessionId: session.id,
+      sessionName: session.name,
+      tabs: session.tabs,
+      windowId: eligibleTabs[0]?.windowId ?? null,
+      createdAt,
+      expiresAt: createdAt + COLLAPSE_UNDO_MS,
+    };
+    await saveUndoBuffer(buffer);
+    if (tabIds.length !== 0) {
+      await chrome.tabs.remove(tabIds);
+    }
+  }
+
+  return { session, tabCount: savedTabs.length, mode };
+}
+
+function isShareSnapshot(value: unknown): value is ShareSnapshot {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    value.v === 1 &&
+    typeof value.name === "string" &&
+    typeof value.description === "string" &&
+    typeof value.createdAt === "number" &&
+    Array.isArray(value.tabs) &&
+    value.tabs.every(
+      (tab) => isRecord(tab) && typeof tab.title === "string" && typeof tab.url === "string"
+    )
+  );
+}
+
+function snapshotTabToTabItem(
+  tab: ShareSnapshot["tabs"][number],
+  position: number
+): TabItem | null {
+  const url = tab.url.trim();
+  if (!isValidUrl(url)) {
+    return null;
+  }
+
+  const createdAt = Date.now();
+  return {
+    id: generateId("tab"),
+    title: sanitizeLabel(tab.title, "Untitled Tab", 200),
+    url,
+    favIconUrl: null,
+    folderId: null,
+    tagIds: [],
+    pinned: false,
+    windowId: null,
+    note: "",
+    reminderAt: null,
+    reminderSnoozedUntil: null,
+    reminderDismissed: false,
+    position,
+    openCount: 0,
+    createdAt,
+    lastOpenedAt: null,
+  };
+}
+
+async function importSharedSession(snapshot: ShareSnapshot): Promise<Session> {
+  const { sessions } = await loadStorage();
+  const createdAt = Date.now();
+  const tabs = snapshot.tabs
+    .map((tab, index) => snapshotTabToTabItem(tab, index))
+    .filter((tab): tab is TabItem => Boolean(tab))
+    .map((tab, index) => ({ ...tab, position: index }));
+
+  if (tabs.length === 0) {
+    throw new Error("Shared session has no openable tabs.");
+  }
+
+  const session: Session = {
+    id: generateId("session"),
+    name: sanitizeLabel(snapshot.name, "Shared session", 100),
+    description: clampText(stripHtml(snapshot.description), 300),
+    folderId: null,
+    tagIds: [],
+    tabs,
+    note: "",
+    color: null,
+    icon: null,
+    openCount: 0,
+    createdAt,
+    updatedAt: createdAt,
+    lastOpenedAt: null,
+    version: 1,
+    isPinned: false,
+    isArchived: false,
+  };
+
+  await saveSessions([session, ...sessions]);
+  return session;
+}
+
+async function suspendBackgroundTabs(): Promise<number> {
+  const tabs = await chrome.tabs.query({});
+  let discardedCount = 0;
+
+  for (const tab of tabs) {
+    if (
+      !tab.id ||
+      tab.active ||
+      tab.discarded ||
+      tab.pinned ||
+      !tab.url ||
+      isRestrictedUrl(tab.url)
+    ) {
+      continue;
+    }
+
+    try {
+      await chrome.tabs.discard(tab.id);
+      discardedCount += 1;
+    } catch {
+      // Some tabs cannot be discarded by Chrome; keep going for the rest.
+    }
+  }
+
+  if (discardedCount !== 0) {
+    await notifyBackgroundTabsSuspended(discardedCount);
+  }
+
+  return discardedCount;
+}
+
+async function searchBrowserHistory(query: string): Promise<OverlaySearchRow[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 3) {
+    return [];
+  }
+
+  const results = await chrome.history.search({
+    text: trimmed,
+    maxResults: 20,
+    startTime: Date.now() - 1000 * 60 * 60 * 24 * 90,
+  });
+
+  return results
+    .filter((item) => item.url && isValidUrl(item.url) && !isRestrictedUrl(item.url))
+    .map((item) => ({
+      id: `history-${item.id ?? item.url}`,
+      kind: "history" as const,
+      title: item.title || item.url || "Visited page",
+      subtitle: item.url || "",
+      action: { kind: "url" as const, url: item.url || "" },
+      historyTitle: item.title || item.url || "Visited page",
+      historyUrl: item.url || "",
+    }));
+}
+
+async function buildOverlayPayload(data: StorageData): Promise<OverlayPayload> {
+  const { settings } = data;
+  const folderMap = new Map(data.folders.map((folder) => [folder.id, folder.name]));
+  const tagMap = new Map(data.tags.map((tag) => [tag.id, tag.name]));
+  const rows: OverlaySearchRow[] = data.sessions.flatMap((session) => {
+    const folderName = session.folderId ? (folderMap.get(session.folderId) ?? "") : "";
+    const tagNames = session.tagIds
+      .map((id) => tagMap.get(id) ?? "")
+      .filter(Boolean)
+      .join(" ");
+    const sessionRows: OverlaySearchRow[] = session.tabs[0]?.url
+      ? [
+          {
+            id: session.id,
+            kind: "session",
+            title: session.name || "Untitled Session",
+            subtitle: `${session.tabs.length} tabs${folderName ? ` in ${folderName}` : ""}`.trim(),
+            action: { kind: "url", url: session.tabs[0].url },
+            sessionName: session.name,
+            sessionDescription: session.description,
+            sessionNote: session.note,
+            folderName,
+            tagNames,
+          },
+        ]
+      : [];
+    const tabRows: OverlaySearchRow[] = session.tabs
+      .map((tab) => ({
+        id: `${session.id}-${tab.id}`,
+        kind: "tab" as const,
+        title: tab.title || "Untitled Tab",
+        subtitle: [session.name || "Session", tab.url || ""].filter(Boolean).join(" - "),
+        action: { kind: "url" as const, url: tab.url },
+        sessionName: session.name,
+        sessionDescription: session.description,
+        sessionNote: session.note,
+        folderName,
+        tagNames,
+        tabTitle: tab.title,
+        tabUrl: tab.url,
+        tabNote: tab.note,
+      }))
+      .filter((row) => row.action.url);
+    return [...sessionRows, ...tabRows];
+  });
+  rows.push(
+    ...(await chrome.tabs.query({}))
+      .filter((tab): tab is chrome.tabs.Tab & { id: number; url: string } =>
+        Boolean(tab.id && tab.url && !isRestrictedUrl(tab.url))
+      )
+      .map((tab) => ({
+        id: `active-tab-${tab.id}`,
+        kind: "active-tab" as const,
+        title: tab.title || "Untitled Tab",
+        subtitle: tab.url,
+        action: { kind: "switch-tab" as const, tabId: tab.id },
+        tabTitle: tab.title || "Untitled Tab",
+        tabUrl: tab.url,
+      })),
+    ...data.standaloneNotes.map((note) => ({
+      id: `note-${note.id}`,
+      kind: "note" as const,
+      title: note.title || "Untitled Note",
+      subtitle: note.content.trim()
+        ? note.content.trim().slice(0, 120)
+        : "Open the Notes view in TabSetu.",
+      action: { kind: "dashboard" as const, view: "notes" as const },
+      noteTitle: note.title,
+      noteContent: note.content,
+    }))
+  );
+
+  return {
+    rows,
+    searchScopes: settings.searchScopes,
+    fuzzySearchThreshold: settings.fuzzySearchThreshold,
+  };
+}
+
+async function openSearchOverlay(): Promise<void> {
+  const data = await loadStorage();
+  const { settings } = data;
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!activeTab?.id || !activeTab.url || isRestrictedUrl(activeTab.url)) {
+    return;
+  }
+
+  if (!settings.searchOverlayEnabled) {
+    await chrome.scripting.executeScript({
+      target: { tabId: activeTab.id },
+      func: (msg: string) => {
+        const existing = document.getElementById("tabsetu-toast-host");
+        existing?.remove();
+        const host = document.createElement("div");
+        host.id = "tabsetu-toast-host";
+        document.documentElement.appendChild(host);
+        const shadow = host.attachShadow({ mode: "open" });
+        shadow.innerHTML = `<style>:host{all:initial}.t{position:fixed;right:18px;bottom:18px;z-index:2147483647;padding:12px 14px;border-radius:12px;background:#101828;color:#f8fbff;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;box-shadow:0 18px 48px rgba(4,10,22,.28)}</style><div class="t"></div>`;
+        (shadow.querySelector(".t") as HTMLElement).textContent = msg;
+        setTimeout(() => host.remove(), 2200);
+      },
+      args: ["TabSetu search overlay is disabled. Enable it in Settings > Search."],
+    });
+    return;
+  }
+
+  const alreadyGranted = await chrome.permissions.contains({ origins: ["*://*/*"] });
+  if (!alreadyGranted) {
+    const granted = await chrome.permissions.request({ origins: ["*://*/*"] });
+    if (!granted) {
+      return;
+    }
+  }
+
+  try {
+    await chrome.scripting.registerContentScripts([
+      {
+        id: "tabsetu-search-overlay",
+        matches: ["*://*/*"],
+        js: ["src/content/searchOverlay.js"],
+        runAt: "document_idle",
+        persistAcrossSessions: true,
+      },
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!message.includes("already registered") && !message.includes("Duplicate script")) {
+      console.error("[TabSetu] Failed to register search overlay script:", err);
+    }
+  }
+
+  const payload = await buildOverlayPayload(data);
+  try {
+    await chrome.tabs.sendMessage(activeTab.id, { type: "tabsetu:open-overlay", payload });
+  } catch {
+    await chrome.scripting.executeScript({
+      target: { tabId: activeTab.id },
+      files: ["src/content/searchOverlay.js"],
+    });
+    await chrome.tabs.sendMessage(activeTab.id, { type: "tabsetu:open-overlay", payload });
+  }
+}
+
+function registerRuntimeMessages(): void {
+  chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+    if (!isRecord(message)) {
+      return undefined;
+    }
+
+    if (message.type === "tabsetu:get-preferred-browser-tab") {
+      void resolvePreferredBrowserTab()
+        .then((tab) => sendResponse(tab))
+        .catch(() => sendResponse(null));
+      return true;
+    }
+
+    if (message.type === "tabsetu:open-url" && typeof message.url === "string") {
+      const url = message.url;
+      void chrome.tabs
+        .create({ url })
+        .then(() => sendResponse({ ok: true }))
+        .catch(() => sendResponse({ ok: false }));
+      return true;
+    }
+
+    if (message.type === "tabsetu:switch-to-tab" && typeof message.tabId === "number") {
+      const tabId = message.tabId;
+      void chrome.tabs
+        .get(tabId)
+        .then(async (tab) => {
+          if (typeof tab.windowId === "number") {
+            await chrome.windows.update(tab.windowId, { focused: true });
+          }
+          await chrome.tabs.update(tabId, { active: true });
+          sendResponse({ ok: true });
+        })
+        .catch(() => sendResponse({ ok: false }));
+      return true;
+    }
+
+    if (message.type === "tabsetu:suspend-background-tabs") {
+      void suspendBackgroundTabs()
+        .then((count) => sendResponse({ ok: true, count }))
+        .catch(() => sendResponse({ ok: false, count: 0 }));
+      return true;
+    }
+
+    if (message.type === "tabsetu:search-history" && typeof message.query === "string") {
+      const query = message.query;
+      void searchBrowserHistory(query)
+        .then((rows) => sendResponse({ ok: true, rows }))
+        .catch(() => sendResponse({ ok: false, rows: [] }));
+      return true;
+    }
+
+    if (message.type === "tabsetu:open-dashboard") {
+      const view =
+        typeof message.view === "string" && message.view.trim()
+          ? `?view=${encodeURIComponent(message.view)}`
+          : "";
+      void chrome.tabs
+        .create({ url: chrome.runtime.getURL(`dashboard.html${view}`) })
+        .then(() => sendResponse({ ok: true }))
+        .catch(() => sendResponse({ ok: false }));
+      return true;
+    }
+
+    if (message.type === "IMPORT_SHARED_SESSION") {
+      const snapshot = message.snapshot;
+      if (!isShareSnapshot(snapshot)) {
+        sendResponse({ ok: false });
+        return undefined;
+      }
+
+      void importSharedSession(snapshot)
+        .then((session) => sendResponse({ ok: true, sessionId: session.id }))
+        .catch(() => sendResponse({ ok: false }));
+      return true;
+    }
+
+    return undefined;
+  });
+}
+
+function registerCommands(): void {
+  chrome.commands.onCommand.addListener((command) => {
+    if (command === "open-search-overlay") {
+      void openSearchOverlay();
+    }
+
+    if (command === "save-current-window") {
+      void createSessionFromWindow("save").then((result) => {
+        if (result) {
+          void notifySessionCaptured(result);
+        }
+      });
+    }
+
+    if (command === "collapse-current-window") {
+      void createSessionFromWindow("collapse").then((result) => {
+        if (result) {
+          void notifySessionCaptured(result);
+          void chrome.action.openPopup?.().catch(() => undefined);
+        }
+      });
+    }
+
+    if (command === "open-dashboard") {
+      void chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html") });
+    }
+  });
+}
+
+export function registerMessagingListeners(): void {
+  registerRuntimeMessages();
+  registerCommands();
+}
+
+export { storeBrowserTab };

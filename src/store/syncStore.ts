@@ -103,7 +103,13 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
 
     set({ isSyncing: true, syncError: null });
     try {
-      const data = await loadStorage();
+      const local = await loadStorage();
+      const remote = await downloadSync();
+      const data = remote ? mergeStorageData(local, remote, { mergeSettings: true }) : local;
+      if (remote) {
+        await saveStorageData(data, { scheduleSync: false });
+        reloadStoresFromStorage(data);
+      }
       await uploadSync(data);
       const lastSyncedAt = (await getLastSyncedAt()) ?? Date.now();
       set({ lastSyncedAt, syncError: null });
@@ -124,8 +130,8 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
       const remote = await downloadSync();
       if (remote) {
         const local = await loadStorage();
-        const merged = mergeStorageData(local, remote);
-        await saveStorageData(merged);
+        const merged = mergeStorageData(local, remote, { mergeSettings: true });
+        await saveStorageData(merged, { scheduleSync: false });
         reloadStoresFromStorage(merged);
       }
       const lastSyncedAt = (await getLastSyncedAt()) ?? get().lastSyncedAt ?? null;
