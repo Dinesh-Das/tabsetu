@@ -253,9 +253,7 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
   }
   if (message.type === "tabsetu:overlay-disabled") {
     showTabSetuOverlayDisabledToast(
-      typeof message.message === "string"
-        ? message.message
-        : "TabSetu search overlay is disabled."
+      typeof message.message === "string" ? message.message : "TabSetu search overlay is disabled."
     );
   }
 });

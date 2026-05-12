@@ -612,10 +612,7 @@ function isShareSnapshot(value: unknown): value is ShareSnapshot {
     typeof value.createdAt === "number" &&
     Array.isArray(value.tabs) &&
     value.tabs.every(
-      (tab) =>
-        isRecord(tab) &&
-        typeof tab.title === "string" &&
-        typeof tab.url === "string"
+      (tab) => isRecord(tab) && typeof tab.title === "string" && typeof tab.url === "string"
     )
   );
 }

@@ -525,8 +525,7 @@ async function checkQuotaAfterSave(): Promise<void> {
       title: "TabSetu storage is almost full",
       message: `${Math.round(quota.percentage * 100)}% used. Export a backup in Settings.`,
       priority: 1,
-    })
-      .catch(() => {});
+    }).catch(() => {});
   }
 }
 
