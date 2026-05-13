@@ -109,6 +109,35 @@ describe("normalizeImportedStorageData", () => {
     expect(result.shareLinks[0]?.type).toBe("encoded-url");
   });
 
+  it("repairs old generated capture names from saved tab titles", () => {
+    const result = normalizeImportedStorageData({
+      sessions: [
+        {
+          id: "session-1",
+          name: "Session 13 May, 10:54 pm",
+          tabs: [
+            {
+              id: "tab-1",
+              title: "Project dashboard",
+              url: "https://example.com/dashboard",
+              position: 0,
+            },
+            {
+              id: "tab-2",
+              title: "Research notes",
+              url: "https://example.com/notes",
+              position: 1,
+            },
+          ],
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    });
+
+    expect(result.sessions[0]?.name).toBe("Project dashboard + 1 tab");
+  });
+
   it("rejects backups from newer schema versions", () => {
     expect(() =>
       normalizeImportedStorageData({

@@ -142,6 +142,23 @@ function PopupAppContent() {
           showUndoToast(undoBuffer);
         }
       })
+      .then(() => {
+        // Check if the popup was opened by a save/collapse keyboard shortcut.
+        return chrome.runtime
+          .sendMessage({ type: "tabsetu:get-pending-save-mode" })
+          .catch(() => null);
+      })
+      .then((response: unknown) => {
+        if (
+          mounted &&
+          response &&
+          typeof response === "object" &&
+          (response as Record<string, unknown>).mode
+        ) {
+          const mode = (response as Record<string, unknown>).mode as "save" | "collapse";
+          setSaveModalState({ mode, selectedTabIds: [] });
+        }
+      })
       .finally(() => {
         if (mounted) {
           setIsBootstrapped(true);

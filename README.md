@@ -2,7 +2,7 @@
 
 > **Save your tabs. Clear your mind.**
 
-TabSetu is a **free, local-first browser extension** for Chrome, Edge, Brave, Firefox, and other compatible browsers that transforms tab chaos into organized, searchable sessions. Built with a stunning Glassmorphism UI, it goes beyond session saving — it's a full workspace orchestrator with folders, tags, notes, reminders, scheduled auto-open, fuzzy search, Google Drive sync, AI prompts, and a shareable session link system.
+TabSetu is a **free, local-first browser extension** for **Chrome, Edge, Brave, Firefox, Safari, Opera, Arc, Vivaldi**, and other compatible browsers that transforms tab chaos into organized, searchable sessions. Built with a stunning Glassmorphism UI, it goes beyond session saving — it's a full workspace orchestrator with folders, tags, notes, reminders, scheduled auto-open, fuzzy search, Google Drive sync, AI prompts, and a shareable session link system.
 
 **Local-first storage. User-owned Google Drive sync. No backend. No limits. Free forever.**
 
@@ -91,8 +91,9 @@ TabSetu is a **free, local-first browser extension** for Chrome, Edge, Brave, Fi
 | **Search**     | Fuse.js with custom highlight engine                                                  |
 | **Build**      | Vite + @crxjs/vite-plugin                                                             |
 | **Testing**    | Vitest (51 tests across 15 modules)                                                   |
-| **Extension**  | Cross-browser Manifest V3 packages for Chromium and Firefox                           |
+| **Extension**  | Cross-browser Manifest V3 packages for Chromium, Firefox, and Safari         |
 | **Storage**    | `chrome.storage.local`, `chrome.storage.sync`, optional Google Drive `appDataFolder`  |
+| **Compat**     | Browser abstraction layer for Safari OAuth, notification, and storage API differences |
 
 ---
 
@@ -103,9 +104,22 @@ Run `npm run build:all` to create browser-specific packages:
 - `dist-browsers/chrome`
 - `dist-browsers/edge`
 - `dist-browsers/brave`
+- `dist-browsers/opera`
+- `dist-browsers/arc`
+- `dist-browsers/vivaldi`
 - `dist-browsers/firefox`
+- `dist-browsers/safari`
 
-Chrome, Edge, and Brave use the Chromium MV3 service worker package. Firefox gets a Firefox-specific MV3 manifest with `background.scripts` and `browser_specific_settings.gecko`.
+Chrome, Edge, Brave, Opera, Arc, and Vivaldi use the Chromium MV3 service worker package. Firefox gets a Firefox-specific MV3 manifest with `background.scripts` and `browser_specific_settings.gecko`. Safari gets a modified manifest without `chrome.identity` (uses a tab-based OAuth flow instead).
+
+Single-browser builds are also available:
+
+```bash
+npm run build:chrome
+npm run build:firefox
+npm run build:safari
+npm run build:opera
+```
 
 ---
 
@@ -164,7 +178,7 @@ tabsetu/
 ### Prerequisites
 
 - **Node.js** 18+ and **npm**
-- **Google Chrome** (or any Chromium browser)
+- A modern browser: **Chrome**, **Edge**, **Brave**, **Firefox**, **Safari**, **Opera**, **Arc**, or **Vivaldi**
 
 ### Development
 
@@ -183,6 +197,16 @@ npm run dev
 # 1. Open chrome://extensions, edge://extensions, or brave://extensions
 # 2. Enable "Developer mode"
 # 3. Click "Load unpacked" → select the matching dist-browsers/<browser>/ folder
+
+# Load in Firefox:
+# 1. Open about:debugging#/runtime/this-firefox
+# 2. Click "Load Temporary Add-on"
+# 3. Select the manifest.json in dist-browsers/firefox/
+
+# Load in Safari:
+# 1. Run: xcrun safari-web-extension-converter dist-browsers/safari/ --project-location ./safari-xcode --app-name TabSetu
+# 2. Open the Xcode project and build
+# 3. Enable the extension in Safari > Settings > Extensions
 ```
 
 ### Testing
@@ -231,7 +255,7 @@ npm run build
 - **User-owned sync** — synced session data is stored in the user's Google Drive `appDataFolder`, hidden from normal Drive UI and not hosted by TabSetu.
 - **Synced preferences** — settings and AI config use `chrome.storage.sync` for lightweight browser preference sync.
 - **No tracking** — zero analytics, zero telemetry.
-- **Manifest V3** — built on Chrome's latest, most secure extension architecture.
+- **Manifest V3** — built on the latest, most secure extension architecture across all supported browsers.
 - **Free forever** — no premium tiers, no limits on tabs, folders, or sessions.
 
 ---
@@ -262,9 +286,11 @@ Open `graphify-out/graph.html` for the interactive visualization.
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the full guide to publishing on:
 
-- **Chrome Web Store** (also covers Brave, Vivaldi, Arc, Opera)
+- **Chrome Web Store** (also covers Brave, Vivaldi, Arc)
 - **Microsoft Edge Add-ons**
 - **Firefox Add-ons (AMO)**
+- **Safari App Store** (requires Xcode project)
+- **Opera Add-ons**
 
 Includes permission justifications, privacy policy template, store asset requirements, and a post-submission checklist.
 

@@ -70,6 +70,7 @@
     "contextMenus",
     "identity"
   ],
+  "host_permissions": ["<all_urls>"],
   "optional_permissions": ["history"],
   "oauth2": {
     "client_id": "__REPLACE_WITH_CLIENT_ID__",
@@ -86,6 +87,7 @@
     {
       "resources": [
         "dashboard.html",
+        "oauth-callback.html",
         "share-page/index.html",
         "share-page/share.css",
         "share-page/share.js"

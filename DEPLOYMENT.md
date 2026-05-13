@@ -1,168 +1,130 @@
 # 🚀 TabSetu Deployment Guide
 
-Step-by-step guide to publish TabSetu to browser extension stores.
+This document provides step-by-step instructions for deploying TabSetu to production across all supported browser stores and configuring the Google Cloud Platform (GCP) for secure Google Drive synchronization.
 
 ---
 
-## 📦 Pre-Flight Checklist
+## 🛠️ Build Pipeline
 
-Before submitting to any store, run the full validation:
+Before any deployment, ensure you are building from a clean state and that all tests pass.
 
 ```bash
-# Type-check
-npm run type-check
+# 1. Install dependencies
+npm install
 
-# Run all tests
+# 2. Run quality checks
+npm run type-check
 npm test
 
-# Production build
+# 3. Generate all 8 browser packages
 npm run build:all
 ```
 
-Verify the `dist-browsers/` folder contains:
+The `npm run build:all` command executes `scripts/prepare-browser-builds.mjs`, which generates optimized, platform-specific bundles in the `dist-browsers/` directory:
 
-- `chrome/` - Chrome Web Store package
-- `edge/` - Microsoft Edge Add-ons package
-- `brave/` - Brave / Chromium side-load package
-- `firefox/` - Firefox Add-ons package
+- `chrome/`, `edge/`, `brave/`, `opera/`, `arc/`, `vivaldi/` (Chromium MV3)
+- `firefox/` (Firefox MV3 with Gecko compatibility)
+- `safari/` (Safari web extension package)
 
-Each browser folder contains:
+---
 
-- `manifest.json` (Manifest V3)
-- `service-worker-loader.js`
-- `src/popup/index.html` — extension popup
-- `src/dashboard/index.html` — full-page dashboard (options page)
-- `share-page/` — standalone share page
-- `icons/` — icon16, icon32, icon48, icon128
-- `assets/` — bundled JS/CSS
+## ☁️ Google Cloud Platform (GCP) Setup
 
-### Create the Submission ZIP
+TabSetu uses the Google Drive `appDataFolder` to sync sessions cross-browser. This requires a production-ready GCP project.
 
-```bash
-cd dist-browsers/chrome
-# Windows (PowerShell)
-Compress-Archive -Path * -DestinationPath ../../tabsetu-chrome-v1.0.0.zip
+### 1. Create a Project
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
+2. Create a new project named **TabSetu Production**.
 
-# macOS / Linux
-zip -r ../../tabsetu-chrome-v1.0.0.zip .
+### 2. Enable APIs
+1. Navigate to **APIs & Services > Library**.
+2. Search for and enable the **Google Drive API**.
+
+### 3. Configure OAuth Consent Screen
+1. Go to **APIs & Services > OAuth consent screen**.
+2. Choose **External** user type.
+3. **App Information:**
+   - App name: `TabSetu`
+   - User support email: `your-email@example.com`
+   - App logo: (Upload `src/icons/icon128.png`)
+4. **Developer contact info:** `your-email@example.com`
+5. **Scopes:** Click **Add or Remove Scopes** and add:
+   - `.../auth/drive.appdata` (Allows TabSetu to store data in its own hidden folder)
+   - `.../auth/userinfo.email` (Used to show the signed-in account in settings)
+6. **Verification:** Since `drive.appdata` is a sensitive scope, you may need to submit for verification before moving to "Production" status. However, it can stay in "Testing" during initial rollout (limited to 100 test users).
+
+### 4. Create OAuth Credentials
+1. Go to **APIs & Services > Credentials**.
+2. Click **+ Create Credentials > OAuth client ID**.
+3. Select **Web application** (Required for extensions).
+4. **Authorized Redirect URIs:**
+   Add the following based on your extension's IDs:
+   - **Chrome:** `https://<YOUR_CHROME_EXTENSION_ID>.chromiumapp.org/google`
+   - **Firefox:** `https://<YOUR_FIREFOX_EXTENSION_ID>.extensions.allizom.org/google`
+   - **Safari:** `safari-web-extension://<YOUR_BUNDLE_ID>/oauth-callback.html`
+   - **General Fallback:** `https://tabsetu.app/oauth-callback` (If using a custom domain)
+
+### 5. Update the Codebase
+Once you have the `Client ID`, update `src/manifest.json`:
+```json
+"oauth2": {
+  "client_id": "PASTE_YOUR_GCP_CLIENT_ID_HERE.apps.googleusercontent.com",
+  "scopes": [
+    "https://www.googleapis.com/auth/drive.appdata",
+    "https://www.googleapis.com/auth/userinfo.email"
+  ]
+}
 ```
 
-> **Important:** ZIP the _contents_ of each browser folder, not the folder itself. The `manifest.json` must be at the root of the ZIP.
+---
+
+## 🏪 Browser Store Submissions
+
+### 🔵 Chrome Web Store (Chrome, Brave, Vivaldi, Arc)
+1. **Prepare ZIP:** Zip the *contents* of `dist-browsers/chrome/`.
+2. **Dashboard:** Go to [Chrome Web Store Developer Console](https://chrome.google.com/webstore/devconsole).
+3. **Upload:** Click **+ New Item** and upload your ZIP.
+4. **Permissions Justification:**
+   - `tabs`: To read current tab data to save sessions.
+   - `storage`: To store session data locally.
+   - `scripting`: To inject the search overlay.
+   - `host_permissions (<all_urls>)`: Required to fetch favicons and inject search.
+
+### 🟢 Microsoft Edge Add-ons
+1. **Prepare ZIP:** Zip the *contents* of `dist-browsers/edge/`.
+2. **Dashboard:** Go to [Microsoft Partner Center](https://partner.microsoft.com/en-us/dashboard/microsoftedge/overview).
+3. **Submit:** Upload ZIP and follow the listing instructions (identical to Chrome).
+
+### 🟠 Firefox Add-ons (AMO)
+1. **Prepare ZIP:** Zip the *contents* of `dist-browsers/firefox/`.
+2. **Dashboard:** Go to [Firefox Add-ons Developer Hub](https://addons.mozilla.org/en-US/developers/).
+3. **Submit:** Select **On Your Own** (for self-hosting) or **On this site** (recommended for public listing).
+4. **Source Code:** Firefox often requires the full source code (ZIP of the Git repo excluding `node_modules`).
+
+### 🍎 Safari (macOS/iOS)
+1. **Prerequisites:** macOS + Xcode + Apple Developer Membership ($99/yr).
+2. **Convert:**
+   ```bash
+   xcrun safari-web-extension-converter dist-browsers/safari/ --project-location ./safari-xcode --app-name TabSetu
+   ```
+3. **Xcode:** Open the generated project, configure **Signing & Capabilities**, and build.
+4. **Archive:** Use Xcode's `Product > Archive` to upload to App Store Connect.
 
 ---
 
-## 🔵 Chrome Web Store
+## 🔒 Privacy & Safety
 
-Brave, Vivaldi, Opera, and Arc also install from the Chrome Web Store.
-
-1. **Register:** Go to the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole).
-   - One-time $5 registration fee.
-2. **Upload:** Click **+ New Item** → upload your ZIP.
-3. **Listing details:**
-
-   | Field        | Value                                                                                          |
-   | :----------- | :--------------------------------------------------------------------------------------------- |
-   | **Name**     | TabSetu                                                                                        |
-   | **Summary**  | Save, organize, and restore browser sessions. Unlimited tabs, folders, and tags. Free forever. |
-   | **Category** | Productivity                                                                                   |
-   | **Language** | English                                                                                        |
-
-4. **Permissions justification:**
-
-   | Permission                     | Justification                                                 |
-   | :----------------------------- | :------------------------------------------------------------ |
-   | `tabs`                         | Read tab URLs and titles to save sessions                     |
-   | `storage`                      | Store sessions, folders, tags, and settings locally           |
-   | `alarms`                       | Fire scheduled auto-open and reminder alarms                  |
-   | `notifications`                | Show reminder notifications                                   |
-   | `scripting`                    | Inject the global search overlay on the active tab            |
-   | `activeTab`                    | Access the current tab for search overlay injection           |
-   | `host_permissions: <all_urls>` | Fetch favicon data URLs and inject search overlay on any page |
-
-5. **Privacy practices:**
-   - Single purpose: "Session management — save, organize, and restore browser tabs."
-   - Does **not** collect or transmit any user data.
-   - Does **not** use remote code.
-   - Does **not** use analytics, cookies, or tracking.
-
-6. **Submit for review.** Typical review time: 1–3 business days.
+TabSetu is **Local-First**. Ensure your store privacy declarations reflect this:
+- **No data collection:** We do not collect or transmit user data.
+- **Direct Sync:** Google Drive sync happens directly between the user's browser and Google API. No TabSetu servers are involved.
+- **Open Source:** Point reviewers to the GitHub repository for transparency if requested.
 
 ---
 
-## 🟢 Microsoft Edge Add-ons
+## 📋 Post-Deployment Checklist
+- [ ] Install production version from store.
+- [ ] Verify Google Drive Sync signs in correctly.
+- [ ] Confirm keyboard shortcuts (`Alt+Shift+Y`, etc.) trigger correctly.
+- [ ] Check notification reliability for reminders.
 
-Use the generated `dist-browsers/edge` package.
-
-1. **Register:** Go to the [Microsoft Partner Center](https://partner.microsoft.com/en-us/dashboard/microsoftedge/overview) (free, Microsoft account required).
-2. **Create new extension** → upload a ZIP of the `dist-browsers/edge` contents.
-3. **Listing details:** Same as Chrome (see above).
-4. **Review:** Typically 1–3 business days.
-
----
-
-## 🟠 Firefox Add-ons (AMO)
-
-Firefox supports Manifest V3 with a different background manifest shape. Use the generated `dist-browsers/firefox` package; it includes `background.scripts`, a Gecko ID, and a Firefox minimum version.
-
-1. **Build:** `npm run build:all`
-2. **Zip:** zip the contents of `dist-browsers/firefox`.
-3. **Submit:** Go to the [Firefox Add-ons Developer Hub](https://addons.mozilla.org/en-US/developers/) → upload your ZIP.
-4. **Visibility:** Choose **Listed** to appear in the public directory.
-5. **Source code:** AMO may ask for source code for review — upload a ZIP of the full repo (excluding `node_modules/`, `dist/`, and `dist-browsers/`).
-
----
-
-## 🖼️ Store Assets
-
-Prepare these assets before submission:
-
-| Asset               | Dimensions          | Format   | Required By  |
-| :------------------ | :------------------ | :------- | :----------- |
-| **Extension icon**  | 128×128             | PNG      | All stores   |
-| **Store icon**      | 128×128             | PNG      | Chrome, Edge |
-| **Screenshot**      | 1280×800 or 640×400 | PNG/JPEG | All stores   |
-| **Small tile**      | 440×280             | PNG      | Chrome       |
-| **Marquee / promo** | 1400×560            | PNG      | Chrome, Edge |
-
-> **Tip:** Take screenshots in both dark and light modes. Show the popup, dashboard, and search overlay.
-
----
-
-## 🛡️ Privacy Policy
-
-Since TabSetu is fully **local-first** with no network requests, use this privacy policy:
-
-> **TabSetu Privacy Policy**
->
-> TabSetu does not collect, store, or transmit any user data to external servers. All session data, notes, tags, folders, schedules, reminders, and settings are stored exclusively on the user's device using the browser's `chrome.storage.local` API.
->
-> TabSetu does not use analytics, tracking pixels, cookies, or any form of telemetry. No data is accessible to the developer or any third parties.
->
-> TabSetu does not communicate with any remote servers. The share link feature encodes session data directly into a URL fragment — no server-side storage is involved.
->
-> **Permissions:** TabSetu requests `tabs`, `storage`, `alarms`, `notifications`, `scripting`, and `activeTab` permissions solely to provide its core session management functionality. The `host_permissions` (`<all_urls>`) permission is used to fetch tab favicons and inject the optional search overlay.
->
-> Contact: dinesh@dinesh-das.dev
-
-Host this on a public URL (e.g., a GitHub Gist, your personal site, or a `/privacy` page) and link it in your store listing.
-
----
-
-## 📋 Post-Submission
-
-After approval:
-
-- [ ] Verify the listing is live and the install flow works
-- [ ] Test fresh install on a clean Chrome profile
-- [ ] Confirm onboarding flow appears on first launch
-- [ ] Test keyboard shortcuts (`Alt+Shift+Y`, `Alt+Shift+U`, `Ctrl+Shift+F`, `Alt+Shift+D`)
-- [ ] Submit to Edge Add-ons if not done already
-- [ ] Update README with store badges/links
-
----
-
-**TabSetu** — _Modern, Secure, and Ready for the World._
-
-## Storage Permission Note
-
-TabSetu intentionally does not request `unlimitedStorage` by default. Add it to `src/manifest.json` only if the 10MB `chrome.storage.local` quota proves insufficient, and include Chrome Web Store justification for the expanded permission.
+**TabSetu** — _Modern, Secure, and Built for Productivity._

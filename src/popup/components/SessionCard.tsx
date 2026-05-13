@@ -57,11 +57,11 @@ export default function SessionCard({
         padding: 12,
         marginBottom: 10,
         boxShadow: isKeyboardSelected
-          ? "0 20px 48px rgba(15, 185, 216, 0.18)"
-          : "var(--shadow-card)",
-        borderColor: isKeyboardSelected ? "var(--color-accent)" : "var(--color-border)",
+          ? "0 2px 8px rgba(0, 0, 0, 0.1)"
+          : undefined,
+        borderColor: isKeyboardSelected ? "var(--color-accent)" : undefined,
         background: isKeyboardSelected
-          ? "color-mix(in srgb, var(--color-accent-dim) 35%, var(--color-surface) 65%)"
+          ? "var(--color-accent-dim)"
           : undefined,
         transition:
           "border-color var(--transition), box-shadow var(--transition), background var(--transition)",

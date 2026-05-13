@@ -1,5 +1,11 @@
 import type { Session } from "@/types";
 import { loadStorage, loadUndoBuffer, saveUndoBuffer } from "@/lib/storage";
+import {
+  safeCreateNotification,
+  safeClearNotification,
+  safeSetBadgeTextColor,
+  detectBrowser,
+} from "@/lib/browserCompat";
 
 type SessionCaptureResult = {
   session: Session;
@@ -18,29 +24,11 @@ export function createNotification(
   notificationId: string,
   options: chrome.notifications.NotificationOptions<true>
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    chrome.notifications.create(notificationId, options, (createdId) => {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-        return;
-      }
-
-      resolve(createdId);
-    });
-  });
+  return safeCreateNotification(notificationId, options);
 }
 
 export function clearNotification(notificationId: string): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    chrome.notifications.clear(notificationId, (wasCleared) => {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-        return;
-      }
-
-      resolve(wasCleared);
-    });
-  });
+  return safeClearNotification(notificationId);
 }
 
 export async function updateBadge(): Promise<void> {
@@ -61,7 +49,7 @@ export async function updateBadge(): Promise<void> {
 
   await chrome.action.setBadgeText({ text: String(pending) });
   await chrome.action.setBadgeBackgroundColor({ color: "#E24B4A" });
-  await chrome.action.setBadgeTextColor?.({ color: "#FFFFFF" });
+  await safeSetBadgeTextColor({ color: "#FFFFFF" });
 }
 
 export async function notifyScheduledSessionOpened(
@@ -151,11 +139,19 @@ export async function notifyUnassignedCommandShortcuts(): Promise<void> {
       return;
     }
 
+    const browser = detectBrowser();
+    const shortcutHint =
+      browser === "firefox"
+        ? "Open about:addons, then Manage Extension Shortcuts to set them."
+        : browser === "edge"
+          ? "Open edge://extensions/shortcuts and set them."
+          : "Open your browser's extension shortcuts settings and set: " + unassigned.join(", ") + ".";
+
     await createNotification(`tabsetu-shortcuts-${Date.now()}`, {
       type: "basic",
       iconUrl: chrome.runtime.getURL("icons/icon128.png"),
       title: "TabSetu shortcuts need assigning",
-      message: `Open chrome://extensions/shortcuts and set: ${unassigned.join(", ")}.`,
+      message: shortcutHint,
       priority: 1,
     });
   } catch {

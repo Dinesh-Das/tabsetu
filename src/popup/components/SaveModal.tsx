@@ -7,6 +7,7 @@ import {
   closeTabs,
   collectTabsForSession,
   chromeTabToTabItemWithFavicon,
+  getPreferredBrowserTab,
   sanitizeLabel,
 } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
@@ -89,14 +90,17 @@ export default function SaveModal({
   useEffect(() => {
     let cancelled = false;
 
-    void collectTabsForSession({
-      selectedTabIds,
-      includePinned: usesSelectedTabs ? true : includePinned,
-    }).then((tabs) => {
+    void Promise.all([
+      collectTabsForSession({
+        selectedTabIds,
+        includePinned: usesSelectedTabs ? true : includePinned,
+      }),
+      preferredTitleTabId ? Promise.resolve(null) : getPreferredBrowserTab().catch(() => null),
+    ]).then(([tabs, preferredTab]) => {
       if (!cancelled) {
         setTabCount(tabs.length);
         if (!titleEdited) {
-          setSessionTitle(titleFromTabs(tabs, preferredTitleTabId));
+          setSessionTitle(titleFromTabs(tabs, preferredTitleTabId ?? preferredTab?.id ?? null));
         }
       }
     });

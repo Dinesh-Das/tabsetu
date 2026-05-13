@@ -49,7 +49,7 @@ export default function QuickInfoCard({
         zIndex: 20,
         width: 320,
         padding: 12,
-        boxShadow: "0 18px 48px rgba(3, 10, 22, 0.28)",
+        boxShadow: "0 8px 24px rgba(3, 10, 22, 0.16)",
       }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}

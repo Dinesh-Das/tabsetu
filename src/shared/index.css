@@ -5,113 +5,113 @@
 :root {
   --font-heading: "Aptos Display", "Trebuchet MS", sans-serif;
   --font-body: "Aptos", "Segoe UI Variable Text", sans-serif;
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 18px;
-  --transition: 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  --shadow-card: 0 12px 32px rgba(3, 12, 26, 0.16);
-  --shadow-soft: 0 6px 18px rgba(3, 12, 26, 0.1);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --transition: 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --shadow-card: 0 2px 8px rgba(3, 12, 26, 0.08);
+  --shadow-soft: 0 1px 4px rgba(3, 12, 26, 0.06);
 
-  /* ── Glassmorphism Tokens ── */
-  --glass-blur: 22px;
-  --glass-border: 1px solid rgba(255, 255, 255, 0.12);
-  --glass-noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-  --glow-accent: rgba(20, 184, 166, 0.35);
-  --glow-accent-strong: rgba(20, 184, 166, 0.55);
+  /* ── Surface Tokens ── */
+  --glass-blur: 14px;
+  --glass-border: 1px solid rgba(148, 163, 184, 0.13);
+  --glass-noise: none;
+  --glow-accent: transparent;
+  --glow-accent-strong: transparent;
 
   /* ── Mobile / Popup (Light defaults) ── */
-  --mobile-bg: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 30%, #f0fdfa 60%, #fdf2f8 100%);
-  --mobile-bg-color: #e8edf5;
-  --mobile-surface: rgba(255, 255, 255, 0.55);
-  --mobile-surface-soft: rgba(255, 255, 255, 0.35);
-  --mobile-surface-raised: rgba(255, 255, 255, 0.65);
-  --mobile-border: rgba(255, 255, 255, 0.45);
-  --mobile-border-soft: rgba(255, 255, 255, 0.25);
+  --mobile-bg: linear-gradient(160deg, #f0f4f9 0%, #eef2f7 100%);
+  --mobile-bg-color: #f1f4f9;
+  --mobile-surface: rgba(255, 255, 255, 0.72);
+  --mobile-surface-soft: rgba(255, 255, 255, 0.48);
+  --mobile-surface-raised: rgba(255, 255, 255, 0.82);
+  --mobile-border: rgba(148, 163, 184, 0.18);
+  --mobile-border-soft: rgba(148, 163, 184, 0.1);
   --mobile-text: #0f172a;
   --mobile-text-soft: #334155;
   --mobile-muted: #64748b;
-  --mobile-primary: #0ea5e9;
-  --mobile-primary-strong: #0284c7;
-  --mobile-primary-soft: rgba(14, 165, 233, 0.12);
+  --mobile-primary: #2563eb;
+  --mobile-primary-strong: #1d4ed8;
+  --mobile-primary-soft: rgba(37, 99, 235, 0.08);
   --mobile-danger: #dc2626;
-  --mobile-radius: 18px;
-  --mobile-radius-sm: 12px;
-  --mobile-shadow: 0 8px 32px rgba(15, 23, 42, 0.12);
-  --mobile-shadow-soft: 0 4px 16px rgba(15, 23, 42, 0.08);
-  --mobile-glass-bg: rgba(255, 255, 255, 0.5);
-  --mobile-glass-border: 1px solid rgba(255, 255, 255, 0.5);
-  --mobile-glass-strong: rgba(255, 255, 255, 0.7);
+  --mobile-radius: 12px;
+  --mobile-radius-sm: 8px;
+  --mobile-shadow: 0 2px 8px rgba(15, 23, 42, 0.07);
+  --mobile-shadow-soft: 0 1px 3px rgba(15, 23, 42, 0.05);
+  --mobile-glass-bg: rgba(255, 255, 255, 0.65);
+  --mobile-glass-border: 1px solid rgba(148, 163, 184, 0.15);
+  --mobile-glass-strong: rgba(255, 255, 255, 0.85);
 }
 
 .dark,
 :root {
-  --color-bg: #070b14;
-  --color-surface: rgba(15, 23, 42, 0.6);
-  --color-surface-raised: rgba(20, 30, 52, 0.65);
-  --color-surface-strong: rgba(30, 41, 66, 0.7);
-  --color-border: rgba(100, 140, 180, 0.15);
+  --color-bg: #0b0f1a;
+  --color-surface: rgba(15, 23, 42, 0.65);
+  --color-surface-raised: rgba(20, 30, 52, 0.7);
+  --color-surface-strong: rgba(30, 41, 66, 0.75);
+  --color-border: rgba(148, 163, 184, 0.12);
   --color-text-primary: #f1f5f9;
   --color-text-secondary: #cbd5e1;
   --color-text-muted: #94a3b8;
-  --color-accent: #2dd4bf;
-  --color-accent-dim: rgba(45, 212, 191, 0.1);
-  --color-danger: #fb7185;
-  --color-success: #2dd4bf;
+  --color-accent: #3b82f6;
+  --color-accent-dim: rgba(59, 130, 246, 0.1);
+  --color-danger: #f87171;
+  --color-success: #34d399;
   --color-warning: #fbbf24;
 
   /* ── Dark mobile overrides ── */
-  --mobile-bg-color: #070b14;
-  --mobile-surface: rgba(15, 23, 42, 0.55);
-  --mobile-surface-soft: rgba(20, 30, 52, 0.4);
-  --mobile-surface-raised: rgba(20, 30, 52, 0.6);
-  --mobile-border: rgba(100, 140, 180, 0.15);
-  --mobile-border-soft: rgba(100, 140, 180, 0.08);
+  --mobile-bg-color: #0b0f1a;
+  --mobile-surface: rgba(15, 23, 42, 0.6);
+  --mobile-surface-soft: rgba(20, 30, 52, 0.45);
+  --mobile-surface-raised: rgba(20, 30, 52, 0.65);
+  --mobile-border: rgba(148, 163, 184, 0.12);
+  --mobile-border-soft: rgba(148, 163, 184, 0.07);
   --mobile-text: #f1f5f9;
   --mobile-text-soft: #cbd5e1;
   --mobile-muted: #94a3b8;
-  --mobile-primary: #38bdf8;
-  --mobile-primary-strong: #0ea5e9;
-  --mobile-primary-soft: rgba(56, 189, 248, 0.12);
-  --mobile-danger: #fb7185;
-  --mobile-glass-bg: rgba(15, 23, 42, 0.5);
-  --mobile-glass-border: 1px solid rgba(148, 163, 184, 0.12);
-  --mobile-glass-strong: rgba(15, 23, 42, 0.7);
+  --mobile-primary: #60a5fa;
+  --mobile-primary-strong: #3b82f6;
+  --mobile-primary-soft: rgba(96, 165, 250, 0.1);
+  --mobile-danger: #f87171;
+  --mobile-glass-bg: rgba(15, 23, 42, 0.55);
+  --mobile-glass-border: 1px solid rgba(148, 163, 184, 0.1);
+  --mobile-glass-strong: rgba(15, 23, 42, 0.75);
   --glass-border: 1px solid rgba(148, 163, 184, 0.1);
 }
 
 .light {
-  --color-bg: #eef2f9;
-  --color-surface: rgba(255, 255, 255, 0.5);
-  --color-surface-raised: rgba(255, 255, 255, 0.6);
-  --color-surface-strong: rgba(255, 255, 255, 0.7);
-  --color-border: rgba(148, 163, 184, 0.2);
+  --color-bg: #f5f7fa;
+  --color-surface: rgba(255, 255, 255, 0.7);
+  --color-surface-raised: rgba(255, 255, 255, 0.82);
+  --color-surface-strong: rgba(255, 255, 255, 0.9);
+  --color-border: rgba(148, 163, 184, 0.18);
   --color-text-primary: #0f172a;
   --color-text-secondary: #334155;
   --color-text-muted: #64748b;
-  --color-accent: #0d9488;
-  --color-accent-dim: rgba(13, 148, 136, 0.1);
+  --color-accent: #2563eb;
+  --color-accent-dim: rgba(37, 99, 235, 0.07);
   --color-danger: #dc2626;
-  --color-success: #0d9488;
+  --color-success: #16a34a;
   --color-warning: #d97706;
 
   /* ── Light mobile overrides ── */
-  --mobile-bg-color: #e8edf5;
-  --mobile-surface: rgba(255, 255, 255, 0.55);
-  --mobile-surface-soft: rgba(255, 255, 255, 0.35);
-  --mobile-surface-raised: rgba(255, 255, 255, 0.65);
-  --mobile-border: rgba(255, 255, 255, 0.45);
-  --mobile-border-soft: rgba(255, 255, 255, 0.25);
+  --mobile-bg-color: #f1f4f9;
+  --mobile-surface: rgba(255, 255, 255, 0.72);
+  --mobile-surface-soft: rgba(255, 255, 255, 0.48);
+  --mobile-surface-raised: rgba(255, 255, 255, 0.82);
+  --mobile-border: rgba(148, 163, 184, 0.18);
+  --mobile-border-soft: rgba(148, 163, 184, 0.1);
   --mobile-text: #0f172a;
   --mobile-text-soft: #334155;
   --mobile-muted: #64748b;
-  --mobile-primary: #0ea5e9;
-  --mobile-primary-strong: #0284c7;
-  --mobile-primary-soft: rgba(14, 165, 233, 0.12);
+  --mobile-primary: #2563eb;
+  --mobile-primary-strong: #1d4ed8;
+  --mobile-primary-soft: rgba(37, 99, 235, 0.08);
   --mobile-danger: #dc2626;
-  --mobile-glass-bg: rgba(255, 255, 255, 0.5);
-  --mobile-glass-border: 1px solid rgba(255, 255, 255, 0.5);
-  --mobile-glass-strong: rgba(255, 255, 255, 0.7);
-  --glass-border: 1px solid rgba(255, 255, 255, 0.12);
+  --mobile-glass-bg: rgba(255, 255, 255, 0.65);
+  --mobile-glass-border: 1px solid rgba(148, 163, 184, 0.15);
+  --mobile-glass-strong: rgba(255, 255, 255, 0.85);
+  --glass-border: 1px solid rgba(148, 163, 184, 0.13);
 }
 
 *,
@@ -131,10 +131,7 @@ html {
 body {
   margin: 0;
   font-family: var(--font-body);
-  background:
-    radial-gradient(ellipse at 20% 0%, rgba(45, 212, 191, 0.15), transparent 50%),
-    radial-gradient(ellipse at 80% 100%, rgba(99, 102, 241, 0.12), transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(14, 165, 233, 0.08), transparent 60%), var(--color-bg);
+  background: var(--color-bg);
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -187,59 +184,57 @@ textarea {
 
 .card {
   background: var(--color-surface);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-card);
 }
 
 .card-raised {
   background: var(--color-surface-raised);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 9px 14px;
+  gap: 6px;
+  padding: 8px 14px;
   border: none;
   border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   transition:
-    transform var(--transition),
     background var(--transition),
     color var(--transition),
     border-color var(--transition),
     box-shadow var(--transition);
   white-space: nowrap;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
 }
 
 .btn:hover:not(:disabled) {
-  transform: translateY(-1px);
+  filter: brightness(0.95);
 }
 
 .btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--color-accent), #38bdf8);
-  color: #061313;
-  font-weight: 700;
-  box-shadow: 0 8px 24px var(--glow-accent);
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 600;
 }
 
 .btn-primary:hover:not(:disabled) {
-  box-shadow: 0 12px 32px var(--glow-accent-strong);
+  background: var(--color-accent);
+  filter: brightness(0.9);
 }
 
 .btn-secondary {
   background: var(--color-surface-raised);
   color: var(--color-text-primary);
-  border: var(--glass-border);
+  border: 1px solid var(--color-border);
 }
 
 .btn-ghost {
@@ -252,28 +247,26 @@ textarea {
 }
 
 .btn-danger {
-  background: linear-gradient(135deg, #ef4444, #fb7185);
+  background: var(--color-danger);
   color: #fff;
-  font-weight: 700;
-  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.3);
+  font-weight: 600;
 }
 
 .btn-icon {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border-radius: var(--radius-md);
 }
 
 .input {
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-radius: var(--radius-md);
-  border: var(--glass-border);
+  border: 1px solid var(--color-border);
   background: var(--color-surface);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   color: var(--color-text-primary);
+  font-size: 13px;
   outline: none;
   transition:
     border-color var(--transition),
@@ -286,9 +279,7 @@ textarea {
 
 .input:focus {
   border-color: var(--color-accent);
-  box-shadow:
-    0 0 0 4px var(--color-accent-dim),
-    0 0 20px var(--glow-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-dim);
 }
 
 textarea.input {
@@ -338,11 +329,9 @@ textarea.input {
   overflow-y: auto;
   padding: 24px;
   background: var(--color-surface-raised);
-  border: var(--glass-border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow:
-    0 30px 80px rgba(3, 10, 22, 0.28),
-    0 0 40px var(--glow-accent);
+  box-shadow: 0 16px 48px rgba(3, 10, 22, 0.2);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
 }
@@ -398,7 +387,6 @@ textarea.input {
   border-color: var(--color-accent);
   color: var(--color-accent);
   background: var(--color-accent-dim);
-  box-shadow: 0 0 16px var(--glow-accent);
 }
 
 .chip-link {
@@ -543,18 +531,13 @@ textarea.input {
 }
 
 .session-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(45, 212, 191, 0.3);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.1),
-    0 0 20px var(--glow-accent);
+  border-color: var(--color-accent);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
 .session-card[data-active="true"] {
   border-color: var(--color-accent);
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.12),
-    0 0 30px var(--glow-accent);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
 .session-card[data-selected="true"] {
@@ -907,7 +890,7 @@ textarea.input {
 .storage-bar-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--color-accent), #4de3ff);
+  background: var(--color-accent);
 }
 
 @keyframes slideUp {
@@ -972,15 +955,10 @@ textarea.input {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse at 30% 0%, rgba(14, 165, 233, 0.15), transparent 50%),
-    radial-gradient(ellipse at 70% 100%, rgba(168, 85, 247, 0.1), transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(45, 212, 191, 0.08), transparent 60%),
-    var(--mobile-bg-color);
+  background: var(--mobile-bg-color);
   color: var(--mobile-text);
   font-family: "Aptos", "Segoe UI Variable Text", "Segoe UI", sans-serif;
   border-inline: var(--mobile-glass-border);
-  box-shadow: 0 24px 80px rgba(13, 24, 42, 0.2);
 }
 
 .mobile-popup-frame {
@@ -998,10 +976,7 @@ body.is-popup-root {
   min-width: 480px;
   min-height: 640px;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse at 30% 0%, rgba(14, 165, 233, 0.15), transparent 50%),
-    radial-gradient(ellipse at 70% 100%, rgba(168, 85, 247, 0.1), transparent 50%),
-    var(--mobile-bg-color);
+  background: var(--mobile-bg-color);
 }
 
 body.is-popup-root #root {
@@ -1045,7 +1020,7 @@ body.is-popup-root #root {
   display: block;
   font-size: 19px;
   line-height: 1.1;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0;
 }
 
@@ -1065,9 +1040,8 @@ body.is-popup-root #root {
   display: grid;
   place-items: center;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
-  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.3);
 }
 
 .mobile-avatar,
@@ -1113,8 +1087,7 @@ body.is-popup-root #root {
 .mobile-icon-button[data-active="true"] {
   color: var(--mobile-primary);
   background: var(--mobile-primary-soft);
-  border-color: rgba(14, 165, 233, 0.3);
-  box-shadow: 0 0 16px rgba(14, 165, 233, 0.2);
+  border-color: var(--mobile-primary);
 }
 
 .mobile-content {
@@ -1136,9 +1109,9 @@ body.is-popup-root #root {
 .mobile-section-title h2 {
   margin: 0;
   font-family: var(--font-body);
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1.12;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--mobile-text);
 }
 
@@ -1237,13 +1210,12 @@ body.is-popup-root #root {
 }
 
 .mobile-primary-button {
-  background: linear-gradient(135deg, #0ea5e9, #06b6d4);
+  background: var(--mobile-primary);
   color: #fff;
-  box-shadow: 0 8px 24px rgba(14, 165, 233, 0.3);
 }
 
 .mobile-primary-button:hover {
-  box-shadow: 0 12px 32px rgba(14, 165, 233, 0.45);
+  filter: brightness(0.92);
 }
 
 .mobile-secondary-button {
@@ -1265,7 +1237,7 @@ body.is-popup-root #root {
 
 .mobile-primary-button:hover,
 .mobile-secondary-button:hover {
-  transform: translateY(-1px);
+  filter: brightness(0.96);
 }
 
 .mobile-primary-button:disabled,
@@ -1323,9 +1295,8 @@ button.mobile-card {
 }
 
 .mobile-tab-row[data-selected="true"] {
-  border-color: rgba(14, 165, 233, 0.4);
-  background: rgba(14, 165, 233, 0.08);
-  box-shadow: 0 0 16px rgba(14, 165, 233, 0.12);
+  border-color: var(--mobile-primary);
+  background: var(--mobile-primary-soft);
 }
 
 .mobile-checkbox {
@@ -1341,7 +1312,6 @@ button.mobile-card {
 .mobile-checkbox[data-checked="true"] {
   border-color: var(--mobile-primary);
   background: var(--mobile-primary);
-  box-shadow: 0 0 12px rgba(14, 165, 233, 0.3);
 }
 
 .mobile-checkbox[data-checked="true"]::after {
@@ -1432,7 +1402,7 @@ button.mobile-card {
   padding: 7px 8px 10px;
   background: var(--mobile-glass-bg);
   border-top: var(--mobile-glass-border);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.04);
   backdrop-filter: blur(24px) saturate(1.4);
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
   z-index: 6;
@@ -1461,7 +1431,6 @@ button.mobile-card {
 .mobile-bottom-nav-item[data-active="true"] {
   color: var(--mobile-primary);
   background: var(--mobile-primary-soft);
-  box-shadow: 0 0 16px rgba(14, 165, 233, 0.15);
 }
 
 .mobile-segmented {
@@ -1491,8 +1460,7 @@ button.mobile-card {
 
 .mobile-segmented button[data-active="true"] {
   color: #fff;
-  background: linear-gradient(135deg, #0ea5e9, #06b6d4);
-  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.3);
+  background: var(--mobile-primary);
 }
 
 .mobile-empty {
@@ -1564,14 +1532,12 @@ button.mobile-card {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 28px 28px 0 0;
+  border-radius: 16px 16px 0 0;
   background: var(--mobile-glass-strong);
-  backdrop-filter: blur(28px) saturate(1.5);
-  -webkit-backdrop-filter: blur(28px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
   border: var(--mobile-glass-border);
-  box-shadow:
-    0 -18px 60px rgba(0, 0, 0, 0.15),
-    0 0 40px rgba(14, 165, 233, 0.08);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.12);
 }
 
 .mobile-sheet-handle {
@@ -1645,7 +1611,7 @@ button.mobile-card {
 .mobile-accordion-header {
   min-height: 48px;
   padding: 0 16px;
-  font-weight: 800;
+  font-weight: 700;
   border-bottom: var(--mobile-glass-border);
 }
 
@@ -1691,10 +1657,9 @@ button.mobile-card {
 }
 
 .mobile-chip[data-active="true"] {
-  border-color: rgba(14, 165, 233, 0.4);
+  border-color: var(--mobile-primary);
   background: var(--mobile-primary);
   color: #fff;
-  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.3);
 }
 
 .mobile-form-stack {
@@ -1748,8 +1713,7 @@ button.mobile-card {
 }
 
 .mobile-switch[data-active="true"] {
-  background: linear-gradient(135deg, #0ea5e9, #06b6d4);
-  box-shadow: 0 0 16px rgba(14, 165, 233, 0.3);
+  background: var(--mobile-primary);
 }
 
 .mobile-switch[data-active="true"]::after {
@@ -1762,14 +1726,13 @@ button.mobile-card {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 1px solid transparent;
   border-radius: var(--mobile-radius-sm);
   padding: 0 16px;
-  background: linear-gradient(135deg, #dc2626, #ef4444);
+  background: var(--mobile-danger);
   color: #fff;
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(220, 38, 38, 0.25);
 }
 
 .mobile-dashboard-stage {
@@ -1777,20 +1740,14 @@ button.mobile-card {
   width: 100vw;
   display: grid;
   place-items: center;
-  background:
-    radial-gradient(ellipse at 30% 0%, rgba(14, 165, 233, 0.12), transparent 40%),
-    radial-gradient(ellipse at 70% 100%, rgba(168, 85, 247, 0.08), transparent 40%),
-    linear-gradient(180deg, #e8edf5, #dfe5f0);
+  background: var(--mobile-bg-color);
 }
 
 .desktop-dashboard-stage {
   min-height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse at 20% 0%, rgba(45, 212, 191, 0.15), transparent 50%),
-    radial-gradient(ellipse at 80% 100%, rgba(99, 102, 241, 0.1), transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(14, 165, 233, 0.06), transparent 60%), var(--color-bg);
+  background: var(--color-bg);
   color: var(--color-text-primary);
 }
 
@@ -2094,13 +2051,12 @@ button.mobile-card {
 .dashboard-pro-button {
   min-height: 38px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 0 13px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: #4f46e5;
   color: #fff;
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
 }
 
 .dashboard-overflow-menu {
@@ -2191,7 +2147,6 @@ button.mobile-card {
 .theme-toggle button[data-active="true"] {
   background: var(--color-accent-dim);
   color: var(--color-accent);
-  box-shadow: 0 0 12px var(--glow-accent);
 }
 
 .theme-toggle[data-compact="true"] button {
@@ -2253,16 +2208,12 @@ button.mobile-card {
   width: min(100%, 360px);
   padding: 24px;
   border: var(--mobile-glass-border);
-  border-radius: 24px;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(14, 165, 233, 0.12), transparent 40%),
-    var(--mobile-glass-strong);
-  backdrop-filter: blur(28px) saturate(1.4);
-  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  border-radius: 16px;
+  background: var(--mobile-glass-strong);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
   color: var(--mobile-text);
-  box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.2),
-    0 0 40px rgba(14, 165, 233, 0.1);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.16);
 }
 
 .onboarding-close {
@@ -2283,14 +2234,13 @@ button.mobile-card {
 }
 
 .onboarding-icon {
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
   display: grid;
   place-items: center;
-  border-radius: 18px;
+  border-radius: 14px;
   background: var(--mobile-primary-soft);
   color: var(--mobile-primary);
-  box-shadow: 0 0 20px rgba(14, 165, 233, 0.15);
 }
 
 .onboarding-kicker {
@@ -2330,8 +2280,7 @@ button.mobile-card {
 
 .onboarding-dots span[data-active="true"] {
   width: 24px;
-  background: linear-gradient(90deg, #0ea5e9, #06b6d4);
-  box-shadow: 0 0 12px rgba(14, 165, 233, 0.3);
+  background: var(--mobile-primary);
 }
 
 .onboarding-actions {
@@ -2496,7 +2445,7 @@ button.mobile-card {
 .save-sheet-field span {
   color: var(--mobile-muted);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -2530,7 +2479,7 @@ button.mobile-card {
 .save-sheet-panel-header > span {
   color: var(--mobile-text);
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .save-sheet-panel-header > strong {
@@ -2761,8 +2710,8 @@ button.mobile-card {
 }
 
 .home-bucket-header strong {
-  font-size: 18px;
-  font-weight: 900;
+  font-size: 17px;
+  font-weight: 700;
 }
 
 .home-bucket-header span {
@@ -2849,9 +2798,9 @@ button.mobile-card {
 }
 
 .mobile-session-title strong {
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.12;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .mobile-session-title span {
@@ -3011,8 +2960,8 @@ button.mobile-card {
 }
 
 .folder-row-copy strong {
-  font-size: 18px;
-  font-weight: 800;
+  font-size: 17px;
+  font-weight: 700;
 }
 
 .folder-row-copy span {
@@ -3292,10 +3241,9 @@ button.mobile-card {
 }
 
 .schedule-days button[data-active="true"] {
-  border-color: rgba(14, 165, 233, 0.3);
+  border-color: var(--mobile-primary);
   background: var(--mobile-primary);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.25);
 }
 
 .schedule-list {

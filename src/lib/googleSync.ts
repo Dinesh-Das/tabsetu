@@ -2,6 +2,10 @@
  * Google Drive appDataFolder sync helpers using cross-browser WebExtension OAuth.
  */
 import type { StorageData } from "@/types";
+import {
+  getOAuthRedirectUrl,
+  launchOAuthFlow,
+} from "@/lib/browserCompat";
 
 const SYNC_FILE_NAME = "tabsetu-sync.json";
 const DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files";
@@ -39,7 +43,7 @@ interface TokenEndpointResponse {
   refresh_token?: string;
 }
 
-type IdentityApi = typeof chrome.identity;
+
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -63,13 +67,7 @@ function isStoredToken(value: unknown): value is StoredToken {
   );
 }
 
-function getIdentityApi(): IdentityApi | null {
-  if (typeof chrome !== "undefined" && chrome.identity) {
-    return chrome.identity;
-  }
 
-  return null;
-}
 
 function getOAuthConfig(): { clientId: string; scopes: string[] } | null {
   const manifest = chrome.runtime.getManifest();
@@ -152,47 +150,16 @@ function storageRemoveToken(): Promise<void> {
   });
 }
 
-function launchWebAuthFlow(url: string, interactive: boolean): Promise<string | null> {
-  const identity = getIdentityApi();
-  if (!identity) {
-    return Promise.resolve(null);
-  }
 
-  return new Promise((resolve) => {
-    try {
-      identity.launchWebAuthFlow({ url, interactive }, (redirectUrl) => {
-        if (chrome.runtime.lastError || !redirectUrl) {
-          resolve(null);
-          return;
-        }
 
-        resolve(redirectUrl);
-      });
-    } catch {
-      resolve(null);
-    }
-  });
-}
 
-function getRedirectUrl(): string | null {
-  const identity = getIdentityApi();
-  if (!identity) {
-    return null;
-  }
-
-  try {
-    return identity.getRedirectURL(REDIRECT_PATH);
-  } catch {
-    return null;
-  }
-}
 
 async function buildAuthRequest(
   interactive: boolean,
   state: string
 ): Promise<{ authUrl: string; codeVerifier: string; redirectUri: string } | null> {
   const config = getOAuthConfig();
-  const redirectUri = getRedirectUrl();
+  const redirectUri = getOAuthRedirectUrl(REDIRECT_PATH);
   if (!config || !redirectUri) {
     return null;
   }
@@ -319,7 +286,7 @@ async function requestToken(interactive: boolean): Promise<string | null> {
     return null;
   }
 
-  const redirectUrl = await launchWebAuthFlow(authRequest.authUrl, interactive);
+  const redirectUrl = await launchOAuthFlow(authRequest.authUrl, interactive);
   if (!redirectUrl) {
     return null;
   }

@@ -50,13 +50,11 @@ export default function Toast({ toasts }: Props) {
                 alignItems: "center",
                 gap: 10,
                 padding: "12px 14px",
-                background: "rgba(15, 23, 42, 0.5)",
-                backdropFilter: "blur(22px) saturate(1.4)",
-                WebkitBackdropFilter: "blur(22px) saturate(1.4)",
-                border: "1px solid rgba(255, 255, 255, 0.12)",
+                background: "var(--color-surface-raised)",
+                border: "1px solid var(--color-border)",
                 borderLeft: `3px solid ${colors[toast.type]}`,
-                borderRadius: 16,
-                boxShadow: `0 8px 32px rgba(0, 0, 0, 0.15), 0 0 20px ${colors[toast.type]}33`,
+                borderRadius: 12,
+                boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12)",
                 pointerEvents: "all" as const,
               }}
             >

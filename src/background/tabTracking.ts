@@ -1,7 +1,8 @@
 import { isRestrictedUrl } from "@/lib/tabHelpers";
+import { getTransientStorage } from "@/lib/browserCompat";
 
 const LAST_BROWSER_TAB_KEY = "tabsetuLastBrowserTab";
-const transientStorage = chrome.storage.session ?? chrome.storage.local;
+const transientStorage = getTransientStorage();
 
 interface StoredBrowserTab {
   tabId: number;

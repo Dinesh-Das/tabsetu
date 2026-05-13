@@ -16,6 +16,7 @@ import {
   sanitizeLabel,
   stripHtml,
 } from "@/lib/tabHelpers";
+import { defaultSavedSessionTitle } from "@/lib/sessionLabels";
 import { COLLAPSE_UNDO_MS, loadStorage, saveSessions, saveUndoBuffer } from "@/lib/storage";
 import {
   notifyBackgroundTabsSuspended,
@@ -23,6 +24,9 @@ import {
   notifySessionCaptured,
 } from "@/background/notifications";
 import { resolvePreferredBrowserTab, storeBrowserTab } from "@/background/tabTracking";
+import { getTransientStorage } from "@/lib/browserCompat";
+
+const PENDING_SAVE_KEY = "tabsetuPendingSaveMode";
 
 type OverlayPayload = {
   rows: OverlaySearchRow[];
@@ -36,6 +40,33 @@ type SessionCaptureResult = {
   mode: "save" | "collapse";
 };
 
+function movePreferredTabFirst<T>(tabs: T[], preferredIndex: number): T[] {
+  if (preferredIndex <= 0) {
+    return tabs;
+  }
+
+  const preferred = tabs[preferredIndex];
+  if (!preferred) {
+    return tabs;
+  }
+
+  return [preferred, ...tabs.slice(0, preferredIndex), ...tabs.slice(preferredIndex + 1)];
+}
+
+async function preferredTitleTabIndex(tabs: chrome.tabs.Tab[]): Promise<number> {
+  const activeIndex = tabs.findIndex((tab) => tab.active);
+  if (activeIndex >= 0) {
+    return activeIndex;
+  }
+
+  const preferred = await resolvePreferredBrowserTab().catch(() => null);
+  if (typeof preferred?.id !== "number") {
+    return -1;
+  }
+
+  return tabs.findIndex((tab) => tab.id === preferred.id);
+}
+
 let historyPermissionKnown = false;
 let historyPermissionGranted = false;
 let historyPermissionRequestStarted = false;
@@ -44,6 +75,10 @@ const HISTORY_PERMISSION = { permissions: ["history"] };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isSaveMode(value: unknown): value is "save" | "collapse" {
+  return value === "save" || value === "collapse";
 }
 
 async function hasHistoryPermission(): Promise<boolean> {
@@ -95,16 +130,13 @@ export async function createSessionFromWindow(
   }
 
   const createdAt = Date.now();
-  const sessionName = `${mode === "collapse" ? "Collapse" : "Session"} ${new Date(
-    createdAt
-  ).toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
+  const titleTabIndex = await preferredTitleTabIndex(eligibleTabs);
   const savedTabs = await Promise.all(
     eligibleTabs.map((tab, index) => chromeTabToTabItemWithFavicon(tab, index))
+  );
+  const sessionName = defaultSavedSessionTitle(
+    mode === "collapse",
+    movePreferredTabFirst(savedTabs, titleTabIndex)
   );
 
   const session: Session = {
@@ -444,23 +476,48 @@ function handleOpenSearchShortcut(options: { requestHistoryPermission: boolean }
   );
 }
 
+async function openPopupWithSaveMode(mode: "save" | "collapse"): Promise<boolean> {
+  try {
+    const transient = getTransientStorage();
+    await new Promise<void>((resolve) => {
+      transient.set({ [PENDING_SAVE_KEY]: mode }, () => resolve());
+    });
+
+    if (typeof chrome.action.openPopup === "function") {
+      await chrome.action.openPopup();
+      return true;
+    }
+  } catch {
+    // openPopup may throw if not supported or no user gesture.
+  }
+
+  return false;
+}
+
 function handleSaveWindowShortcut(): void {
   if (shouldIgnoreShortcutAction("save-current-window")) {
     return;
   }
 
-  void createSessionFromWindow("save")
-    .then((result) => {
-      if (result) {
-        void notifySessionCaptured(result);
-        return;
-      }
-      void notifyCommandProblem(
-        "No tabs saved",
-        "TabSetu did not find any regular pages in the current window."
-      );
-    })
-    .catch(() => notifyCommandProblem("TabSetu could not save this window", "Please try again."));
+  void openPopupWithSaveMode("save").then((opened) => {
+    if (opened) {
+      return;
+    }
+
+    // Fallback: popup couldn't open, save immediately as before.
+    void createSessionFromWindow("save")
+      .then((result) => {
+        if (result) {
+          void notifySessionCaptured(result);
+          return;
+        }
+        void notifyCommandProblem(
+          "No tabs saved",
+          "TabSetu did not find any regular pages in the current window."
+        );
+      })
+      .catch(() => notifyCommandProblem("TabSetu could not save this window", "Please try again."));
+  });
 }
 
 function handleCollapseWindowShortcut(): void {
@@ -468,21 +525,28 @@ function handleCollapseWindowShortcut(): void {
     return;
   }
 
-  void createSessionFromWindow("collapse")
-    .then((result) => {
-      if (result) {
-        void notifySessionCaptured(result);
-        void chrome.action.openPopup?.().catch(() => undefined);
-        return;
-      }
-      void notifyCommandProblem(
-        "No tabs collapsed",
-        "TabSetu did not find any regular pages in the current window."
+  void openPopupWithSaveMode("collapse").then((opened) => {
+    if (opened) {
+      return;
+    }
+
+    // Fallback: popup couldn't open, collapse immediately as before.
+    void createSessionFromWindow("collapse")
+      .then((result) => {
+        if (result) {
+          void notifySessionCaptured(result);
+          void chrome.action.openPopup?.().catch(() => undefined);
+          return;
+        }
+        void notifyCommandProblem(
+          "No tabs collapsed",
+          "TabSetu did not find any regular pages in the current window."
+        );
+      })
+      .catch(() =>
+        notifyCommandProblem("TabSetu could not collapse this window", "Please try again.")
       );
-    })
-    .catch(() =>
-      notifyCommandProblem("TabSetu could not collapse this window", "Please try again.")
-    );
+  });
 }
 
 function registerRuntimeMessages(): void {
@@ -507,6 +571,18 @@ function registerRuntimeMessages(): void {
       handleCollapseWindowShortcut();
       sendResponse({ ok: true });
       return undefined;
+    }
+
+    if (message.type === "tabsetu:get-pending-save-mode") {
+      const transient = getTransientStorage();
+      transient.get([PENDING_SAVE_KEY], (result) => {
+        const rawMode: unknown = result[PENDING_SAVE_KEY];
+        const mode = isSaveMode(rawMode) ? rawMode : null;
+        // Clear the pending flag after reading it.
+        transient.remove(PENDING_SAVE_KEY, () => undefined);
+        sendResponse({ ok: true, mode });
+      });
+      return true;
     }
 
     if (message.type === "tabsetu:get-preferred-browser-tab") {

@@ -37,7 +37,10 @@ export default defineConfig(({ mode }) => {
       react(),
       crx({ manifest }),
       viteStaticCopy({
-        targets: [{ src: "share-page/*", dest: "share-page" }],
+        targets: [
+          { src: "share-page/*", dest: "share-page" },
+          { src: "oauth-callback.html", dest: "." },
+        ],
       }),
     ],
     resolve: {

@@ -93,7 +93,7 @@ export default function SessionListToolbar({
       style={{
         padding: "24px 24px 18px",
         borderBottom: "1px solid var(--color-border)",
-        background: "linear-gradient(180deg, rgba(0,179,216,0.08) 0%, rgba(0,179,216,0) 100%)",
+        background: "var(--color-surface)",
       }}
     >
       <div

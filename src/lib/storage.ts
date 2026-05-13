@@ -13,7 +13,9 @@ import type {
 } from "@/types";
 import { checkStorageQuota } from "@/lib/storageQuota";
 import { clampText, generateId, isValidUrl, sanitizeLabel, stripHtml } from "@/lib/tabHelpers";
+import { defaultSavedSessionTitle } from "@/lib/sessionLabels";
 import { getOnboardingFolders, getOnboardingTags } from "@/lib/onboarding";
+import { getSyncStorage, safeCreateNotification } from "@/lib/browserCompat";
 
 const APP_VERSION = "1.0.0";
 const SCHEMA_VERSION = 4;
@@ -258,6 +260,18 @@ function sourceSessions(source: Record<string, unknown>): unknown {
   return sourceValue(source, STORAGE_KEYS.sessions, "sessions", []);
 }
 
+function generatedCaptureNameMode(name: string): "save" | "collapse" | null {
+  if (/^Session\s+.+\d{1,2}:\d{2}/i.test(name)) {
+    return "save";
+  }
+
+  if (/^Collapse\s+.+\d{1,2}:\d{2}/i.test(name)) {
+    return "collapse";
+  }
+
+  return null;
+}
+
 function normalizeTabItem(raw: unknown): TabItem | null {
   if (!isRecord(raw)) {
     return null;
@@ -302,20 +316,27 @@ function normalizeSession(raw: unknown): Session | null {
 
   const createdAt = asNumber(raw.createdAt, Date.now());
   const updatedAt = asNumber(raw.updatedAt, createdAt);
+  const orderedTabs = tabs
+    .map((tab, index) => ({
+      ...tab,
+      position: typeof tab.position === "number" ? tab.position : index,
+    }))
+    .sort((left, right) => left.position - right.position)
+    .map((tab, index) => ({ ...tab, position: index }));
+  const rawName = sanitizeLabel(asString(raw.name), "Untitled Session", 100);
+  const generatedMode = generatedCaptureNameMode(rawName);
+  const name =
+    generatedMode && orderedTabs.length !== 0
+      ? defaultSavedSessionTitle(generatedMode === "collapse", orderedTabs)
+      : rawName;
 
   return {
     id: asString(raw.id, generateId("session")),
-    name: sanitizeLabel(asString(raw.name), "Untitled Session", 100),
+    name,
     description: clampText(stripHtml(asString(raw.description)), 300),
     folderId: raw.folderId == null ? null : asString(raw.folderId) || null,
     tagIds: asStringArray(raw.tagIds),
-    tabs: tabs
-      .map((tab, index) => ({
-        ...tab,
-        position: typeof tab.position === "number" ? tab.position : index,
-      }))
-      .sort((left, right) => left.position - right.position)
-      .map((tab, index) => ({ ...tab, position: index })),
+    tabs: orderedTabs,
     note: clampText(stripHtml(asString(raw.note)), 5000),
     color: raw.color == null ? null : asString(raw.color) || null,
     icon: raw.icon == null ? null : asString(raw.icon) || null,
@@ -606,16 +627,7 @@ function createNotification(
   notificationId: string,
   options: chrome.notifications.NotificationOptions<true>
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    chrome.notifications.create(notificationId, options, (createdId) => {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-        return;
-      }
-
-      resolve(createdId);
-    });
-  });
+  return safeCreateNotification(notificationId, options);
 }
 
 async function checkQuotaAfterSave(): Promise<void> {
@@ -950,7 +962,7 @@ function mergeLocalAndSyncRaw(
 export async function loadStorage(options: { includeDeleted?: boolean } = {}): Promise<StorageData> {
   const [localRaw, syncRaw] = await Promise.all([
     storageGet<Record<string, unknown>>(chrome.storage.local, null),
-    storageGet<Record<string, unknown>>(chrome.storage.sync, [
+    storageGet<Record<string, unknown>>(getSyncStorage(), [
       STORAGE_KEYS.settings,
       STORAGE_KEYS.aiConfig,
     ]),
@@ -962,7 +974,7 @@ export async function loadStorage(options: { includeDeleted?: boolean } = {}): P
 }
 
 export async function loadSettings(): Promise<Settings> {
-  const raw = await storageGet<Record<string, unknown>>(chrome.storage.sync, [
+  const raw = await storageGet<Record<string, unknown>>(getSyncStorage(), [
     STORAGE_KEYS.settings,
   ]);
   return normalizeSettings(raw[STORAGE_KEYS.settings]);
@@ -983,7 +995,7 @@ export async function loadStorageWithUndoBuffer(): Promise<{
 }> {
   const [localRaw, syncRaw] = await Promise.all([
     storageGet<Record<string, unknown>>(chrome.storage.local, null),
-    storageGet<Record<string, unknown>>(chrome.storage.sync, [
+    storageGet<Record<string, unknown>>(getSyncStorage(), [
       STORAGE_KEYS.settings,
       STORAGE_KEYS.aiConfig,
     ]),
@@ -1082,7 +1094,7 @@ export async function saveSettings(settings: Settings): Promise<void> {
           ...settings,
           updatedAt: Date.now(),
         };
-  await storageSet(chrome.storage.sync, {
+  await storageSet(getSyncStorage(), {
     [STORAGE_KEYS.settings]: nextSettings,
   });
 }
@@ -1108,7 +1120,7 @@ export async function saveShareLinks(shareLinks: ShareLink[]): Promise<void> {
 }
 
 export async function saveAIConfig(aiConfig: AIShareConfig): Promise<void> {
-  await storageSet(chrome.storage.sync, {
+  await storageSet(getSyncStorage(), {
     [STORAGE_KEYS.aiConfig]: aiConfig,
   });
 }
@@ -1121,7 +1133,7 @@ export async function saveStorageData(
   try {
     await Promise.all([
       saveLocalStorageData(normalized),
-      storageSet(chrome.storage.sync, toSyncStorageRecord(normalized)),
+      storageSet(getSyncStorage(), toSyncStorageRecord(normalized)),
     ]);
   } catch (error) {
     if (isQuotaError(error)) {
@@ -1195,7 +1207,7 @@ export async function migrateSettingsToSync(): Promise<void> {
   }
 
   if (Object.keys(nextSync).length !== 0) {
-    await storageSet(chrome.storage.sync, nextSync);
+    await storageSet(getSyncStorage(), nextSync);
   }
 
   await storageRemove(chrome.storage.local, [
