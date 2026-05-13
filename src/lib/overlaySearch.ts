@@ -1,4 +1,3 @@
-import Fuse from "fuse.js";
 import type { Settings } from "@/types";
 
 export interface OverlaySearchRow {
@@ -24,12 +23,53 @@ export interface OverlaySearchRow {
   noteContent?: string;
 }
 
+function normalizeText(value: string): string {
+  return value.toLowerCase().trim();
+}
+
+function scoreText(value: string | undefined, query: string): number {
+  if (!value) {
+    return 0;
+  }
+
+  const text = normalizeText(value);
+  if (!text) {
+    return 0;
+  }
+
+  if (text === query) {
+    return 1;
+  }
+
+  const index = text.indexOf(query);
+  if (index >= 0) {
+    return index === 0 ? 0.92 : 0.78;
+  }
+
+  const words = text.split(/[\s/._-]+/).filter(Boolean);
+  if (words.some((word) => word.startsWith(query))) {
+    return 0.68;
+  }
+
+  let queryIndex = 0;
+  for (const char of text) {
+    if (char === query[queryIndex]) {
+      queryIndex += 1;
+      if (queryIndex === query.length) {
+        return 0.36;
+      }
+    }
+  }
+
+  return 0;
+}
+
 export function scoreOverlayRows(
   rows: OverlaySearchRow[],
   query: string,
   settings?: Pick<Settings, "searchScopes" | "fuzzySearchThreshold">
 ): OverlaySearchRow[] {
-  const trimmedQuery = query.trim();
+  const trimmedQuery = normalizeText(query);
   if (!trimmedQuery) {
     return rows;
   }
@@ -79,12 +119,17 @@ export function scoreOverlayRows(
     return [];
   }
 
-  return new Fuse(rows, {
-    threshold: settings?.fuzzySearchThreshold ?? 0.32,
-    ignoreLocation: true,
-    findAllMatches: true,
-    keys,
-  })
-    .search(trimmedQuery)
-    .map((result) => result.item);
+  const threshold = Math.max(0.1, Math.min(0.6, settings?.fuzzySearchThreshold ?? 0.32));
+
+  return rows
+    .map((row, index) => {
+      const score = keys.reduce(
+        (total, key) => total + scoreText(row[key.name] as string | undefined, trimmedQuery) * key.weight,
+        0
+      );
+      return { row, score, index };
+    })
+    .filter((result) => result.score >= threshold * 0.1)
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map((result) => result.row);
 }

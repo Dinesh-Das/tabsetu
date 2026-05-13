@@ -58,7 +58,7 @@ function openRow(row: OverlaySearchRow): void {
 
 async function fetchHistoryRows(query: string): Promise<OverlaySearchRow[]> {
   const permissionResponse: unknown = await chrome.runtime.sendMessage({
-    type: "tabsetu:ensure-history-permission",
+    type: "tabsetu:has-history-permission",
   });
   if (
     !isRecord(permissionResponse) ||

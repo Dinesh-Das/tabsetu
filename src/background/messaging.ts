@@ -38,23 +38,39 @@ type SessionCaptureResult = {
 
 let historyPermissionKnown = false;
 let historyPermissionGranted = false;
+let historyPermissionRequestStarted = false;
+
+const HISTORY_PERMISSION = { permissions: ["history"] };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-async function ensureHistoryPermission(): Promise<boolean> {
+async function hasHistoryPermission(): Promise<boolean> {
   if (historyPermissionKnown) {
     return historyPermissionGranted;
   }
 
-  const permission = { permissions: ["history"] };
-  historyPermissionGranted = await chrome.permissions.contains(permission);
-  if (!historyPermissionGranted) {
-    historyPermissionGranted = await chrome.permissions.request(permission);
-  }
+  historyPermissionGranted = await chrome.permissions.contains(HISTORY_PERMISSION);
   historyPermissionKnown = true;
   return historyPermissionGranted;
+}
+
+function requestHistoryPermissionFromCommand(): void {
+  if (historyPermissionGranted || historyPermissionRequestStarted) {
+    return;
+  }
+
+  historyPermissionRequestStarted = true;
+  try {
+    chrome.permissions.request(HISTORY_PERMISSION, (granted) => {
+      historyPermissionKnown = true;
+      historyPermissionGranted = Boolean(granted) && !chrome.runtime.lastError;
+    });
+  } catch {
+    historyPermissionKnown = true;
+    historyPermissionGranted = false;
+  }
 }
 
 export async function createSessionFromWindow(
@@ -252,7 +268,7 @@ async function searchBrowserHistory(query: string): Promise<OverlaySearchRow[]> 
     return [];
   }
 
-  if (!(await ensureHistoryPermission())) {
+  if (!(await hasHistoryPermission())) {
     return [];
   }
 
@@ -404,9 +420,92 @@ async function openSearchOverlay(): Promise<void> {
   }
 }
 
+const SHORTCUT_ACTION_DEBOUNCE_MS = 700;
+const lastShortcutActionAt = new Map<string, number>();
+
+function shouldIgnoreShortcutAction(action: string): boolean {
+  const now = Date.now();
+  const previous = lastShortcutActionAt.get(action) ?? 0;
+  lastShortcutActionAt.set(action, now);
+  return now - previous < SHORTCUT_ACTION_DEBOUNCE_MS;
+}
+
+function handleOpenSearchShortcut(options: { requestHistoryPermission: boolean }): void {
+  if (shouldIgnoreShortcutAction("open-search-overlay")) {
+    return;
+  }
+
+  if (options.requestHistoryPermission) {
+    requestHistoryPermissionFromCommand();
+  }
+
+  void openSearchOverlay().catch(() =>
+    notifyCommandProblem("TabSetu search could not open", "Try again on a regular webpage.")
+  );
+}
+
+function handleSaveWindowShortcut(): void {
+  if (shouldIgnoreShortcutAction("save-current-window")) {
+    return;
+  }
+
+  void createSessionFromWindow("save")
+    .then((result) => {
+      if (result) {
+        void notifySessionCaptured(result);
+        return;
+      }
+      void notifyCommandProblem(
+        "No tabs saved",
+        "TabSetu did not find any regular pages in the current window."
+      );
+    })
+    .catch(() => notifyCommandProblem("TabSetu could not save this window", "Please try again."));
+}
+
+function handleCollapseWindowShortcut(): void {
+  if (shouldIgnoreShortcutAction("collapse-current-window")) {
+    return;
+  }
+
+  void createSessionFromWindow("collapse")
+    .then((result) => {
+      if (result) {
+        void notifySessionCaptured(result);
+        void chrome.action.openPopup?.().catch(() => undefined);
+        return;
+      }
+      void notifyCommandProblem(
+        "No tabs collapsed",
+        "TabSetu did not find any regular pages in the current window."
+      );
+    })
+    .catch(() =>
+      notifyCommandProblem("TabSetu could not collapse this window", "Please try again.")
+    );
+}
+
 function registerRuntimeMessages(): void {
   chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
     if (!isRecord(message)) {
+      return undefined;
+    }
+
+    if (message.type === "tabsetu:shortcut-open-search-overlay") {
+      handleOpenSearchShortcut({ requestHistoryPermission: false });
+      sendResponse({ ok: true });
+      return undefined;
+    }
+
+    if (message.type === "tabsetu:shortcut-save-window") {
+      handleSaveWindowShortcut();
+      sendResponse({ ok: true });
+      return undefined;
+    }
+
+    if (message.type === "tabsetu:shortcut-collapse-window") {
+      handleCollapseWindowShortcut();
+      sendResponse({ ok: true });
       return undefined;
     }
 
@@ -448,8 +547,8 @@ function registerRuntimeMessages(): void {
       return true;
     }
 
-    if (message.type === "tabsetu:ensure-history-permission") {
-      void ensureHistoryPermission()
+    if (message.type === "tabsetu:has-history-permission") {
+      void hasHistoryPermission()
         .then((granted) => sendResponse({ ok: true, granted }))
         .catch(() => sendResponse({ ok: false, granted: false }));
       return true;
@@ -495,44 +594,15 @@ function registerRuntimeMessages(): void {
 function registerCommands(): void {
   chrome.commands.onCommand.addListener((command) => {
     if (command === "open-search-overlay") {
-      void openSearchOverlay().catch(() =>
-        notifyCommandProblem("TabSetu search could not open", "Try again on a regular webpage.")
-      );
+      handleOpenSearchShortcut({ requestHistoryPermission: true });
     }
 
     if (command === "save-current-window") {
-      void createSessionFromWindow("save")
-        .then((result) => {
-          if (result) {
-            void notifySessionCaptured(result);
-            return;
-          }
-          void notifyCommandProblem(
-            "No tabs saved",
-            "TabSetu did not find any regular pages in the current window."
-          );
-        })
-        .catch(() =>
-          notifyCommandProblem("TabSetu could not save this window", "Please try again.")
-        );
+      handleSaveWindowShortcut();
     }
 
     if (command === "collapse-current-window") {
-      void createSessionFromWindow("collapse")
-        .then((result) => {
-          if (result) {
-            void notifySessionCaptured(result);
-            void chrome.action.openPopup?.().catch(() => undefined);
-            return;
-          }
-          void notifyCommandProblem(
-            "No tabs collapsed",
-            "TabSetu did not find any regular pages in the current window."
-          );
-        })
-        .catch(() =>
-          notifyCommandProblem("TabSetu could not collapse this window", "Please try again.")
-        );
+      handleCollapseWindowShortcut();
     }
 
     if (command === "open-dashboard") {
