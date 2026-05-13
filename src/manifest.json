@@ -61,9 +61,9 @@
     "scripting",
     "activeTab",
     "contextMenus",
-    "history",
     "identity"
   ],
+  "optional_permissions": ["history"],
   "oauth2": {
     "client_id": "__REPLACE_WITH_CLIENT_ID__",
     "scopes": [
@@ -74,7 +74,6 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com"
   },
-  "optional_host_permissions": ["*://*/*"],
   "options_page": "dashboard.html",
   "web_accessible_resources": [
     {

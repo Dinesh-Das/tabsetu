@@ -20,12 +20,16 @@ function persistFolders(folders: Folder[]): void {
   void writePromise;
 }
 
+function activeFolders(folders: Folder[]): Folder[] {
+  return folders.filter((folder) => folder.deletedAt == null);
+}
+
 export const useFolderStore = create<FolderState>((set, get) => ({
   folders: [],
 
   load: async () => {
     const data = await loadStorage();
-    set({ folders: data.folders });
+    set({ folders: activeFolders(data.folders) });
     useHydrationStore.getState().markOneHydrated();
   },
 
@@ -60,13 +64,19 @@ export const useFolderStore = create<FolderState>((set, get) => ({
   },
 
   deleteFolder: (id) => {
-    const folders = get().folders.filter((f) => f.id !== id);
+    const deletedAt = Date.now();
+    const target = get().folders.find((folder) => folder.id === id);
+    if (!target) {
+      return;
+    }
+
+    const folders = get().folders.filter((folder) => folder.id !== id);
     set({ folders });
-    persistFolders(folders);
+    persistFolders([...folders, { ...target, deletedAt, updatedAt: deletedAt }]);
   },
 
   importFolders: (folders) => {
-    const normalizedFolders = [...folders]
+    const normalizedFolders = activeFolders(folders)
       .sort((left, right) => left.position - right.position)
       .map((folder, index) => ({ ...folder, position: index }));
     set({ folders: normalizedFolders });

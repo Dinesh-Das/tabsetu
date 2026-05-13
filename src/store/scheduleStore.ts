@@ -65,12 +65,16 @@ function persistSchedules(schedules: Schedule[]): void {
   void writePromise;
 }
 
+function activeSchedules(schedules: Schedule[]): Schedule[] {
+  return schedules.filter((schedule) => schedule.deletedAt == null);
+}
+
 export const useScheduleStore = create<ScheduleState>((set, get) => ({
   schedules: [],
 
   load: async () => {
     const data = await loadStorage();
-    set({ schedules: data.schedules });
+    set({ schedules: activeSchedules(data.schedules) });
     useHydrationStore.getState().markOneHydrated();
   },
 
@@ -113,9 +117,13 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       void chrome.alarms.clear(alarmName(target.id));
     }
 
+    const deletedAt = Date.now();
     const schedules = get().schedules.filter((schedule) => schedule.id !== id);
     set({ schedules });
-    persistSchedules(schedules);
+    persistSchedules([
+      ...schedules,
+      ...(target ? [{ ...target, deletedAt, updatedAt: deletedAt }] : []),
+    ]);
   },
 
   toggleSchedule: (id, enabled) => {
@@ -137,10 +145,10 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   },
 
   importSchedules: (schedules) => {
-    set({ schedules });
+    set({ schedules: activeSchedules(schedules) });
   },
 
   syncAlarms: async (schedulesEnabled) => {
-    await replaceBrowserAlarms(get().schedules, schedulesEnabled);
+    await replaceBrowserAlarms(activeSchedules(get().schedules), schedulesEnabled);
   },
 }));

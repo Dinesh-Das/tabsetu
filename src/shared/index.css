@@ -743,6 +743,28 @@ textarea.input {
   font-size: 12px;
 }
 
+.sync-opt-in-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 24px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(20, 184, 166, 0.28);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-accent-dim) 72%, transparent);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.sync-opt-in-banner > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.mobile-content > .sync-opt-in-banner {
+  margin: 12px 16px 0;
+}
+
 .sync-spinner {
   animation: syncSpin 0.8s linear infinite;
 }
@@ -759,9 +781,20 @@ textarea.input {
   padding: 20px;
 }
 
+.sync-gate-embedded {
+  min-height: auto;
+  padding: 0;
+  place-items: stretch;
+}
+
 .sync-gate-panel {
   width: min(100%, 520px);
   padding: 28px;
+}
+
+.sync-gate-embedded .sync-gate-panel {
+  width: 100%;
+  padding: 0;
 }
 
 .sync-gate-mark {
@@ -826,6 +859,10 @@ textarea.input {
 
 .sync-gate-compact .sync-gate-copy h1 {
   font-size: 26px;
+}
+
+.sync-gate-embedded .sync-gate-copy h1 {
+  font-size: 22px;
 }
 
 .management-list,

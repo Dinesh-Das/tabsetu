@@ -115,6 +115,7 @@ describe("exportImport", () => {
         promptPreamble: "",
       },
       settings: {
+        updatedAt: 0,
         theme: "system",
         collapseIncludesPinned: false,
         openInNewWindow: false,

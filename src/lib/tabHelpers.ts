@@ -1,7 +1,5 @@
 import type { TabItem } from "@/types";
-import { fetchFavIconDataUrl, storeFavicon } from "@/lib/favicon";
-
-export { fetchFavIconDataUrl } from "@/lib/favicon";
+import { rememberFaviconForOrigin } from "@/lib/favicon";
 
 const RESTRICTED_PREFIXES = [
   "chrome://",
@@ -89,7 +87,8 @@ export async function chromeTabToTabItemWithFavicon(
   position = 0
 ): Promise<TabItem> {
   const base = chromeTabToTabItem(tab, position);
-  await storeFavicon(base.id, await fetchFavIconDataUrl(tab.favIconUrl));
+  rememberFaviconForOrigin(base.url, base.favIconUrl);
+  await Promise.resolve();
   return base;
 }
 

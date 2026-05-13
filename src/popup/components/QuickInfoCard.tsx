@@ -1,4 +1,5 @@
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
+import { getFaviconFallbackUrl, getRememberedFaviconForOrigin } from "@/lib/favicon";
 import { formatDateTime } from "@/lib/format";
 import type { Session, TabItem } from "@/types";
 
@@ -12,7 +13,6 @@ export interface QuickInfoState {
 export interface QuickInfoCardProps {
   draftNote: string;
   editing: boolean;
-  favicons: Map<string, string>;
   onCancelEdit: () => void;
   onDraftNoteChange: (value: string) => void;
   onEdit: () => void;
@@ -27,7 +27,6 @@ export interface QuickInfoCardProps {
 export default function QuickInfoCard({
   draftNote,
   editing,
-  favicons,
   onCancelEdit,
   onDraftNoteChange,
   onEdit,
@@ -38,6 +37,8 @@ export default function QuickInfoCard({
   quickInfo,
   sessions,
 }: QuickInfoCardProps) {
+  const favicon = quickInfo.tab.favIconUrl ?? getRememberedFaviconForOrigin(quickInfo.tab.url);
+
   return (
     <div
       className="card-raised animate-scale-in"
@@ -54,11 +55,19 @@ export default function QuickInfoCard({
       onMouseLeave={onMouseLeave}
     >
       <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-        {(favicons.get(quickInfo.tab.id) ?? quickInfo.tab.favIconUrl) ? (
+        {favicon ? (
           <img
-            src={favicons.get(quickInfo.tab.id) ?? quickInfo.tab.favIconUrl ?? ""}
+            src={favicon}
             className="favicon"
             alt=""
+            onError={(event) => {
+              const fallback = getFaviconFallbackUrl();
+              if (fallback && event.currentTarget.src !== fallback) {
+                event.currentTarget.src = fallback;
+              } else {
+                event.currentTarget.style.display = "none";
+              }
+            }}
           />
         ) : (
           <span className="favicon favicon-fallback">

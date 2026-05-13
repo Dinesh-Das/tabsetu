@@ -6,8 +6,11 @@ import {
   useSessionListController,
 } from "@/dashboard/components/useSessionListController";
 import SaveModal from "@/popup/components/SaveModal";
+import type { ReactNode } from "react";
 
-type Props = SessionListControllerOptions;
+type Props = SessionListControllerOptions & {
+  syncBanner?: ReactNode;
+};
 
 export default function SessionList(props: Props) {
   const controller = useSessionListController(props);
@@ -15,6 +18,7 @@ export default function SessionList(props: Props) {
   return (
     <section style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <SessionListToolbar {...controller.toolbarProps} />
+      {props.syncBanner}
 
       <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
         {controller.filteredItems.length === 0 ? (

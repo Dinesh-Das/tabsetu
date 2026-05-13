@@ -17,7 +17,11 @@ import {
   stripHtml,
 } from "@/lib/tabHelpers";
 import { COLLAPSE_UNDO_MS, loadStorage, saveSessions, saveUndoBuffer } from "@/lib/storage";
-import { notifyBackgroundTabsSuspended, notifySessionCaptured } from "@/background/notifications";
+import {
+  notifyBackgroundTabsSuspended,
+  notifyCommandProblem,
+  notifySessionCaptured,
+} from "@/background/notifications";
 import { resolvePreferredBrowserTab, storeBrowserTab } from "@/background/tabTracking";
 
 type OverlayPayload = {
@@ -32,8 +36,25 @@ type SessionCaptureResult = {
   mode: "save" | "collapse";
 };
 
+let historyPermissionKnown = false;
+let historyPermissionGranted = false;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+async function ensureHistoryPermission(): Promise<boolean> {
+  if (historyPermissionKnown) {
+    return historyPermissionGranted;
+  }
+
+  const permission = { permissions: ["history"] };
+  historyPermissionGranted = await chrome.permissions.contains(permission);
+  if (!historyPermissionGranted) {
+    historyPermissionGranted = await chrome.permissions.request(permission);
+  }
+  historyPermissionKnown = true;
+  return historyPermissionGranted;
 }
 
 export async function createSessionFromWindow(
@@ -231,6 +252,10 @@ async function searchBrowserHistory(query: string): Promise<OverlaySearchRow[]> 
     return [];
   }
 
+  if (!(await ensureHistoryPermission())) {
+    return [];
+  }
+
   const results = await chrome.history.search({
     text: trimmed,
     maxResults: 20,
@@ -334,6 +359,10 @@ async function openSearchOverlay(): Promise<void> {
   const { settings } = data;
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!activeTab?.id || !activeTab.url || isRestrictedUrl(activeTab.url)) {
+    await notifyCommandProblem(
+      "TabSetu search cannot open here",
+      "Browser pages and extension pages do not allow the search overlay."
+    );
     return;
   }
 
@@ -356,40 +385,22 @@ async function openSearchOverlay(): Promise<void> {
     return;
   }
 
-  const alreadyGranted = await chrome.permissions.contains({ origins: ["*://*/*"] });
-  if (!alreadyGranted) {
-    const granted = await chrome.permissions.request({ origins: ["*://*/*"] });
-    if (!granted) {
-      return;
-    }
-  }
-
-  try {
-    await chrome.scripting.registerContentScripts([
-      {
-        id: "tabsetu-search-overlay",
-        matches: ["*://*/*"],
-        js: ["src/content/searchOverlay.js"],
-        runAt: "document_idle",
-        persistAcrossSessions: true,
-      },
-    ]);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (!message.includes("already registered") && !message.includes("Duplicate script")) {
-      console.error("[TabSetu] Failed to register search overlay script:", err);
-    }
-  }
-
   const payload = await buildOverlayPayload(data);
   try {
     await chrome.tabs.sendMessage(activeTab.id, { type: "tabsetu:open-overlay", payload });
   } catch {
-    await chrome.scripting.executeScript({
-      target: { tabId: activeTab.id },
-      files: ["src/content/searchOverlay.js"],
-    });
-    await chrome.tabs.sendMessage(activeTab.id, { type: "tabsetu:open-overlay", payload });
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: activeTab.id },
+        files: ["src/content/searchOverlay.js"],
+      });
+      await chrome.tabs.sendMessage(activeTab.id, { type: "tabsetu:open-overlay", payload });
+    } catch {
+      await notifyCommandProblem(
+        "TabSetu search could not open",
+        "Try the shortcut on a regular http or https page."
+      );
+    }
   }
 }
 
@@ -437,6 +448,13 @@ function registerRuntimeMessages(): void {
       return true;
     }
 
+    if (message.type === "tabsetu:ensure-history-permission") {
+      void ensureHistoryPermission()
+        .then((granted) => sendResponse({ ok: true, granted }))
+        .catch(() => sendResponse({ ok: false, granted: false }));
+      return true;
+    }
+
     if (message.type === "tabsetu:search-history" && typeof message.query === "string") {
       const query = message.query;
       void searchBrowserHistory(query)
@@ -477,24 +495,44 @@ function registerRuntimeMessages(): void {
 function registerCommands(): void {
   chrome.commands.onCommand.addListener((command) => {
     if (command === "open-search-overlay") {
-      void openSearchOverlay();
+      void openSearchOverlay().catch(() =>
+        notifyCommandProblem("TabSetu search could not open", "Try again on a regular webpage.")
+      );
     }
 
     if (command === "save-current-window") {
-      void createSessionFromWindow("save").then((result) => {
-        if (result) {
-          void notifySessionCaptured(result);
-        }
-      });
+      void createSessionFromWindow("save")
+        .then((result) => {
+          if (result) {
+            void notifySessionCaptured(result);
+            return;
+          }
+          void notifyCommandProblem(
+            "No tabs saved",
+            "TabSetu did not find any regular pages in the current window."
+          );
+        })
+        .catch(() =>
+          notifyCommandProblem("TabSetu could not save this window", "Please try again.")
+        );
     }
 
     if (command === "collapse-current-window") {
-      void createSessionFromWindow("collapse").then((result) => {
-        if (result) {
-          void notifySessionCaptured(result);
-          void chrome.action.openPopup?.().catch(() => undefined);
-        }
-      });
+      void createSessionFromWindow("collapse")
+        .then((result) => {
+          if (result) {
+            void notifySessionCaptured(result);
+            void chrome.action.openPopup?.().catch(() => undefined);
+            return;
+          }
+          void notifyCommandProblem(
+            "No tabs collapsed",
+            "TabSetu did not find any regular pages in the current window."
+          );
+        })
+        .catch(() =>
+          notifyCommandProblem("TabSetu could not collapse this window", "Please try again.")
+        );
     }
 
     if (command === "open-dashboard") {

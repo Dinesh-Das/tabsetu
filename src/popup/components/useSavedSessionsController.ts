@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useFavicons } from "@/hooks/useFavicons";
 import { openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
 import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
 import { chromeTabToTabItem, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
@@ -71,7 +70,6 @@ export function useSavedSessionsController({
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const quickInfoShowTimer = useRef<number | null>(null);
   const quickInfoHideTimer = useRef<number | null>(null);
-  const favicons = useFavicons();
 
   const searchIndex = useMemo(
     () => buildSearchIndex(sessions, folders, tags, settings),
@@ -338,7 +336,6 @@ export function useSavedSessionsController({
     ? {
         draftNote: quickInfoDraftNote,
         editing: quickInfoEditing,
-        favicons,
         onCancelEdit: () => {
           setQuickInfoDraftNote(quickInfo.tab.note);
           setQuickInfoEditing(false);

@@ -19,6 +19,7 @@ import {
 } from "@/components/mobile/MobileUI";
 import { getSessionIcon } from "@/components/shared/sessionIconRegistry";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { getFaviconFallbackUrl } from "@/lib/favicon";
 import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
 import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
 import type { Folder, Session, SortOption, TabItem, Tag as TagItem, ToastMessage } from "@/types";
@@ -64,7 +65,18 @@ function tabPreview(tab: TabItem) {
   return (
     <div className="session-tab-preview">
       {tab.favIconUrl ? (
-        <img src={tab.favIconUrl} alt="" />
+        <img
+          src={tab.favIconUrl}
+          alt=""
+          onError={(event) => {
+            const fallback = getFaviconFallbackUrl();
+            if (fallback && event.currentTarget.src !== fallback) {
+              event.currentTarget.src = fallback;
+            } else {
+              event.currentTarget.style.display = "none";
+            }
+          }}
+        />
       ) : (
         <span>{getDomainLabel(tab.url).slice(0, 2).toUpperCase()}</span>
       )}

@@ -15,6 +15,7 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { useShareStore } from "@/store/shareStore";
 import { useSyncStore } from "@/store/syncStore";
 import { useTagStore } from "@/store/tagStore";
+import SyncGate from "./SyncGate";
 
 interface Props {
   addToast: (type: ToastMessage["type"], message: string) => void;
@@ -78,7 +79,6 @@ export default function SettingsPanel({ addToast }: Props) {
   const lastSyncedAt = useSyncStore((state) => state.lastSyncedAt);
   const isSyncing = useSyncStore((state) => state.isSyncing);
   const syncError = useSyncStore((state) => state.syncError);
-  const signIn = useSyncStore((state) => state.signIn);
   const signOut = useSyncStore((state) => state.signOut);
   const syncNow = useSyncStore((state) => state.syncNow);
   const refreshSyncStatus = useSyncStore((state) => state.refreshStatus);
@@ -617,25 +617,9 @@ export default function SettingsPanel({ addToast }: Props) {
               </div>
             </>
           ) : (
-            <>
-              <div className="sync-card-header">
-                <span className="sync-icon">
-                  <Cloud size={20} />
-                </span>
-                <div className="sync-copy">
-                  <h3>Sign in with Google</h3>
-                  <p>Sync your sessions across all your devices.</p>
-                </div>
-              </div>
-              <div className="sync-actions">
-                <button className="btn btn-primary" type="button" onClick={() => void signIn()}>
-                  <Cloud size={15} />
-                  Sign in with Google
-                </button>
-              </div>
-            </>
+            <SyncGate compact embedded />
           )}
-          {syncError ? <p className="sync-error">{syncError}</p> : null}
+          {syncEnabled && syncError ? <p className="sync-error">{syncError}</p> : null}
         </div>
 
         <div className="card settings-card" style={{ marginTop: 22 }}>

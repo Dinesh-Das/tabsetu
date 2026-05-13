@@ -22,7 +22,7 @@ import MobileHomeScreen from "./components/MobileHomeScreen";
 import MobileNotesScreen from "./components/MobileNotesScreen";
 import MobileSchedulesScreen from "./components/MobileSchedulesScreen";
 import SettingsPanel from "./components/SettingsPanel";
-import SyncGate from "./components/SyncGate";
+import SyncOptInBanner from "./components/SyncOptInBanner";
 import DesktopLayout from "./layouts/DesktopLayout";
 import RemindersPage from "./pages/RemindersPage";
 import type { DesktopSidebarView } from "./components/Sidebar";
@@ -178,13 +178,11 @@ class AppErrorBoundary extends React.Component<{ children: ReactNode }, { error:
 function DashboardAppContent() {
   const settings = useSettingsStore((state) => state.settings);
   const isReady = useHydrationStore((state) => state.isReady);
-  const syncEnabled = useSyncStore((state) => state.enabled);
   const refreshSyncStatus = useSyncStore((state) => state.refreshStatus);
 
   const [view, setView] = useState<DashView>(getInitialDashView);
   const [savePrompt, setSavePrompt] = useState(getInitialSavePrompt);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [syncStatusReady, setSyncStatusReady] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const isDesktop = useMediaQuery("(min-width: 900px)");
 
@@ -202,16 +200,7 @@ function DashboardAppContent() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void refreshSyncStatus().finally(() => {
-      if (!cancelled) {
-        setSyncStatusReady(true);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    void refreshSyncStatus();
   }, [refreshSyncStatus]);
 
   useEffect(() => {
@@ -234,24 +223,8 @@ function DashboardAppContent() {
 
   const activeNavView = isMobileNavView(view) ? view : "home";
 
-  if (!isReady || !syncStatusReady) {
+  if (!isReady) {
     return <LoadingSkeleton />;
-  }
-
-  if (!syncEnabled) {
-    return isDesktop ? (
-      <div className="desktop-dashboard-stage">
-        <SyncGate />
-        <DashToast toasts={toasts} />
-      </div>
-    ) : (
-      <div className="mobile-dashboard-stage">
-        <div className="mobile-frame">
-          <SyncGate compact />
-        </div>
-        <DashToast toasts={toasts} />
-      </div>
-    );
   }
 
   if (isDesktop) {
@@ -310,6 +283,7 @@ function DashboardAppContent() {
           </div>
         }
       >
+        <SyncOptInBanner onOpenSettings={() => setView("settings")} />
         {view === "home" ? (
           <ErrorBoundary>
             <MobileHomeScreen

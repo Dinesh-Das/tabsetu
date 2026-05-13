@@ -25,6 +25,10 @@ function persistNotes(notes: StandaloneNote[]): void {
   void writePromise;
 }
 
+function activeNotes(notes: StandaloneNote[]): StandaloneNote[] {
+  return notes.filter((note) => note.deletedAt == null);
+}
+
 function sanitizeNoteUpdates(updates: Partial<StandaloneNote>): Partial<StandaloneNote> {
   return {
     ...updates,
@@ -42,7 +46,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
 
   load: async () => {
     const data = await loadStorage();
-    set({ standaloneNotes: data.standaloneNotes });
+    set({ standaloneNotes: activeNotes(data.standaloneNotes) });
     useHydrationStore.getState().markOneHydrated();
   },
 
@@ -73,12 +77,18 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   },
 
   deleteNote: (id) => {
+    const deletedAt = Date.now();
+    const target = get().standaloneNotes.find((note) => note.id === id);
+    if (!target) {
+      return;
+    }
+
     const notes = get().standaloneNotes.filter((note) => note.id !== id);
     set({ standaloneNotes: notes });
-    persistNotes(notes);
+    persistNotes([...notes, { ...target, deletedAt, updatedAt: deletedAt }]);
   },
 
   importNotes: (notes) => {
-    set({ standaloneNotes: notes });
+    set({ standaloneNotes: activeNotes(notes) });
   },
 }));

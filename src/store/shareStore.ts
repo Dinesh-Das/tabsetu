@@ -18,12 +18,16 @@ function persistShareLinks(shareLinks: ShareLink[]): void {
   void writePromise;
 }
 
+function activeShareLinks(shareLinks: ShareLink[]): ShareLink[] {
+  return shareLinks.filter((shareLink) => shareLink.deletedAt == null);
+}
+
 export const useShareStore = create<ShareState>((set, get) => ({
   shareLinks: [],
 
   load: async () => {
     const data = await loadStorage();
-    set({ shareLinks: data.shareLinks });
+    set({ shareLinks: activeShareLinks(data.shareLinks) });
     useHydrationStore.getState().markOneHydrated();
   },
 
@@ -45,6 +49,6 @@ export const useShareStore = create<ShareState>((set, get) => ({
   },
 
   importShareLinks: (shareLinks) => {
-    set({ shareLinks });
+    set({ shareLinks: activeShareLinks(shareLinks) });
   },
 }));

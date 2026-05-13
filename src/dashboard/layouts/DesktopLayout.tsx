@@ -6,6 +6,7 @@ import SessionDetail from "@/dashboard/components/SessionDetail";
 import SessionList from "@/dashboard/components/SessionList";
 import SettingsPanel from "@/dashboard/components/SettingsPanel";
 import Sidebar, { type DesktopSidebarView } from "@/dashboard/components/Sidebar";
+import SyncOptInBanner from "@/dashboard/components/SyncOptInBanner";
 import MobileSchedulesScreen from "@/dashboard/components/MobileSchedulesScreen";
 import RemindersPage from "@/dashboard/pages/RemindersPage";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
@@ -89,6 +90,7 @@ export default function DesktopLayout({
               addToast={addToast}
               initialSavePrompt={initialSavePrompt}
               onInitialSavePromptHandled={onInitialSavePromptHandled}
+              syncBanner={<SyncOptInBanner onOpenSettings={() => setView("settings")} />}
             />
           </ErrorBoundary>
         ) : null}

@@ -52,6 +52,10 @@ let writePromise: Promise<void> = Promise.resolve();
 let folderIndex = new Map<string, Set<string>>();
 let tagIndex = new Map<string, Set<string>>();
 
+function activeSessions(sessions: Session[]): Session[] {
+  return sessions.filter((session) => session.deletedAt == null);
+}
+
 function persistSessions(sessions: Session[]): void {
   writePromise = writePromise.then(() => saveSessions(sessions));
   void writePromise;
@@ -93,8 +97,9 @@ function setSessions(
   sessions: Session[],
   persist = true
 ): void {
-  rebuildIndexes(sessions);
-  set({ sessions });
+  const visibleSessions = activeSessions(sessions);
+  rebuildIndexes(visibleSessions);
+  set({ sessions: visibleSessions });
   if (persist) {
     persistSessions(sessions);
   }
@@ -243,8 +248,22 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   deleteSession: (id) => {
+    const deletedAt = Date.now();
+    const target = get().sessions.find((session) => session.id === id);
+    if (!target) {
+      return;
+    }
+
     const sessions = get().sessions.filter((session) => session.id !== id);
-    setSessions(set, sessions);
+    setSessions(set, [
+      ...sessions,
+      {
+        ...target,
+        deletedAt,
+        updatedAt: deletedAt,
+        version: bumpSessionVersion(target.version),
+      },
+    ]);
   },
 
   duplicateSession: (id) => {

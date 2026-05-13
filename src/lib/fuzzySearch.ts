@@ -140,27 +140,33 @@ function toSearchableSessions(
   folders: Folder[],
   tags: Tag[]
 ): SearchableSession[] {
-  const folderMap = new Map(folders.map((folder) => [folder.id, folder.name]));
-  const tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
+  const folderMap = new Map(
+    folders.filter((folder) => folder.deletedAt == null).map((folder) => [folder.id, folder.name])
+  );
+  const tagMap = new Map(
+    tags.filter((tag) => tag.deletedAt == null).map((tag) => [tag.id, tag.name])
+  );
 
-  return sessions.map((session) => ({
-    session,
-    folderName: session.folderId ? (folderMap.get(session.folderId) ?? "") : "",
-    tagIds: session.tagIds,
-    tagNames: session.tagIds.map((tagId) => tagMap.get(tagId) ?? "").filter(Boolean),
-    tabFolderNames: session.tabs.map((tab) =>
-      tab.folderId ? (folderMap.get(tab.folderId) ?? "") : ""
-    ),
-    tabTagNames: session.tabs.map((tab) =>
-      tab.tagIds
-        .map((tagId) => tagMap.get(tagId) ?? "")
-        .filter(Boolean)
-        .join(" ")
-    ),
-    tabTitles: session.tabs.map((tab) => tab.title),
-    tabUrls: session.tabs.map((tab) => tab.url),
-    tabNotes: session.tabs.map((tab) => tab.note),
-  }));
+  return sessions
+    .filter((session) => session.deletedAt == null)
+    .map((session) => ({
+      session,
+      folderName: session.folderId ? (folderMap.get(session.folderId) ?? "") : "",
+      tagIds: session.tagIds,
+      tagNames: session.tagIds.map((tagId) => tagMap.get(tagId) ?? "").filter(Boolean),
+      tabFolderNames: session.tabs.map((tab) =>
+        tab.folderId ? (folderMap.get(tab.folderId) ?? "") : ""
+      ),
+      tabTagNames: session.tabs.map((tab) =>
+        tab.tagIds
+          .map((tagId) => tagMap.get(tagId) ?? "")
+          .filter(Boolean)
+          .join(" ")
+      ),
+      tabTitles: session.tabs.map((tab) => tab.title),
+      tabUrls: session.tabs.map((tab) => tab.url),
+      tabNotes: session.tabs.map((tab) => tab.note),
+    }));
 }
 
 function applyMatch(

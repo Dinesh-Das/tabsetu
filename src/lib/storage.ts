@@ -11,14 +11,14 @@ import type {
   Tag,
   UndoCollapseBuffer,
 } from "@/types";
-import { pruneStaleTabFavicons } from "@/lib/favicon";
 import { checkStorageQuota } from "@/lib/storageQuota";
 import { clampText, generateId, isValidUrl, sanitizeLabel, stripHtml } from "@/lib/tabHelpers";
 import { getOnboardingFolders, getOnboardingTags } from "@/lib/onboarding";
 
 const APP_VERSION = "1.0.0";
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const SESSION_CHUNK_SIZE = 200;
+const TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 export const COLLAPSE_UNDO_MS = 10_000;
 
 export const STORAGE_KEYS = {
@@ -47,6 +47,7 @@ const LEGACY_KEYS = [
 ] as const;
 
 export const DEFAULT_SETTINGS: Settings = {
+  updatedAt: 0,
   theme: "system",
   collapseIncludesPinned: false,
   openInNewWindow: false,
@@ -103,6 +104,13 @@ const MIGRATIONS: Record<number, (data: StorageData) => StorageData> = {
       };
     }),
   }),
+  4: (d) => ({
+    ...d,
+    settings: {
+      ...d.settings,
+      updatedAt: d.settings.updatedAt ?? 0,
+    },
+  }),
 };
 
 const STORAGE_IMPORT_KEYS = [
@@ -144,6 +152,61 @@ function asNullableNumber(value: unknown): number | null {
 
 function asNullableString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
+}
+
+function asOptionalTimestamp(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+type DeletedAtPatch = { deletedAt: number } | { deletedAt?: never };
+
+function optionalDeletedAt(value: unknown): DeletedAtPatch {
+  const deletedAt = asOptionalTimestamp(value);
+  return deletedAt === undefined ? {} : { deletedAt };
+}
+
+function isDeletedEntity(value: { deletedAt?: number }): boolean {
+  return typeof value.deletedAt === "number";
+}
+
+function activeItems<T extends { deletedAt?: number }>(items: T[]): T[] {
+  return items.filter((item) => !isDeletedEntity(item));
+}
+
+function purgeOldTombstones<T extends { deletedAt?: number }>(
+  items: T[],
+  now = Date.now()
+): T[] {
+  const cutoff = now - TOMBSTONE_RETENTION_MS;
+  return items.filter((item) => item.deletedAt == null || item.deletedAt >= cutoff);
+}
+
+function withoutDeletedData(data: StorageData): StorageData {
+  return {
+    ...data,
+    sessions: activeItems(data.sessions),
+    folders: activeItems(data.folders),
+    tags: activeItems(data.tags),
+    schedules: activeItems(data.schedules),
+    standaloneNotes: activeItems(data.standaloneNotes),
+    shareLinks: activeItems(data.shareLinks),
+  };
+}
+
+function purgeStorageTombstones(data: StorageData): StorageData {
+  return {
+    ...data,
+    sessions: purgeOldTombstones(data.sessions),
+    folders: purgeOldTombstones(data.folders),
+    tags: purgeOldTombstones(data.tags),
+    schedules: purgeOldTombstones(data.schedules),
+    standaloneNotes: purgeOldTombstones(data.standaloneNotes),
+    shareLinks: purgeOldTombstones(data.shareLinks),
+  };
+}
+
+export function hideDeletedStorageData(data: StorageData): StorageData {
+  return withoutDeletedData(data);
 }
 
 function sourceValue<T>(
@@ -263,6 +326,7 @@ function normalizeSession(raw: unknown): Session | null {
     version: Math.max(1, asNumber(raw.version, 1)),
     isPinned: asBoolean(raw.isPinned),
     isArchived: asBoolean(raw.isArchived),
+    ...optionalDeletedAt(raw.deletedAt),
   };
 }
 
@@ -287,6 +351,7 @@ function normalizeFolder(raw: unknown): Folder | null {
     position: asNumber(raw.position, 0),
     createdAt,
     updatedAt,
+    ...optionalDeletedAt(raw.deletedAt),
   };
 }
 
@@ -307,6 +372,7 @@ function normalizeTag(raw: unknown): Tag | null {
     name: clampText(stripHtml(name).replace(/[^a-zA-Z0-9\- ]/g, ""), 30) || "Tag",
     color: asString(raw.color, "#60A5FA"),
     createdAt,
+    ...optionalDeletedAt(raw.deletedAt),
   };
 }
 
@@ -339,6 +405,7 @@ function normalizeSchedule(raw: unknown): Schedule | null {
     lastFiredAt: raw.lastFiredAt == null ? null : asNumber(raw.lastFiredAt, updatedAt),
     createdAt,
     updatedAt,
+    ...optionalDeletedAt(raw.deletedAt),
   };
 }
 
@@ -365,6 +432,7 @@ function normalizeStandaloneNote(raw: unknown): StandaloneNote | null {
     tagIds: asStringArray(raw.tagIds),
     createdAt,
     updatedAt,
+    ...optionalDeletedAt(raw.deletedAt),
   };
 }
 
@@ -389,6 +457,7 @@ function normalizeShareLink(raw: unknown): ShareLink | null {
     expiresAt: raw.expiresAt == null ? null : asNumber(raw.expiresAt, createdAt),
     createdAt,
     updatedAt,
+    ...optionalDeletedAt(raw.deletedAt),
   };
 }
 
@@ -440,6 +509,7 @@ function normalizeSettings(raw: unknown): Settings {
       : null;
 
   return {
+    updatedAt: asNumber(raw.updatedAt, DEFAULT_SETTINGS.updatedAt),
     theme:
       theme === "light" || theme === "dark" || theme === "system" ? theme : DEFAULT_SETTINGS.theme,
     collapseIncludesPinned: asBoolean(
@@ -575,6 +645,32 @@ function storageRemove(area: StorageArea, keys: readonly string[]): Promise<void
       resolve();
     });
   });
+}
+
+async function loadLocalDeletedItems<K extends keyof Pick<
+  StorageData,
+  "sessions" | "folders" | "tags" | "schedules" | "standaloneNotes" | "shareLinks"
+>>(key: K): Promise<StorageData[K]> {
+  const raw = await storageGet<Record<string, unknown>>(chrome.storage.local, null);
+  return normalizeStorageData(raw)[key].filter((item) => isDeletedEntity(item)) as StorageData[K];
+}
+
+async function withRetainedTombstones<T extends { id: string; deletedAt?: number }>(
+  key: keyof Pick<
+    StorageData,
+    "sessions" | "folders" | "tags" | "schedules" | "standaloneNotes" | "shareLinks"
+  >,
+  items: T[]
+): Promise<T[]> {
+  const merged = new Map(items.map((item) => [item.id, item]));
+  const deletedItems = (await loadLocalDeletedItems(key)) as unknown as T[];
+  for (const deletedItem of deletedItems) {
+    if (!merged.has(deletedItem.id)) {
+      merged.set(deletedItem.id, deletedItem);
+    }
+  }
+
+  return purgeOldTombstones(Array.from(merged.values()));
 }
 
 function sessionChunksRecord(sessions: Session[]): Record<string, Session[]> {
@@ -724,8 +820,8 @@ export function normalizeStorageData(raw: unknown): StorageData {
     .sort((left, right) => left.position - right.position)
     .map((folder, index) => ({ ...folder, position: index }));
   const safeTags = hasTagData ? tags : defaultData.tags;
-  const folderIds = new Set(safeFolders.map((folder) => folder.id));
-  const tagIds = new Set(safeTags.map((tag) => tag.id));
+  const folderIds = new Set(activeItems(safeFolders).map((folder) => folder.id));
+  const tagIds = new Set(activeItems(safeTags).map((tag) => tag.id));
 
   const sessions = Array.isArray(rawSessions)
     ? rawSessions
@@ -743,7 +839,7 @@ export function normalizeStorageData(raw: unknown): StorageData {
         }))
     : [];
 
-  const sessionIds = new Set(sessions.map((session) => session.id));
+  const sessionIds = new Set(activeItems(sessions).map((session) => session.id));
   const schedules = Array.isArray(rawSchedules)
     ? rawSchedules
         .map(normalizeSchedule)
@@ -851,7 +947,7 @@ function mergeLocalAndSyncRaw(
   };
 }
 
-export async function loadStorage(): Promise<StorageData> {
+export async function loadStorage(options: { includeDeleted?: boolean } = {}): Promise<StorageData> {
   const [localRaw, syncRaw] = await Promise.all([
     storageGet<Record<string, unknown>>(chrome.storage.local, null),
     storageGet<Record<string, unknown>>(chrome.storage.sync, [
@@ -862,8 +958,7 @@ export async function loadStorage(): Promise<StorageData> {
   const raw = mergeLocalAndSyncRaw(localRaw, syncRaw);
   const data = normalizeStorageData(raw);
   const migrated = await migrateLegacyStorage(localRaw, data);
-  await pruneStaleTabFavicons(migrated.sessions);
-  return migrated;
+  return options.includeDeleted ? migrated : withoutDeletedData(migrated);
 }
 
 export async function loadSettings(): Promise<Settings> {
@@ -885,7 +980,6 @@ function normalizeUndoBuffer(raw: unknown): UndoCollapseBuffer | null {
 export async function loadStorageWithUndoBuffer(): Promise<{
   data: StorageData;
   undoBuffer: UndoCollapseBuffer | null;
-  favicons: Record<string, string>;
 }> {
   const [localRaw, syncRaw] = await Promise.all([
     storageGet<Record<string, unknown>>(chrome.storage.local, null),
@@ -903,11 +997,7 @@ export async function loadStorageWithUndoBuffer(): Promise<{
   if (!undoBuffer && localRaw[STORAGE_KEYS.undoBuffer]) {
     await saveUndoBuffer(null);
   }
-  await pruneStaleTabFavicons(migrated.sessions);
-  const rawFavicons = localRaw.TabSetu_favicons;
-  const favicons =
-    rawFavicons && typeof rawFavicons === "object" ? (rawFavicons as Record<string, string>) : {};
-  return { data: migrated, undoBuffer, favicons };
+  return { data: withoutDeletedData(migrated), undoBuffer };
 }
 
 type DebouncedTask = () => void;
@@ -948,14 +1038,16 @@ function scheduleAutoSyncUpload(): void {
 }
 
 export async function saveSessions(sessions: Session[]): Promise<void> {
-  await saveSessionChunks(sessions);
+  const nextSessions = await withRetainedTombstones("sessions", sessions);
+  await saveSessionChunks(nextSessions);
   await checkQuotaAfterSave();
   scheduleAutoSyncUpload();
 }
 
 export async function saveFolders(folders: Folder[]): Promise<void> {
+  const nextFolders = await withRetainedTombstones("folders", folders);
   await storageSet(chrome.storage.local, {
-    [STORAGE_KEYS.folders]: folders,
+    [STORAGE_KEYS.folders]: nextFolders,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
   await checkQuotaAfterSave();
@@ -963,8 +1055,9 @@ export async function saveFolders(folders: Folder[]): Promise<void> {
 }
 
 export async function saveTags(tags: Tag[]): Promise<void> {
+  const nextTags = await withRetainedTombstones("tags", tags);
   await storageSet(chrome.storage.local, {
-    [STORAGE_KEYS.tags]: tags,
+    [STORAGE_KEYS.tags]: nextTags,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
   await checkQuotaAfterSave();
@@ -972,8 +1065,9 @@ export async function saveTags(tags: Tag[]): Promise<void> {
 }
 
 export async function saveSchedules(schedules: Schedule[]): Promise<void> {
+  const nextSchedules = await withRetainedTombstones("schedules", schedules);
   await storageSet(chrome.storage.local, {
-    [STORAGE_KEYS.schedules]: schedules,
+    [STORAGE_KEYS.schedules]: nextSchedules,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
   await checkQuotaAfterSave();
@@ -981,14 +1075,22 @@ export async function saveSchedules(schedules: Schedule[]): Promise<void> {
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {
+  const nextSettings =
+    settings.updatedAt > 0
+      ? settings
+      : {
+          ...settings,
+          updatedAt: Date.now(),
+        };
   await storageSet(chrome.storage.sync, {
-    [STORAGE_KEYS.settings]: settings,
+    [STORAGE_KEYS.settings]: nextSettings,
   });
 }
 
 export async function saveStandaloneNotes(standaloneNotes: StandaloneNote[]): Promise<void> {
+  const nextNotes = await withRetainedTombstones("standaloneNotes", standaloneNotes);
   await storageSet(chrome.storage.local, {
-    [STORAGE_KEYS.standaloneNotes]: standaloneNotes,
+    [STORAGE_KEYS.standaloneNotes]: nextNotes,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
   await checkQuotaAfterSave();
@@ -996,8 +1098,9 @@ export async function saveStandaloneNotes(standaloneNotes: StandaloneNote[]): Pr
 }
 
 export async function saveShareLinks(shareLinks: ShareLink[]): Promise<void> {
+  const nextShareLinks = await withRetainedTombstones("shareLinks", shareLinks);
   await storageSet(chrome.storage.local, {
-    [STORAGE_KEYS.shareLinks]: shareLinks,
+    [STORAGE_KEYS.shareLinks]: nextShareLinks,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
   await checkQuotaAfterSave();
@@ -1014,7 +1117,7 @@ export async function saveStorageData(
   data: StorageData,
   options: { scheduleSync?: boolean } = {}
 ): Promise<void> {
-  const normalized = normalizeStorageData(data);
+  const normalized = purgeStorageTombstones(normalizeStorageData(data));
   try {
     await Promise.all([
       saveLocalStorageData(normalized),

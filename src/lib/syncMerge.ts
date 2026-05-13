@@ -7,15 +7,17 @@ type MergeableEntity = {
   id: string;
   createdAt?: number;
   updatedAt?: number;
+  deletedAt?: number;
 };
 
 function entityTimestamp(entity: MergeableEntity): number {
-  return entity.updatedAt ?? entity.createdAt ?? 0;
+  return entity.deletedAt ?? entity.updatedAt ?? entity.createdAt ?? 0;
 }
 
 function mergeByUpdatedAt<T extends MergeableEntity>(
   localItems: T[],
-  remoteItems: T[] | undefined
+  remoteItems: T[] | undefined,
+  options: { includeDeleted?: boolean } = {}
 ): T[] {
   const merged = new Map<string, T>();
 
@@ -30,7 +32,8 @@ function mergeByUpdatedAt<T extends MergeableEntity>(
     }
   }
 
-  return Array.from(merged.values());
+  const items = Array.from(merged.values());
+  return options.includeDeleted ? items : items.filter((item) => item.deletedAt == null);
 }
 
 function hasUpdatedAt(value: AIShareConfig): value is AIShareConfig & { updatedAt: number } {
@@ -50,7 +53,7 @@ function mergeAIConfig(local: AIShareConfig, remote: AIShareConfig | undefined):
 }
 
 function settingsTimestamp(settings: Settings): number | null {
-  const timestamp = Number(settings.version);
+  const timestamp = Number(settings.updatedAt);
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
@@ -61,10 +64,16 @@ function mergeSettings(local: Settings, remote: Settings | undefined, enabled: b
 
   const localTimestamp = settingsTimestamp(local);
   const remoteTimestamp = settingsTimestamp(remote);
-  const chosen =
-    localTimestamp !== null && remoteTimestamp !== null && localTimestamp > remoteTimestamp
-      ? local
-      : remote;
+  let chosen: Settings;
+  if (localTimestamp !== null && remoteTimestamp !== null) {
+    chosen = localTimestamp >= remoteTimestamp ? local : remote;
+  } else if (localTimestamp !== null) {
+    chosen = local;
+  } else if (remoteTimestamp !== null) {
+    chosen = remote;
+  } else {
+    chosen = local;
+  }
 
   return { ...chosen, theme: local.theme };
 }
@@ -72,15 +81,15 @@ function mergeSettings(local: Settings, remote: Settings | undefined, enabled: b
 export function mergeStorageData(
   local: StorageData,
   remote: Partial<StorageData>,
-  options: { mergeSettings?: boolean } = {}
+  options: { mergeSettings?: boolean; includeDeleted?: boolean } = {}
 ): StorageData {
   return {
-    sessions: mergeByUpdatedAt(local.sessions, remote.sessions),
-    folders: mergeByUpdatedAt(local.folders, remote.folders),
-    tags: mergeByUpdatedAt(local.tags, remote.tags),
-    schedules: mergeByUpdatedAt(local.schedules, remote.schedules),
-    standaloneNotes: mergeByUpdatedAt(local.standaloneNotes, remote.standaloneNotes),
-    shareLinks: mergeByUpdatedAt(local.shareLinks, remote.shareLinks),
+    sessions: mergeByUpdatedAt(local.sessions, remote.sessions, options),
+    folders: mergeByUpdatedAt(local.folders, remote.folders, options),
+    tags: mergeByUpdatedAt(local.tags, remote.tags, options),
+    schedules: mergeByUpdatedAt(local.schedules, remote.schedules, options),
+    standaloneNotes: mergeByUpdatedAt(local.standaloneNotes, remote.standaloneNotes, options),
+    shareLinks: mergeByUpdatedAt(local.shareLinks, remote.shareLinks, options),
     settings: mergeSettings(local.settings, remote.settings, options.mergeSettings ?? false),
     aiConfig: mergeAIConfig(local.aiConfig, remote.aiConfig),
   };

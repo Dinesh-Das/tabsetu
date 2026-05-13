@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Bell, Clock3, ExternalLink, Moon, Trash2 } from "lucide-react";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
+import { getFaviconFallbackUrl } from "@/lib/favicon";
 import { formatReminderDate, isReminderInPastWindow } from "@/lib/reminders";
 import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
 import type { Session, TabItem, ToastMessage } from "@/types";
@@ -134,7 +135,22 @@ function ReminderList({
           <article className="card-raised reminder-card" key={row.id}>
             <div className="reminder-card-main">
               <div className="reminder-favicon">
-                {favicon ? <img src={favicon} alt="" /> : <TabSetuLogo decorative />}
+                {favicon ? (
+                  <img
+                    src={favicon}
+                    alt=""
+                    onError={(event) => {
+                      const fallback = getFaviconFallbackUrl();
+                      if (fallback && event.currentTarget.src !== fallback) {
+                        event.currentTarget.src = fallback;
+                      } else {
+                        event.currentTarget.style.display = "none";
+                      }
+                    }}
+                  />
+                ) : (
+                  <TabSetuLogo decorative />
+                )}
               </div>
               <div className="reminder-copy">
                 <div className="reminder-title-row">

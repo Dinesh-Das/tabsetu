@@ -115,6 +115,20 @@ export async function notifyBackgroundTabsSuspended(discardedCount: number): Pro
   });
 }
 
+export async function notifyCommandProblem(title: string, message: string): Promise<void> {
+  try {
+    await createNotification(`tabsetu-command-${Date.now()}`, {
+      type: "basic",
+      iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+      title,
+      message,
+      priority: 1,
+    });
+  } catch {
+    // Command diagnostics should never make the command handler fail harder.
+  }
+}
+
 function getRegisteredCommands(): Promise<chrome.commands.Command[]> {
   return new Promise((resolve) => {
     chrome.commands.getAll((commands) => resolve(commands));

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Bell, ChevronLeft, X, CalendarDays, FileText, FolderOpen, Home, User } from "lucide-react";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
+import { getFaviconFallbackUrl } from "@/lib/favicon";
 
 export type MobileNavView = "home" | "folders" | "schedules" | "reminders" | "notes";
 
@@ -242,7 +243,18 @@ export function TabRow({
       ) : null}
       <div className="mobile-favicon">
         {favIconUrl ? (
-          <img src={favIconUrl} alt="" />
+          <img
+            src={favIconUrl}
+            alt=""
+            onError={(event) => {
+              const fallback = getFaviconFallbackUrl();
+              if (fallback && event.currentTarget.src !== fallback) {
+                event.currentTarget.src = fallback;
+              } else {
+                event.currentTarget.style.display = "none";
+              }
+            }}
+          />
         ) : (
           <TabSetuLogo className="mobile-favicon-logo" decorative />
         )}

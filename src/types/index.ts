@@ -34,6 +34,7 @@ export interface Session {
   version: number;
   isPinned: boolean;
   isArchived: boolean;
+  deletedAt?: number;
 }
 
 export interface Folder {
@@ -44,6 +45,7 @@ export interface Folder {
   position: number;
   createdAt: number;
   updatedAt: number;
+  deletedAt?: number;
 }
 
 export interface Tag {
@@ -51,6 +53,7 @@ export interface Tag {
   name: string;
   color: string;
   createdAt: number;
+  deletedAt?: number;
 }
 
 export type ScheduleType = "once" | "daily" | "weekly" | "weekdays" | "custom";
@@ -66,6 +69,7 @@ export interface Schedule {
   lastFiredAt: number | null;
   createdAt: number;
   updatedAt: number;
+  deletedAt?: number;
 }
 
 export interface StandaloneNote {
@@ -77,6 +81,7 @@ export interface StandaloneNote {
   tagIds: string[];
   createdAt: number;
   updatedAt: number;
+  deletedAt?: number;
 }
 
 export interface ShareLink {
@@ -87,6 +92,7 @@ export interface ShareLink {
   expiresAt: number | null;
   createdAt: number;
   updatedAt: number;
+  deletedAt?: number;
 }
 
 export interface AIShareConfig {
@@ -100,6 +106,7 @@ export interface AIShareConfig {
 }
 
 export interface Settings {
+  updatedAt: number;
   theme: "light" | "dark" | "system";
   collapseIncludesPinned: boolean;
   openInNewWindow: boolean;

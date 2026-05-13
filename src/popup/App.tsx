@@ -17,7 +17,6 @@ import {
   loadStorageWithUndoBuffer,
   saveUndoBuffer,
 } from "@/lib/storage";
-import { seedFavicons } from "@/hooks/useFavicons";
 import { filterCapturableTabs } from "@/lib/popupTabs";
 import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
 import { getCurrentTabs } from "@/lib/tabHelpers";
@@ -33,7 +32,6 @@ import MobileFoldersScreen from "@/dashboard/components/MobileFoldersScreen";
 import MobileHomeScreen from "@/dashboard/components/MobileHomeScreen";
 import MobileNotesScreen from "@/dashboard/components/MobileNotesScreen";
 import MobileSchedulesScreen from "@/dashboard/components/MobileSchedulesScreen";
-import SyncGate from "@/dashboard/components/SyncGate";
 import RemindersPage from "@/dashboard/pages/RemindersPage";
 import CurrentTabs from "./components/CurrentTabs";
 import Onboarding from "./components/Onboarding";
@@ -110,7 +108,6 @@ function PopupAppContent() {
   const sessions = useSessionStore((state) => state.sessions);
   const settings = useSettingsStore((state) => state.settings);
   const isReady = useHydrationStore((state) => state.isReady);
-  const syncEnabled = useSyncStore((state) => state.enabled);
   const refreshSyncStatus = useSyncStore((state) => state.refreshStatus);
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -119,7 +116,6 @@ function PopupAppContent() {
   const [saveModalState, setSaveModalState] = useState<SaveModalState | null>(null);
   const [currentTabCount, setCurrentTabCount] = useState(0);
   const [isBootstrapped, setIsBootstrapped] = useState(false);
-  const [syncStatusReady, setSyncStatusReady] = useState(false);
 
   useEffect(() => {
     document.body.classList.add("is-popup-root");
@@ -131,8 +127,7 @@ function PopupAppContent() {
   useEffect(() => {
     let mounted = true;
     void loadStorageWithUndoBuffer()
-      .then(({ data, undoBuffer, favicons }) => {
-        seedFavicons(favicons);
+      .then(({ data, undoBuffer }) => {
         useSessionStore.getState().importSessions(data.sessions);
         useFolderStore.getState().importFolders(data.folders);
         useTagStore.getState().importTags(data.tags);
@@ -164,16 +159,7 @@ function PopupAppContent() {
   }, [settings.theme]);
 
   useEffect(() => {
-    let cancelled = false;
-    void refreshSyncStatus().finally(() => {
-      if (!cancelled) {
-        setSyncStatusReady(true);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    void refreshSyncStatus();
   }, [refreshSyncStatus]);
 
   useEffect(() => {
@@ -317,28 +303,10 @@ function PopupAppContent() {
     </div>
   );
 
-  if (!isReady || !isBootstrapped || !syncStatusReady) {
+  if (!isReady || !isBootstrapped) {
     return (
       <MobileFrame className="mobile-popup-frame">
         <LoadingSkeleton />
-      </MobileFrame>
-    );
-  }
-
-  if (!syncEnabled) {
-    const openDashboardSignIn = async (): Promise<void> => {
-      await chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html"), active: true });
-      window.close();
-    };
-
-    return (
-      <MobileFrame className="mobile-popup-frame">
-        <SyncGate
-          compact
-          buttonLabel="Open Google sign-in"
-          onContinue={() => void openDashboardSignIn()}
-        />
-        <Toast toasts={toasts} />
       </MobileFrame>
     );
   }

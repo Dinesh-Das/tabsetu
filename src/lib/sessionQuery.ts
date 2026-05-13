@@ -29,8 +29,12 @@ interface QueryOptions {
 
 export { buildSearchIndex } from "@/lib/fuzzySearch";
 
+function isActiveEntity(entity: { deletedAt?: number }): boolean {
+  return entity.deletedAt == null;
+}
+
 export function sortSessions(sessions: Session[], sortBy: SortOption): Session[] {
-  const copy = [...sessions];
+  const copy = sessions.filter(isActiveEntity);
 
   copy.sort((left, right) => {
     switch (sortBy) {
@@ -57,7 +61,7 @@ function filterSessions(
   folderId: string | null,
   tagId: string | null
 ): Session[] {
-  let visible = sessions;
+  let visible = sessions.filter(isActiveEntity);
 
   if (viewFilter === "pinned") {
     visible = visible.filter((session) => session.isPinned && !session.isArchived);
@@ -96,8 +100,10 @@ export function buildSessionListItems({
   tagId = null,
   searchIndex,
 }: QueryOptions): SessionListItem[] {
-  const folderMap = new Map(folders.map((folder) => [folder.id, folder]));
-  const tagMap = new Map(tags.map((tag) => [tag.id, tag]));
+  const activeFolders = folders.filter(isActiveEntity);
+  const activeTags = tags.filter(isActiveEntity);
+  const folderMap = new Map(activeFolders.map((folder) => [folder.id, folder]));
+  const tagMap = new Map(activeTags.map((tag) => [tag.id, tag]));
 
   let visible = filterSessions(sessions, viewFilter, folderId, tagId);
   const trimmedQuery = query.trim();
@@ -109,7 +115,7 @@ export function buildSessionListItems({
     }
 
     const searchResults = searchSessions(
-      searchIndex ?? buildSearchIndex(visible, folders, tags, settings),
+      searchIndex ?? buildSearchIndex(visible, activeFolders, activeTags, settings),
       trimmedQuery
     );
 

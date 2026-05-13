@@ -552,11 +552,12 @@ export function summarizeStorageData(data: StorageData): StorageSummary {
 }
 
 function entityTimestamp(value: {
+  deletedAt?: number | null;
   updatedAt?: number | null;
   createdAt?: number | null;
   lastOpenedAt?: number | null;
 }): number {
-  return value.updatedAt ?? value.lastOpenedAt ?? value.createdAt ?? 0;
+  return value.deletedAt ?? value.updatedAt ?? value.lastOpenedAt ?? value.createdAt ?? 0;
 }
 
 function mergeById<T extends { id: string }>(
@@ -583,6 +584,7 @@ function mergeById<T extends { id: string }>(
 
 function chooseMostRecent<
   T extends {
+    deletedAt?: number | null;
     updatedAt?: number | null;
     createdAt?: number | null;
     lastOpenedAt?: number | null;

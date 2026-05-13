@@ -20,12 +20,16 @@ function persistTags(tags: Tag[]): void {
   void writePromise;
 }
 
+function activeTags(tags: Tag[]): Tag[] {
+  return tags.filter((tag) => tag.deletedAt == null);
+}
+
 export const useTagStore = create<TagState>((set, get) => ({
   tags: [],
 
   load: async () => {
     const data = await loadStorage();
-    set({ tags: data.tags });
+    set({ tags: activeTags(data.tags) });
     useHydrationStore.getState().markOneHydrated();
   },
 
@@ -56,12 +60,17 @@ export const useTagStore = create<TagState>((set, get) => ({
   },
 
   deleteTag: (id) => {
-    const tags = get().tags.filter((t) => t.id !== id);
+    const target = get().tags.find((tag) => tag.id === id);
+    if (!target) {
+      return;
+    }
+
+    const tags = get().tags.filter((tag) => tag.id !== id);
     set({ tags });
-    persistTags(tags);
+    persistTags([...tags, { ...target, deletedAt: Date.now() }]);
   },
 
   importTags: (tags) => {
-    set({ tags });
+    set({ tags: activeTags(tags) });
   },
 }));

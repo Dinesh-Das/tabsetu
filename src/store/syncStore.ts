@@ -12,7 +12,12 @@ import {
   signOut as googleSignOut,
   uploadSync,
 } from "@/lib/googleSync";
-import { loadStorage, registerAutoSyncUploadHandler, saveStorageData } from "@/lib/storage";
+import {
+  hideDeletedStorageData,
+  loadStorage,
+  registerAutoSyncUploadHandler,
+  saveStorageData,
+} from "@/lib/storage";
 import { mergeStorageData } from "@/lib/syncMerge";
 import { useFolderStore } from "@/store/folderStore";
 import { useNotesStore } from "@/store/notesStore";
@@ -35,13 +40,14 @@ function syncErrorMessage(error: unknown): string {
 }
 
 function reloadStoresFromStorage(data: Awaited<ReturnType<typeof loadStorage>>): void {
-  useSessionStore.getState().importSessions(data.sessions);
-  useFolderStore.getState().importFolders(data.folders);
-  useTagStore.getState().importTags(data.tags);
-  useScheduleStore.getState().importSchedules(data.schedules);
-  useNotesStore.getState().importNotes(data.standaloneNotes);
-  useShareStore.getState().importShareLinks(data.shareLinks);
-  useSettingsStore.getState().replaceSettings(data.settings);
+  const visibleData = hideDeletedStorageData(data);
+  useSessionStore.getState().importSessions(visibleData.sessions);
+  useFolderStore.getState().importFolders(visibleData.folders);
+  useTagStore.getState().importTags(visibleData.tags);
+  useScheduleStore.getState().importSchedules(visibleData.schedules);
+  useNotesStore.getState().importNotes(visibleData.standaloneNotes);
+  useShareStore.getState().importShareLinks(visibleData.shareLinks);
+  useSettingsStore.getState().replaceSettings(visibleData.settings);
 }
 
 export const useSyncStore = create<SyncStore>((set, get) => ({
@@ -103,9 +109,11 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
 
     set({ isSyncing: true, syncError: null });
     try {
-      const local = await loadStorage();
+      const local = await loadStorage({ includeDeleted: true });
       const remote = await downloadSync();
-      const data = remote ? mergeStorageData(local, remote, { mergeSettings: true }) : local;
+      const data = remote
+        ? mergeStorageData(local, remote, { mergeSettings: true, includeDeleted: true })
+        : local;
       if (remote) {
         await saveStorageData(data, { scheduleSync: false });
         reloadStoresFromStorage(data);
@@ -129,8 +137,11 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
     try {
       const remote = await downloadSync();
       if (remote) {
-        const local = await loadStorage();
-        const merged = mergeStorageData(local, remote, { mergeSettings: true });
+        const local = await loadStorage({ includeDeleted: true });
+        const merged = mergeStorageData(local, remote, {
+          mergeSettings: true,
+          includeDeleted: true,
+        });
         await saveStorageData(merged, { scheduleSync: false });
         reloadStoresFromStorage(merged);
       }

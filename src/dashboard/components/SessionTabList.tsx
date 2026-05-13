@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Bell, GripVertical, Trash2 } from "lucide-react";
 import type { Folder, Session, TabItem, Tag, ToastMessage } from "@/types";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
-import { useFavicons } from "@/hooks/useFavicons";
+import { getFaviconFallbackUrl, getRememberedFaviconForOrigin } from "@/lib/favicon";
 import { formatDateTime } from "@/lib/format";
 import { tomorrowAtNine } from "@/lib/reminders";
 import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
@@ -71,7 +71,6 @@ export default function SessionTabList({
   updateTabTags,
   recordTabOpened,
 }: Props) {
-  const favicons = useFavicons();
   const [tabDraftNotes, setTabDraftNotes] = useState<Record<string, string>>(
     Object.fromEntries(session.tabs.map((tab) => [tab.id, tab.note]))
   );
@@ -214,7 +213,7 @@ export default function SessionTabList({
       </button>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {session.tabs.map((tab, index) => {
-          const favicon = favicons.get(tab.id) ?? tab.favIconUrl ?? null;
+          const favicon = tab.favIconUrl ?? getRememberedFaviconForOrigin(tab.url);
           return (
             <div
               key={tab.id}
@@ -267,7 +266,12 @@ export default function SessionTabList({
                     className="favicon"
                     alt=""
                     onError={(event) => {
-                      (event.target as HTMLImageElement).style.display = "none";
+                      const fallback = getFaviconFallbackUrl();
+                      if (fallback && event.currentTarget.src !== fallback) {
+                        event.currentTarget.src = fallback;
+                      } else {
+                        event.currentTarget.style.display = "none";
+                      }
                     }}
                   />
                 ) : (

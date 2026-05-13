@@ -27,7 +27,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   updateSettings: (updates) => {
-    const settings = { ...get().settings, ...updates };
+    const settings = { ...get().settings, ...updates, updatedAt: Date.now() };
     set({ settings });
     persistSettings(settings);
   },

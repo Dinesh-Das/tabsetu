@@ -1,11 +1,9 @@
-/**
- * First-run Google sign-in gate for TabSetu's required cross-device sync flow.
- */
 import { CheckCircle2, Cloud, Loader2, ShieldCheck } from "lucide-react";
 import { useSyncStore } from "@/store/syncStore";
 
 interface Props {
   compact?: boolean;
+  embedded?: boolean;
   buttonLabel?: string;
   busyLabel?: string;
   onContinue?: () => void | Promise<void>;
@@ -13,7 +11,8 @@ interface Props {
 
 export default function SyncGate({
   compact = false,
-  buttonLabel = "Continue with Google",
+  embedded = false,
+  buttonLabel = "Connect Google Drive",
   busyLabel = "Connecting...",
   onContinue,
 }: Props) {
@@ -23,17 +22,25 @@ export default function SyncGate({
   const handleContinue = onContinue ?? signIn;
 
   return (
-    <section className={compact ? "sync-gate sync-gate-compact" : "sync-gate"}>
-      <div className="sync-gate-panel card">
+    <section
+      className={[
+        "sync-gate",
+        compact ? "sync-gate-compact" : "",
+        embedded ? "sync-gate-embedded" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <div className={embedded ? "sync-gate-panel" : "sync-gate-panel card"}>
         <div className="sync-gate-mark">
           <Cloud size={30} />
         </div>
         <div className="sync-gate-copy">
-          <p className="sync-gate-kicker">Google Drive sync required</p>
-          <h1>Sign in to start using TabSetu</h1>
+          <p className="sync-gate-kicker">Google Drive sync optional</p>
+          <h1>Connect Google Drive Sync</h1>
           <p>
-            TabSetu keeps your sessions in your own Google Drive app data folder so your browsing
-            workspace follows you across browsers and devices.
+            TabSetu can keep your sessions in your own Google Drive app data folder so your
+            browsing workspace follows you across browsers and devices.
           </p>
         </div>
         <div className="sync-gate-benefits">
