@@ -56,13 +56,9 @@ export default function SessionCard({
       style={{
         padding: 12,
         marginBottom: 10,
-        boxShadow: isKeyboardSelected
-          ? "0 2px 8px rgba(0, 0, 0, 0.1)"
-          : undefined,
+        boxShadow: isKeyboardSelected ? "0 2px 8px rgba(0, 0, 0, 0.1)" : undefined,
         borderColor: isKeyboardSelected ? "var(--color-accent)" : undefined,
-        background: isKeyboardSelected
-          ? "var(--color-accent-dim)"
-          : undefined,
+        background: isKeyboardSelected ? "var(--color-accent-dim)" : undefined,
         transition:
           "border-color var(--transition), box-shadow var(--transition), background var(--transition)",
       }}

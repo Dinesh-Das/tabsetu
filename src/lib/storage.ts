@@ -175,10 +175,7 @@ function activeItems<T extends { deletedAt?: number }>(items: T[]): T[] {
   return items.filter((item) => !isDeletedEntity(item));
 }
 
-function purgeOldTombstones<T extends { deletedAt?: number }>(
-  items: T[],
-  now = Date.now()
-): T[] {
+function purgeOldTombstones<T extends { deletedAt?: number }>(items: T[], now = Date.now()): T[] {
   const cutoff = now - TOMBSTONE_RETENTION_MS;
   return items.filter((item) => item.deletedAt == null || item.deletedAt >= cutoff);
 }
@@ -659,10 +656,12 @@ function storageRemove(area: StorageArea, keys: readonly string[]): Promise<void
   });
 }
 
-async function loadLocalDeletedItems<K extends keyof Pick<
-  StorageData,
-  "sessions" | "folders" | "tags" | "schedules" | "standaloneNotes" | "shareLinks"
->>(key: K): Promise<StorageData[K]> {
+async function loadLocalDeletedItems<
+  K extends keyof Pick<
+    StorageData,
+    "sessions" | "folders" | "tags" | "schedules" | "standaloneNotes" | "shareLinks"
+  >,
+>(key: K): Promise<StorageData[K]> {
   const raw = await storageGet<Record<string, unknown>>(chrome.storage.local, null);
   return normalizeStorageData(raw)[key].filter((item) => isDeletedEntity(item)) as StorageData[K];
 }
@@ -959,7 +958,9 @@ function mergeLocalAndSyncRaw(
   };
 }
 
-export async function loadStorage(options: { includeDeleted?: boolean } = {}): Promise<StorageData> {
+export async function loadStorage(
+  options: { includeDeleted?: boolean } = {}
+): Promise<StorageData> {
   const [localRaw, syncRaw] = await Promise.all([
     storageGet<Record<string, unknown>>(chrome.storage.local, null),
     storageGet<Record<string, unknown>>(getSyncStorage(), [
@@ -974,9 +975,7 @@ export async function loadStorage(options: { includeDeleted?: boolean } = {}): P
 }
 
 export async function loadSettings(): Promise<Settings> {
-  const raw = await storageGet<Record<string, unknown>>(getSyncStorage(), [
-    STORAGE_KEYS.settings,
-  ]);
+  const raw = await storageGet<Record<string, unknown>>(getSyncStorage(), [STORAGE_KEYS.settings]);
   return normalizeSettings(raw[STORAGE_KEYS.settings]);
 }
 

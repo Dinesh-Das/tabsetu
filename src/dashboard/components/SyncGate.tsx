@@ -39,8 +39,8 @@ export default function SyncGate({
           <p className="sync-gate-kicker">Google Drive sync optional</p>
           <h1>Connect Google Drive Sync</h1>
           <p>
-            TabSetu can keep your sessions in your own Google Drive app data folder so your
-            browsing workspace follows you across browsers and devices.
+            TabSetu can keep your sessions in your own Google Drive app data folder so your browsing
+            workspace follows you across browsers and devices.
           </p>
         </div>
         <div className="sync-gate-benefits">

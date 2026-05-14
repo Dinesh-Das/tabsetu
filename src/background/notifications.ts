@@ -145,7 +145,9 @@ export async function notifyUnassignedCommandShortcuts(): Promise<void> {
         ? "Open about:addons, then Manage Extension Shortcuts to set them."
         : browser === "edge"
           ? "Open edge://extensions/shortcuts and set them."
-          : "Open your browser's extension shortcuts settings and set: " + unassigned.join(", ") + ".";
+          : "Open your browser's extension shortcuts settings and set: " +
+            unassigned.join(", ") +
+            ".";
 
     await createNotification(`tabsetu-shortcuts-${Date.now()}`, {
       type: "basic",

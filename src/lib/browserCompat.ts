@@ -85,7 +85,9 @@ export function isChromium(): boolean {
 /** Whether `chrome.identity` is available (not available on Safari). */
 export function hasIdentityApi(): boolean {
   try {
-    return typeof chrome !== "undefined" && typeof chrome.identity?.launchWebAuthFlow === "function";
+    return (
+      typeof chrome !== "undefined" && typeof chrome.identity?.launchWebAuthFlow === "function"
+    );
   } catch {
     return false;
   }

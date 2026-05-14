@@ -1926,6 +1926,11 @@ button.mobile-card {
   object-fit: contain;
 }
 
+.schedule-job-icon {
+  color: var(--color-primary);
+  background: rgba(37, 99, 235, 0.1);
+}
+
 .reminder-copy {
   min-width: 0;
 }

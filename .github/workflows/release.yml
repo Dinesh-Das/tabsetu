@@ -8,9 +8,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: 24, cache: npm }
       - run: npm ci
       - run: npm run build:all
       - name: Zip browser builds
@@ -19,7 +19,7 @@ jobs:
           for browser in chrome edge brave firefox; do
             (cd "$browser" && zip -r "../../tabsetu-${browser}-${{ github.ref_name }}.zip" .)
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: tabsetu-browser-builds-${{ github.ref_name }}
           path: tabsetu-*.zip

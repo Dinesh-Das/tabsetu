@@ -1,24 +1,23 @@
 import { useMemo } from "react";
-import { Bell, Clock3, ExternalLink, Moon, Trash2 } from "lucide-react";
+import { Bell, CalendarDays, Clock3, ExternalLink, Moon, Play, Power, Trash2 } from "lucide-react";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
 import { getFaviconFallbackUrl } from "@/lib/favicon";
-import { formatReminderDate, isReminderInPastWindow } from "@/lib/reminders";
-import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
+import { formatDateTime, formatScheduleLabel } from "@/lib/format";
+import {
+  buildReminderCenter,
+  type ScheduleJobRow,
+  type TabReminderRow,
+} from "@/lib/reminderCenter";
+import { formatReminderDate } from "@/lib/reminders";
+import { getDomainLabel, openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
 import type { Session, TabItem, ToastMessage } from "@/types";
+import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
 
 interface Props {
   addToast: (type: ToastMessage["type"], message: string) => void;
   onOpenSession?: (sessionId: string) => void;
-}
-
-interface ReminderRow {
-  id: string;
-  session: Session;
-  tab: TabItem;
-  dueAt: number;
-  dismissed: boolean;
 }
 
 function reminderAlarmName(tabId: string): string {
@@ -61,7 +60,7 @@ function ReminderList({
   addToast,
   onOpenSession,
 }: {
-  rows: ReminderRow[];
+  rows: TabReminderRow[];
   emptyTitle: string;
   mode: "upcoming" | "past";
   addToast: Props["addToast"];
@@ -71,7 +70,7 @@ function ReminderList({
   const recordTabOpened = useSessionStore((state) => state.recordTabOpened);
   const settings = useSettingsStore((state) => state.settings);
 
-  const snoozeReminder = async (row: ReminderRow, dueAt: number, label: string) => {
+  const snoozeReminder = async (row: TabReminderRow, dueAt: number, label: string) => {
     updateSession(row.session.id, {
       tabs: updateReminderInSession(row.session, row.tab.id, {
         reminderSnoozedUntil: dueAt,
@@ -82,7 +81,7 @@ function ReminderList({
     addToast("success", `Reminder snoozed ${label}.`);
   };
 
-  const dismissReminder = async (row: ReminderRow) => {
+  const dismissReminder = async (row: TabReminderRow) => {
     updateSession(row.session.id, {
       tabs: updateReminderInSession(row.session, row.tab.id, {
         reminderSnoozedUntil: null,
@@ -93,7 +92,7 @@ function ReminderList({
     addToast("success", "Reminder dismissed.");
   };
 
-  const clearReminder = async (row: ReminderRow) => {
+  const clearReminder = async (row: TabReminderRow) => {
     updateSession(row.session.id, {
       tabs: updateReminderInSession(row.session, row.tab.id, {
         reminderAt: null,
@@ -105,7 +104,7 @@ function ReminderList({
     addToast("success", "Reminder cleared.");
   };
 
-  const reopenReminder = async (row: ReminderRow) => {
+  const reopenReminder = async (row: TabReminderRow) => {
     const opened = await openSavedTab(row.tab, false);
     if (!opened) {
       addToast("error", "That tab could not be opened.");
@@ -241,34 +240,129 @@ function ReminderList({
   );
 }
 
+function ScheduleJobList({
+  rows,
+  emptyTitle,
+  addToast,
+  onOpenSession,
+}: {
+  rows: ScheduleJobRow[];
+  emptyTitle: string;
+  addToast: Props["addToast"];
+  onOpenSession?: Props["onOpenSession"];
+}) {
+  const toggleSchedule = useScheduleStore((state) => state.toggleSchedule);
+  const recordOpened = useSessionStore((state) => state.recordOpened);
+  const settings = useSettingsStore((state) => state.settings);
+
+  const openScheduleJob = async (row: ScheduleJobRow) => {
+    if (!row.session) {
+      addToast("error", "That schedule no longer points to a saved session.");
+      return;
+    }
+
+    const opened = await openSessionTabs(row.session, settings.openInNewWindow);
+    if (opened === 0) {
+      addToast("error", "That scheduled session has no openable tabs.");
+      return;
+    }
+
+    recordOpened(row.session.id);
+    addToast("success", `Opened "${row.session.name}".`);
+  };
+
+  if (rows.length === 0) {
+    return (
+      <div className="detail-empty reminders-empty">
+        <CalendarDays size={18} />
+        <span>{emptyTitle}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="reminders-list">
+      {rows.map((row) => {
+        const schedule = row.schedule;
+        const session = row.session;
+        const sessionName = session?.name ?? "Missing session";
+        const nextRunLabel = row.nextRunAt ? formatReminderDate(row.nextRunAt) : "No future run";
+
+        return (
+          <article className="card-raised reminder-card schedule-job-card" key={row.id}>
+            <div className="reminder-card-main">
+              <div className="reminder-favicon schedule-job-icon">
+                <CalendarDays size={19} />
+              </div>
+              <div className="reminder-copy">
+                <div className="reminder-title-row">
+                  <strong>{sessionName}</strong>
+                  <span className="badge badge-subtle">{row.statusLabel}</span>
+                </div>
+                <span>
+                  {formatScheduleLabel(schedule.type)} at {schedule.time}
+                  {schedule.date ? ` - ${schedule.date}` : ""}
+                </span>
+                <small>
+                  <Clock3 size={12} />
+                  Next run: {nextRunLabel}
+                </small>
+                <small>Last run: {formatDateTime(row.lastFiredAt)}</small>
+                {row.status !== "active" ? (
+                  <small className="reminder-warning">
+                    {row.status === "blocked"
+                      ? "Reconnect this job to a saved session from Schedules."
+                      : "This job will not run until it is active."}
+                  </small>
+                ) : null}
+              </div>
+            </div>
+            <div className="reminder-actions">
+              {session ? (
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  onClick={() => void openScheduleJob(row)}
+                >
+                  <Play size={14} />
+                  Open now
+                </button>
+              ) : null}
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={() => toggleSchedule(schedule.id, !schedule.enabled)}
+              >
+                <Power size={14} />
+                {schedule.enabled ? "Disable" : "Enable"}
+              </button>
+              {onOpenSession && session ? (
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={() => onOpenSession(session.id)}
+                >
+                  Session
+                </button>
+              ) : null}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function RemindersPage({ addToast, onOpenSession }: Props) {
   const sessions = useSessionStore((state) => state.sessions);
+  const schedules = useScheduleStore((state) => state.schedules);
+  const settings = useSettingsStore((state) => state.settings);
 
-  const { upcomingRows, pastRows } = useMemo(() => {
-    const now = Date.now();
-    const rows: ReminderRow[] = sessions.flatMap((session) =>
-      session.tabs
-        .filter((tab) => tab.reminderAt || tab.reminderSnoozedUntil || tab.reminderDismissed)
-        .map((tab) => ({
-          id: `${session.id}-${tab.id}`,
-          session,
-          tab,
-          dueAt: tab.reminderSnoozedUntil ?? tab.reminderAt ?? session.updatedAt,
-          dismissed: tab.reminderDismissed,
-        }))
-    );
-
-    return {
-      upcomingRows: rows
-        .filter((row) => !row.dismissed && row.dueAt >= now)
-        .sort((left, right) => left.dueAt - right.dueAt),
-      pastRows: rows
-        .filter(
-          (row) => (row.dismissed || row.dueAt < now) && isReminderInPastWindow(row.dueAt, now)
-        )
-        .sort((left, right) => right.dueAt - left.dueAt),
-    };
-  }, [sessions]);
+  const reminderCenter = useMemo(
+    () => buildReminderCenter(sessions, schedules, settings),
+    [schedules, sessions, settings]
+  );
+  const activeCount = reminderCenter.activeTabReminders.length + reminderCenter.activeScheduleJobs;
 
   return (
     <section className="reminders-page">
@@ -283,17 +377,19 @@ export default function RemindersPage({ addToast, onOpenSession }: Props) {
           </div>
           <span className="badge badge-subtle">
             <Bell size={13} />
-            {upcomingRows.length} active
+            {activeCount} active
           </span>
         </div>
 
         <section className="reminders-section">
           <div className="detail-section-header">
             <h3>Upcoming and overdue</h3>
-            <span className="badge badge-subtle">{upcomingRows.length} reminders</span>
+            <span className="badge badge-subtle">
+              {reminderCenter.activeTabReminders.length} reminders
+            </span>
           </div>
           <ReminderList
-            rows={upcomingRows}
+            rows={reminderCenter.activeTabReminders}
             emptyTitle="No upcoming tab reminders yet."
             mode="upcoming"
             addToast={addToast}
@@ -303,11 +399,29 @@ export default function RemindersPage({ addToast, onOpenSession }: Props) {
 
         <section className="reminders-section">
           <div className="detail-section-header">
+            <h3>Scheduled jobs</h3>
+            <span className="badge badge-subtle">
+              {reminderCenter.activeScheduleJobs} active / {reminderCenter.scheduleJobs.length}{" "}
+              total
+            </span>
+          </div>
+          <ScheduleJobList
+            rows={reminderCenter.scheduleJobs}
+            emptyTitle="No scheduled session jobs yet."
+            addToast={addToast}
+            onOpenSession={onOpenSession}
+          />
+        </section>
+
+        <section className="reminders-section">
+          <div className="detail-section-header">
             <h3>Past and dismissed</h3>
-            <span className="badge badge-subtle">{pastRows.length} shown</span>
+            <span className="badge badge-subtle">
+              {reminderCenter.pastTabReminders.length} shown
+            </span>
           </div>
           <ReminderList
-            rows={pastRows}
+            rows={reminderCenter.pastTabReminders}
             emptyTitle="No past reminders from the last 30 days."
             mode="past"
             addToast={addToast}

@@ -2,10 +2,7 @@
  * Google Drive appDataFolder sync helpers using cross-browser WebExtension OAuth.
  */
 import type { StorageData } from "@/types";
-import {
-  getOAuthRedirectUrl,
-  launchOAuthFlow,
-} from "@/lib/browserCompat";
+import { getOAuthRedirectUrl, launchOAuthFlow } from "@/lib/browserCompat";
 
 const SYNC_FILE_NAME = "tabsetu-sync.json";
 const DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files";
@@ -43,8 +40,6 @@ interface TokenEndpointResponse {
   refresh_token?: string;
 }
 
-
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -66,8 +61,6 @@ function isStoredToken(value: unknown): value is StoredToken {
     isRecord(value) && typeof value.accessToken === "string" && typeof value.expiresAt === "number"
   );
 }
-
-
 
 function getOAuthConfig(): { clientId: string; scopes: string[] } | null {
   const manifest = chrome.runtime.getManifest();
@@ -149,10 +142,6 @@ function storageRemoveToken(): Promise<void> {
     chrome.storage.local.remove([TOKEN_STORAGE_KEY], () => resolve());
   });
 }
-
-
-
-
 
 async function buildAuthRequest(
   interactive: boolean,

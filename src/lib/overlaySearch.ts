@@ -124,7 +124,8 @@ export function scoreOverlayRows(
   return rows
     .map((row, index) => {
       const score = keys.reduce(
-        (total, key) => total + scoreText(row[key.name] as string | undefined, trimmedQuery) * key.weight,
+        (total, key) =>
+          total + scoreText(row[key.name] as string | undefined, trimmedQuery) * key.weight,
         0
       );
       return { row, score, index };
