@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TabSetu",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Save, organize, and restore browser sessions. Unlimited tabs, folders, and tags. Free forever.",
   "icons": {
     "16": "icons/icon16.png",
@@ -55,8 +55,13 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["src/content/keyboardShortcuts.ts"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "src/content/keyboardShortcuts.ts"
+      ],
       "run_at": "document_start"
     }
   ],
@@ -68,10 +73,12 @@
     "scripting",
     "activeTab",
     "contextMenus",
-    "identity"
+    "identity",
+    "history"
   ],
-  "host_permissions": ["<all_urls>"],
-  "optional_permissions": ["history"],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "oauth2": {
     "client_id": "__REPLACE_WITH_CLIENT_ID__",
     "scopes": [
@@ -92,7 +99,9 @@
         "share-page/share.css",
         "share-page/share.js"
       ],
-      "matches": ["*://*/*"]
+      "matches": [
+        "*://*/*"
+      ]
     }
   ]
 }

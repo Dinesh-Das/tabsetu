@@ -17,7 +17,13 @@ import {
   stripHtml,
 } from "@/lib/tabHelpers";
 import { defaultSavedSessionTitle } from "@/lib/sessionLabels";
-import { COLLAPSE_UNDO_MS, loadStorage, saveSessions, saveUndoBuffer } from "@/lib/storage";
+import {
+  COLLAPSE_UNDO_MS,
+  loadStorage,
+  saveSessions,
+  saveUndoBuffer,
+  STORAGE_KEYS,
+} from "@/lib/storage";
 import {
   notifyBackgroundTabsSuspended,
   notifyCommandProblem,
@@ -27,11 +33,18 @@ import { resolvePreferredBrowserTab, storeBrowserTab } from "@/background/tabTra
 import { getTransientStorage } from "@/lib/browserCompat";
 
 const PENDING_SAVE_KEY = "tabsetuPendingSaveMode";
+const SEARCH_OVERLAY_STATE_KEY = "tabsetuSearchOverlayState";
 
 type OverlayPayload = {
   rows: OverlaySearchRow[];
   searchScopes: Settings["searchScopes"];
   fuzzySearchThreshold: number;
+  theme: Settings["theme"];
+};
+
+type SearchOverlayState = {
+  open: boolean;
+  updatedAt: number;
 };
 
 type SessionCaptureResult = {
@@ -86,7 +99,23 @@ async function hasHistoryPermission(): Promise<boolean> {
     return historyPermissionGranted;
   }
 
-  historyPermissionGranted = await chrome.permissions.contains(HISTORY_PERMISSION);
+  if (typeof chrome.history?.search !== "function") {
+    historyPermissionKnown = true;
+    historyPermissionGranted = false;
+    return historyPermissionGranted;
+  }
+
+  if (typeof chrome.permissions?.contains !== "function") {
+    historyPermissionKnown = true;
+    historyPermissionGranted = true;
+    return historyPermissionGranted;
+  }
+
+  try {
+    historyPermissionGranted = await chrome.permissions.contains(HISTORY_PERMISSION);
+  } catch {
+    historyPermissionGranted = false;
+  }
   historyPermissionKnown = true;
   return historyPermissionGranted;
 }
@@ -97,15 +126,29 @@ function requestHistoryPermissionFromCommand(): void {
   }
 
   historyPermissionRequestStarted = true;
-  try {
-    chrome.permissions.request(HISTORY_PERMISSION, (granted) => {
+  void (async () => {
+    if (await hasHistoryPermission()) {
+      historyPermissionRequestStarted = false;
+      return;
+    }
+
+    if (typeof chrome.permissions?.request !== "function") {
+      historyPermissionRequestStarted = false;
+      return;
+    }
+
+    try {
+      chrome.permissions.request(HISTORY_PERMISSION, (granted) => {
+        historyPermissionKnown = true;
+        historyPermissionGranted = Boolean(granted) && !chrome.runtime.lastError;
+        historyPermissionRequestStarted = false;
+      });
+    } catch {
       historyPermissionKnown = true;
-      historyPermissionGranted = Boolean(granted) && !chrome.runtime.lastError;
-    });
-  } catch {
-    historyPermissionKnown = true;
-    historyPermissionGranted = false;
-  }
+      historyPermissionGranted = false;
+      historyPermissionRequestStarted = false;
+    }
+  })();
 }
 
 export async function createSessionFromWindow(
@@ -304,10 +347,14 @@ async function searchBrowserHistory(query: string): Promise<OverlaySearchRow[]> 
     return [];
   }
 
+  if (typeof chrome.history?.search !== "function") {
+    return [];
+  }
+
   const results = await chrome.history.search({
     text: trimmed,
     maxResults: 20,
-    startTime: Date.now() - 1000 * 60 * 60 * 24 * 90,
+    startTime: 0,
   });
 
   return results
@@ -399,14 +446,251 @@ async function buildOverlayPayload(data: StorageData): Promise<OverlayPayload> {
     rows,
     searchScopes: settings.searchScopes,
     fuzzySearchThreshold: settings.fuzzySearchThreshold,
+    theme: settings.theme,
   };
+}
+
+function isSearchOverlayState(value: unknown): value is SearchOverlayState {
+  return (
+    isRecord(value) && typeof value.open === "boolean" && typeof value.updatedAt === "number"
+  );
+}
+
+function isSettings(value: unknown): value is Settings {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const theme = value.theme;
+  return (
+    (theme === "light" || theme === "dark" || theme === "system") &&
+    typeof value.searchOverlayEnabled === "boolean"
+  );
+}
+
+function transientGet<T>(keys: string[]): Promise<T> {
+  const transient = getTransientStorage();
+  return new Promise((resolve, reject) => {
+    transient.get(keys, (result) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+        return;
+      }
+
+      resolve(result as T);
+    });
+  });
+}
+
+function transientSet(value: object): Promise<void> {
+  const transient = getTransientStorage();
+  return new Promise((resolve, reject) => {
+    transient.set(value, () => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+        return;
+      }
+
+      resolve();
+    });
+  });
+}
+
+async function getSearchOverlayState(): Promise<SearchOverlayState> {
+  const result = await transientGet<Record<string, unknown>>([SEARCH_OVERLAY_STATE_KEY]);
+  const state = result[SEARCH_OVERLAY_STATE_KEY];
+  return isSearchOverlayState(state) ? state : { open: false, updatedAt: 0 };
+}
+
+async function setSearchOverlayOpen(open: boolean): Promise<void> {
+  await transientSet({
+    [SEARCH_OVERLAY_STATE_KEY]: {
+      open,
+      updatedAt: Date.now(),
+    } satisfies SearchOverlayState,
+  });
+}
+
+function isWebStoreUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+    return (
+      host === "chromewebstore.google.com" ||
+      (host === "chrome.google.com" && path.startsWith("/webstore")) ||
+      (host === "microsoftedge.microsoft.com" && path.startsWith("/addons")) ||
+      host === "addons.mozilla.org"
+    );
+  } catch {
+    return true;
+  }
+}
+
+function isSearchOverlaySupportedUrl(url: string): boolean {
+  if (isRestrictedUrl(url) || isWebStoreUrl(url)) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isSearchOverlaySupportedTab(
+  tab: chrome.tabs.Tab | undefined | null
+): tab is chrome.tabs.Tab & { id: number; url: string } {
+  return Boolean(tab?.id && tab.url && isSearchOverlaySupportedUrl(tab.url));
+}
+
+async function injectSearchOverlayScript(tabId: number): Promise<boolean> {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["src/content/searchOverlay.js"],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function sendSearchOverlayMessage(tabId: number, payload: OverlayPayload): Promise<boolean> {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "tabsetu:open-overlay", payload });
+    return true;
+  } catch {
+    if (!(await injectSearchOverlayScript(tabId))) {
+      return false;
+    }
+  }
+
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "tabsetu:open-overlay", payload });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function openSearchOverlayOnTab(
+  tab: chrome.tabs.Tab,
+  data?: StorageData
+): Promise<boolean> {
+  const overlayData = data ?? (await loadStorage());
+  if (!isSearchOverlaySupportedTab(tab) || !overlayData.settings.searchOverlayEnabled) {
+    return false;
+  }
+
+  const payload = await buildOverlayPayload(overlayData);
+  return sendSearchOverlayMessage(tab.id, payload);
+}
+
+async function showOverlayDisabledToast(tabId: number): Promise<void> {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (msg: string) => {
+      const existing = document.getElementById("tabsetu-toast-host");
+      existing?.remove();
+      const host = document.createElement("div");
+      host.id = "tabsetu-toast-host";
+      document.documentElement.appendChild(host);
+      const shadow = host.attachShadow({ mode: "open" });
+      shadow.innerHTML = `<style>:host{all:initial}.t{position:fixed;right:18px;bottom:18px;z-index:2147483647;padding:12px 14px;border-radius:12px;background:#101828;color:#f8fbff;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;box-shadow:0 18px 48px rgba(4,10,22,.28)}</style><div class="t"></div>`;
+      (shadow.querySelector(".t") as HTMLElement).textContent = msg;
+      setTimeout(() => host.remove(), 2200);
+    },
+    args: ["TabSetu search overlay is disabled. Enable it in Settings > Search."],
+  });
+}
+
+async function broadcastOverlayMessage(message: Record<string, unknown>): Promise<void> {
+  const tabs = await chrome.tabs.query({});
+  await Promise.all(
+    tabs.filter(isSearchOverlaySupportedTab).map((tab) =>
+      chrome.tabs.sendMessage(tab.id, message).catch(() => undefined)
+    )
+  );
+}
+
+async function closeSearchOverlayEverywhere(): Promise<void> {
+  await broadcastOverlayMessage({ type: "tabsetu:close-overlay" });
+}
+
+async function syncSearchOverlayForTab(tabId: number, knownTab?: chrome.tabs.Tab): Promise<void> {
+  const state = await getSearchOverlayState();
+  if (!state.open) {
+    return;
+  }
+
+  const data = await loadStorage();
+  if (!data.settings.searchOverlayEnabled) {
+    await setSearchOverlayOpen(false);
+    await closeSearchOverlayEverywhere();
+    return;
+  }
+
+  const tab = knownTab?.id === tabId ? knownTab : await chrome.tabs.get(tabId).catch(() => null);
+  if (!tab?.active) {
+    return;
+  }
+
+  await openSearchOverlayOnTab(tab, data);
+}
+
+async function handleSearchOverlayClosed(): Promise<void> {
+  await setSearchOverlayOpen(false);
+  await closeSearchOverlayEverywhere();
+}
+
+function registerSearchOverlayLifecycleListeners(): void {
+  chrome.tabs.onActivated.addListener(({ tabId }) => {
+    void syncSearchOverlayForTab(tabId);
+  });
+
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (!tab.active || (!changeInfo.url && changeInfo.status !== "complete")) {
+      return;
+    }
+
+    void syncSearchOverlayForTab(tabId, tab);
+  });
+
+  chrome.tabs.onCreated.addListener((tab) => {
+    if (!tab.active || typeof tab.id !== "number") {
+      return;
+    }
+
+    void syncSearchOverlayForTab(tab.id, tab);
+  });
+
+  chrome.storage.onChanged.addListener((changes) => {
+    const settingsChange = changes[STORAGE_KEYS.settings];
+    const nextSettings: unknown = settingsChange?.newValue;
+    if (!isSettings(nextSettings)) {
+      return;
+    }
+
+    if (!nextSettings.searchOverlayEnabled) {
+      void setSearchOverlayOpen(false).then(() => closeSearchOverlayEverywhere());
+      return;
+    }
+
+    void broadcastOverlayMessage({
+      type: "tabsetu:overlay-theme-changed",
+      theme: nextSettings.theme,
+    });
+  });
 }
 
 async function openSearchOverlay(): Promise<void> {
   const data = await loadStorage();
   const { settings } = data;
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!activeTab?.id || !activeTab.url || isRestrictedUrl(activeTab.url)) {
+  if (!isSearchOverlaySupportedTab(activeTab)) {
     await notifyCommandProblem(
       "TabSetu search cannot open here",
       "Browser pages and extension pages do not allow the search overlay."
@@ -415,41 +699,21 @@ async function openSearchOverlay(): Promise<void> {
   }
 
   if (!settings.searchOverlayEnabled) {
-    await chrome.scripting.executeScript({
-      target: { tabId: activeTab.id },
-      func: (msg: string) => {
-        const existing = document.getElementById("tabsetu-toast-host");
-        existing?.remove();
-        const host = document.createElement("div");
-        host.id = "tabsetu-toast-host";
-        document.documentElement.appendChild(host);
-        const shadow = host.attachShadow({ mode: "open" });
-        shadow.innerHTML = `<style>:host{all:initial}.t{position:fixed;right:18px;bottom:18px;z-index:2147483647;padding:12px 14px;border-radius:12px;background:#101828;color:#f8fbff;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;box-shadow:0 18px 48px rgba(4,10,22,.28)}</style><div class="t"></div>`;
-        (shadow.querySelector(".t") as HTMLElement).textContent = msg;
-        setTimeout(() => host.remove(), 2200);
-      },
-      args: ["TabSetu search overlay is disabled. Enable it in Settings > Search."],
-    });
+    await setSearchOverlayOpen(false);
+    await showOverlayDisabledToast(activeTab.id);
     return;
   }
 
-  const payload = await buildOverlayPayload(data);
-  try {
-    await chrome.tabs.sendMessage(activeTab.id, { type: "tabsetu:open-overlay", payload });
-  } catch {
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId: activeTab.id },
-        files: ["src/content/searchOverlay.js"],
-      });
-      await chrome.tabs.sendMessage(activeTab.id, { type: "tabsetu:open-overlay", payload });
-    } catch {
-      await notifyCommandProblem(
-        "TabSetu search could not open",
-        "Try the shortcut on a regular http or https page."
-      );
-    }
+  const opened = await openSearchOverlayOnTab(activeTab, data);
+  if (opened) {
+    await setSearchOverlayOpen(true);
+    return;
   }
+
+  await notifyCommandProblem(
+    "TabSetu search could not open",
+    "Try the shortcut on a regular http or https page."
+  );
 }
 
 const SHORTCUT_ACTION_DEBOUNCE_MS = 700;
@@ -559,6 +823,13 @@ function registerRuntimeMessages(): void {
       handleOpenSearchShortcut({ requestHistoryPermission: false });
       sendResponse({ ok: true });
       return undefined;
+    }
+
+    if (message.type === "tabsetu:overlay-closed") {
+      void handleSearchOverlayClosed()
+        .then(() => sendResponse({ ok: true }))
+        .catch(() => sendResponse({ ok: false }));
+      return true;
     }
 
     if (message.type === "tabsetu:shortcut-save-window") {
@@ -690,6 +961,7 @@ function registerCommands(): void {
 export function registerMessagingListeners(): void {
   registerRuntimeMessages();
   registerCommands();
+  registerSearchOverlayLifecycleListeners();
 }
 
 export { storeBrowserTab };

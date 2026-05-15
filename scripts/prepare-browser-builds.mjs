@@ -160,6 +160,7 @@ async function copyOAuthCallback(targetDir, target) {
 async function buildTarget(target) {
   const targetDir = path.join(outputRoot, target.id);
   await cp(distDir, targetDir, { recursive: true });
+  await rm(path.join(targetDir, ".vite"), { recursive: true, force: true });
   await writeManifest(targetDir, target);
   await copyOAuthCallback(targetDir, target);
   await writeTargetReadme(targetDir, target);

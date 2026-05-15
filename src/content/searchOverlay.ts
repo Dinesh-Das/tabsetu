@@ -5,7 +5,22 @@ type OverlayPayload = {
   rows: OverlaySearchRow[];
   searchScopes: Settings["searchScopes"];
   fuzzySearchThreshold: number;
+  theme: Settings["theme"];
 };
+
+type HistorySearchState = "idle" | "loading" | "unavailable" | "error";
+
+type MountedOverlay = {
+  host: HTMLDivElement;
+  root: HTMLDivElement;
+  cleanupThemeListener: () => void;
+};
+
+declare global {
+  interface Window {
+    __tabsetuSearchOverlayLoaded?: boolean;
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -42,8 +57,58 @@ function isOverlayPayload(value: unknown): value is OverlayPayload {
     Array.isArray(value.rows) &&
     value.rows.every(isOverlaySearchRow) &&
     isSearchScopes(value.searchScopes) &&
-    typeof value.fuzzySearchThreshold === "number"
+    typeof value.fuzzySearchThreshold === "number" &&
+    (value.theme === "light" || value.theme === "dark" || value.theme === "system")
   );
+}
+
+let mountedOverlay: MountedOverlay | null = null;
+
+function resolveOverlayTheme(theme: Settings["theme"]): "light" | "dark" {
+  if (theme !== "system") {
+    return theme;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyOverlayTheme(root: HTMLDivElement, theme: Settings["theme"]): void {
+  root.dataset.theme = resolveOverlayTheme(theme);
+}
+
+function watchOverlayTheme(root: HTMLDivElement, theme: Settings["theme"]): () => void {
+  applyOverlayTheme(root, theme);
+  if (theme !== "system") {
+    return () => undefined;
+  }
+
+  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const handleChange = () => applyOverlayTheme(root, "system");
+  mediaQuery.addEventListener("change", handleChange);
+  return () => mediaQuery.removeEventListener("change", handleChange);
+}
+
+function updateMountedOverlayTheme(theme: Settings["theme"]): void {
+  if (!mountedOverlay) {
+    return;
+  }
+
+  mountedOverlay.cleanupThemeListener();
+  mountedOverlay.cleanupThemeListener = watchOverlayTheme(mountedOverlay.root, theme);
+}
+
+function closeMountedOverlay(options: { notifyBackground: boolean }): void {
+  if (!mountedOverlay) {
+    return;
+  }
+
+  mountedOverlay.cleanupThemeListener();
+  mountedOverlay.host.remove();
+  mountedOverlay = null;
+
+  if (options.notifyBackground) {
+    void chrome.runtime.sendMessage({ type: "tabsetu:overlay-closed" }).catch(() => undefined);
+  }
 }
 
 function openRow(row: OverlaySearchRow): void {
@@ -56,7 +121,9 @@ function openRow(row: OverlaySearchRow): void {
   }
 }
 
-async function fetchHistoryRows(query: string): Promise<OverlaySearchRow[]> {
+async function fetchHistoryRows(
+  query: string
+): Promise<{ rows: OverlaySearchRow[]; unavailable: boolean }> {
   const permissionResponse: unknown = await chrome.runtime.sendMessage({
     type: "tabsetu:has-history-permission",
   });
@@ -65,7 +132,7 @@ async function fetchHistoryRows(query: string): Promise<OverlaySearchRow[]> {
     permissionResponse.ok !== true ||
     permissionResponse.granted !== true
   ) {
-    return [];
+    return { rows: [], unavailable: true };
   }
 
   const response: unknown = await chrome.runtime.sendMessage({
@@ -73,14 +140,15 @@ async function fetchHistoryRows(query: string): Promise<OverlaySearchRow[]> {
     query,
   });
   if (!isRecord(response) || response.ok !== true || !Array.isArray(response.rows)) {
-    return [];
+    return { rows: [], unavailable: true };
   }
 
-  return response.rows.filter(isOverlaySearchRow);
+  return { rows: response.rows.filter(isOverlaySearchRow), unavailable: false };
 }
 
 function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
   const hostId = "tabsetu-search-overlay-host";
+  closeMountedOverlay({ notifyBackground: false });
   document.getElementById(hostId)?.remove();
 
   const host = document.createElement("div");
@@ -90,35 +158,59 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
   shadow.innerHTML = `
     <style>
       :host { all: initial; }
-      .backdrop { position: fixed; inset: 0; z-index: 2147483647; display: grid; place-items: start center; padding: 10vh 18px 18px; background: rgba(8, 13, 24, 0.42); font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .panel { width: min(720px, calc(100vw - 36px)); max-height: min(680px, 78vh); overflow: hidden; border: 1px solid rgba(149, 166, 196, 0.34); border-radius: 12px; background: #f9fbff; color: #101828; box-shadow: 0 28px 72px rgba(4, 10, 22, 0.28); }
-      .search { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #d9e2f0; }
-      input { width: 100%; border: 0; outline: 0; background: transparent; color: #101828; font: 600 16px/1.4 inherit; }
-      input::placeholder { color: #667085; }
+      .tabsetu-overlay {
+        --overlay-backdrop: rgba(8, 13, 24, 0.42);
+        --overlay-panel-bg: #f9fbff;
+        --overlay-panel-border: rgba(149, 166, 196, 0.34);
+        --overlay-text: #101828;
+        --overlay-muted: #667085;
+        --overlay-divider: #d9e2f0;
+        --overlay-selected-bg: #e8f7fb;
+        --overlay-selected-border: #84d8ea;
+        --overlay-chip-bg: #eef2f7;
+        --overlay-chip-text: #475467;
+        --overlay-shadow: 0 28px 72px rgba(4, 10, 22, 0.28);
+        color: var(--overlay-text);
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      .tabsetu-overlay[data-theme="dark"] {
+        --overlay-backdrop: rgba(8, 13, 24, 0.52);
+        --overlay-panel-bg: #101828;
+        --overlay-panel-border: rgba(149, 166, 196, 0.28);
+        --overlay-text: #f8fbff;
+        --overlay-muted: #98a2b3;
+        --overlay-divider: #243044;
+        --overlay-selected-bg: rgba(20, 184, 166, 0.14);
+        --overlay-selected-border: rgba(20, 184, 166, 0.4);
+        --overlay-chip-bg: #1d2939;
+        --overlay-chip-text: #d0d5dd;
+        --overlay-shadow: 0 28px 72px rgba(4, 10, 22, 0.36);
+      }
+      .backdrop { position: fixed; inset: 0; z-index: 2147483647; display: grid; place-items: start center; padding: 10vh 18px 18px; background: var(--overlay-backdrop); }
+      .panel { width: min(720px, calc(100vw - 36px)); max-height: min(680px, 78vh); overflow: hidden; border: 1px solid var(--overlay-panel-border); border-radius: 12px; background: var(--overlay-panel-bg); color: var(--overlay-text); box-shadow: var(--overlay-shadow); }
+      .search { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--overlay-divider); }
+      input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--overlay-text); font: 600 16px/1.4 inherit; }
+      input::placeholder { color: var(--overlay-muted); }
       .results { max-height: min(560px, 63vh); overflow: auto; padding: 8px; }
       .item { display: grid; grid-template-columns: 1fr auto; gap: 10px; width: 100%; border: 1px solid transparent; border-radius: 8px; padding: 11px 12px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
-      .item[aria-selected="true"] { background: #e8f7fb; border-color: #84d8ea; }
+      .item[aria-selected="true"] { background: var(--overlay-selected-bg); border-color: var(--overlay-selected-border); }
       .title { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
-      .meta { margin-top: 3px; color: #667085; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
-      .kind { align-self: start; border-radius: 999px; padding: 4px 8px; background: #eef2f7; color: #475467; font-size: 11px; font-weight: 700; }
-      .empty { padding: 28px 18px; color: #667085; text-align: center; font-size: 13px; }
-      @media (prefers-color-scheme: dark) {
-        .panel { background: #101828; color: #f8fbff; border-color: rgba(149, 166, 196, 0.28); }
-        .search { border-color: #243044; }
-        input { color: #f8fbff; }
-        input::placeholder, .meta, .empty { color: #98a2b3; }
-        .item[aria-selected="true"] { background: rgba(20, 184, 166, 0.14); border-color: rgba(20, 184, 166, 0.4); }
-        .kind { background: #1d2939; color: #d0d5dd; }
-      }
+      .meta { margin-top: 3px; color: var(--overlay-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+      .kind { align-self: start; border-radius: 999px; padding: 4px 8px; background: var(--overlay-chip-bg); color: var(--overlay-chip-text); font-size: 11px; font-weight: 700; }
+      .empty, .status { padding: 28px 18px; color: var(--overlay-muted); text-align: center; font-size: 13px; }
+      .status { padding: 10px 12px 8px; }
     </style>
-    <div class="backdrop" role="presentation">
-      <section class="panel" role="dialog" aria-modal="true" aria-label="TabSetu search">
-        <div class="search"><input autocomplete="off" placeholder="Search saved sessions, active tabs, notes, folders, or tags" aria-label="Search TabSetu" /></div>
-        <div class="results" role="listbox"></div>
-      </section>
+    <div class="tabsetu-overlay">
+      <div class="backdrop" role="presentation">
+        <section class="panel" role="dialog" aria-modal="true" aria-label="TabSetu search">
+          <div class="search"><input autocomplete="off" placeholder="Search saved sessions, active tabs, notes, folders, or tags" aria-label="Search TabSetu" /></div>
+          <div class="results" role="listbox"></div>
+        </section>
+      </div>
     </div>
   `;
 
+  const root = shadow.querySelector(".tabsetu-overlay") as HTMLDivElement;
   const input = shadow.querySelector("input") as HTMLInputElement;
   const resultsNode = shadow.querySelector(".results") as HTMLDivElement;
   const backdrop = shadow.querySelector(".backdrop") as HTMLDivElement;
@@ -126,16 +218,28 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
   let historyRows: OverlaySearchRow[] = [];
   let selectedIndex = 0;
   let historyRequestId = 0;
-  const removeOverlay = () => host.remove();
+  let historyState: HistorySearchState = "idle";
+  mountedOverlay = {
+    host,
+    root,
+    cleanupThemeListener: watchOverlayTheme(root, payload.theme),
+  };
+  const removeOverlay = () => closeMountedOverlay({ notifyBackground: true });
 
   const render = () => {
     resultsNode.textContent = "";
     if (visibleRows.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty";
-      empty.textContent = input.value.trim()
-        ? "No tabs, sessions, or history match that search."
-        : "Start typing to search TabSetu.";
+      if (historyState === "loading") {
+        empty.textContent = "Searching browser history...";
+      } else if (historyState === "unavailable" || historyState === "error") {
+        empty.textContent = "History search is unavailable. Check extension permissions.";
+      } else {
+        empty.textContent = input.value.trim()
+          ? "No tabs, sessions, or history match that search."
+          : "Start typing to search TabSetu.";
+      }
       resultsNode.appendChild(empty);
       return;
     }
@@ -169,6 +273,18 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
       });
       resultsNode.appendChild(item);
     });
+
+    if (historyState === "loading") {
+      const status = document.createElement("div");
+      status.className = "status";
+      status.textContent = "Searching browser history...";
+      resultsNode.appendChild(status);
+    } else if (historyState === "unavailable" || historyState === "error") {
+      const status = document.createElement("div");
+      status.className = "status";
+      status.textContent = "History search is unavailable. Check extension permissions.";
+      resultsNode.appendChild(status);
+    }
   };
 
   const updateVisibleRows = () => {
@@ -188,18 +304,34 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
 
     if (query.length < 3) {
       historyRows = [];
+      historyState = "idle";
       updateVisibleRows();
       return;
     }
 
-    void fetchHistoryRows(query).then((rows) => {
-      if (historyRequestId !== requestId) {
-        return;
-      }
+    historyRows = [];
+    historyState = "loading";
+    updateVisibleRows();
 
-      historyRows = rows;
-      updateVisibleRows();
-    });
+    void fetchHistoryRows(query)
+      .then((result) => {
+        if (historyRequestId !== requestId) {
+          return;
+        }
+
+        historyRows = result.rows;
+        historyState = result.unavailable ? "unavailable" : "idle";
+        updateVisibleRows();
+      })
+      .catch(() => {
+        if (historyRequestId !== requestId) {
+          return;
+        }
+
+        historyRows = [];
+        historyState = "error";
+        updateVisibleRows();
+      });
   };
 
   input.addEventListener("input", () => {
@@ -254,17 +386,32 @@ function showTabSetuOverlayDisabledToast(message: string): void {
   window.setTimeout(() => host.remove(), 2200);
 }
 
-chrome.runtime.onMessage.addListener((message: unknown) => {
-  if (!isRecord(message)) {
-    return;
-  }
+if (!window.__tabsetuSearchOverlayLoaded) {
+  window.__tabsetuSearchOverlayLoaded = true;
 
-  if (message.type === "tabsetu:open-overlay" && isOverlayPayload(message.payload)) {
-    mountTabSetuSearchOverlay(message.payload);
-  }
-  if (message.type === "tabsetu:overlay-disabled") {
-    showTabSetuOverlayDisabledToast(
-      typeof message.message === "string" ? message.message : "TabSetu search overlay is disabled."
-    );
-  }
-});
+  chrome.runtime.onMessage.addListener((message: unknown) => {
+    if (!isRecord(message)) {
+      return;
+    }
+
+    if (message.type === "tabsetu:open-overlay" && isOverlayPayload(message.payload)) {
+      mountTabSetuSearchOverlay(message.payload);
+    }
+    if (message.type === "tabsetu:close-overlay") {
+      closeMountedOverlay({ notifyBackground: false });
+    }
+    if (
+      message.type === "tabsetu:overlay-theme-changed" &&
+      (message.theme === "light" || message.theme === "dark" || message.theme === "system")
+    ) {
+      updateMountedOverlayTheme(message.theme);
+    }
+    if (message.type === "tabsetu:overlay-disabled") {
+      showTabSetuOverlayDisabledToast(
+        typeof message.message === "string"
+          ? message.message
+          : "TabSetu search overlay is disabled."
+      );
+    }
+  });
+}
