@@ -55,13 +55,8 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "http://*/*",
-        "https://*/*"
-      ],
-      "js": [
-        "src/content/keyboardShortcuts.ts"
-      ],
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["src/content/keyboardShortcuts.ts"],
       "run_at": "document_start"
     }
   ],
@@ -76,9 +71,7 @@
     "identity",
     "history"
   ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
+  "host_permissions": ["<all_urls>"],
   "oauth2": {
     "client_id": "__REPLACE_WITH_CLIENT_ID__",
     "scopes": [
@@ -99,9 +92,7 @@
         "share-page/share.css",
         "share-page/share.js"
       ],
-      "matches": [
-        "*://*/*"
-      ]
+      "matches": ["*://*/*"]
     }
   ]
 }

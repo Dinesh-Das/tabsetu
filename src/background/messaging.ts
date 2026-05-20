@@ -451,9 +451,7 @@ async function buildOverlayPayload(data: StorageData): Promise<OverlayPayload> {
 }
 
 function isSearchOverlayState(value: unknown): value is SearchOverlayState {
-  return (
-    isRecord(value) && typeof value.open === "boolean" && typeof value.updatedAt === "number"
-  );
+  return isRecord(value) && typeof value.open === "boolean" && typeof value.updatedAt === "number";
 }
 
 function isSettings(value: unknown): value is Settings {
@@ -576,10 +574,7 @@ async function sendSearchOverlayMessage(tabId: number, payload: OverlayPayload):
   }
 }
 
-async function openSearchOverlayOnTab(
-  tab: chrome.tabs.Tab,
-  data?: StorageData
-): Promise<boolean> {
+async function openSearchOverlayOnTab(tab: chrome.tabs.Tab, data?: StorageData): Promise<boolean> {
   const overlayData = data ?? (await loadStorage());
   if (!isSearchOverlaySupportedTab(tab) || !overlayData.settings.searchOverlayEnabled) {
     return false;
@@ -610,9 +605,9 @@ async function showOverlayDisabledToast(tabId: number): Promise<void> {
 async function broadcastOverlayMessage(message: Record<string, unknown>): Promise<void> {
   const tabs = await chrome.tabs.query({});
   await Promise.all(
-    tabs.filter(isSearchOverlaySupportedTab).map((tab) =>
-      chrome.tabs.sendMessage(tab.id, message).catch(() => undefined)
-    )
+    tabs
+      .filter(isSearchOverlaySupportedTab)
+      .map((tab) => chrome.tabs.sendMessage(tab.id, message).catch(() => undefined))
   );
 }
 
