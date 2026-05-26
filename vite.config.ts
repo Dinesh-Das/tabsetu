@@ -17,13 +17,16 @@ type ManifestWithOAuth = Parameters<typeof crx>[0]["manifest"] & {
 
 function loadExtensionManifest(mode: string): ManifestWithOAuth {
   const manifest = JSON.parse(
-    readFileSync(path.resolve(projectRoot, "src/manifest.json"), "utf8"),
+    readFileSync(path.resolve(projectRoot, "src/manifest.json"), "utf8")
   ) as ManifestWithOAuth;
   const env = loadEnv(mode, projectRoot, "");
   const googleClientId = env.GOOGLE_CLIENT_ID?.trim();
+  const requiresGoogleClientId = env.REQUIRE_GOOGLE_CLIENT_ID === "true";
 
   if (googleClientId && manifest.oauth2) {
     manifest.oauth2.client_id = googleClientId;
+  } else if (requiresGoogleClientId && manifest.oauth2) {
+    throw new Error("GOOGLE_CLIENT_ID is required for this extension build.");
   }
 
   return manifest;
@@ -31,14 +34,21 @@ function loadExtensionManifest(mode: string): ManifestWithOAuth {
 
 export default defineConfig(({ mode }) => {
   const manifest = loadExtensionManifest(mode);
+  const env = loadEnv(mode, projectRoot, "");
+  const googleClientId = env.GOOGLE_CLIENT_ID?.trim() ?? "";
 
   return {
+    define: {
+      __TABSETU_GOOGLE_CLIENT_ID__: JSON.stringify(googleClientId),
+      __TABSETU_GOOGLE_SCOPES__: JSON.stringify(manifest.oauth2?.scopes ?? []),
+    },
     plugins: [
       react(),
       crx({ manifest }),
       viteStaticCopy({
         targets: [
           { src: "share-page/*", dest: "share-page" },
+          { src: "node_modules/lz-string/libs/lz-string.min.js", dest: "share-page/vendor" },
           { src: "oauth-callback.html", dest: "." },
         ],
       }),
@@ -59,7 +69,9 @@ export default defineConfig(({ mode }) => {
         },
         output: {
           entryFileNames: (chunk) =>
-            chunk.name === "searchOverlay" ? "src/content/searchOverlay.js" : "assets/[name]-[hash].js",
+            chunk.name === "searchOverlay"
+              ? "src/content/searchOverlay.js"
+              : "assets/[name]-[hash].js",
           manualChunks: (id) => {
             if (!id.includes("node_modules")) {
               return undefined;

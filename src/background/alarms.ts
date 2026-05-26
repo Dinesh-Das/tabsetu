@@ -1,7 +1,16 @@
 import type { Schedule, Session, Settings } from "@/types";
 import { nextMatchingDate } from "@/lib/alarmScheduling";
-import { loadStorage, saveSchedules, saveSessions, STORAGE_KEYS } from "@/lib/storage";
+import {
+  AUTO_SYNC_UPLOAD_ALARM_NAME,
+  ensurePendingAutoSyncUploadAlarm,
+  flushPendingAutoSyncUpload,
+  loadStorage,
+  saveSchedules,
+  saveSessions,
+  STORAGE_KEYS,
+} from "@/lib/storage";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useSyncStore } from "@/store/syncStore";
 import {
   clearNotification,
   createNotification,
@@ -34,7 +43,11 @@ export async function maybeStartKeepalive(): Promise<void> {
   );
 
   if (hasImminent) {
-    await chrome.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.4 });
+    try {
+      await chrome.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.5 });
+    } catch {
+      // Reminder alarms still fire even when a browser refuses short keepalive alarms.
+    }
   } else {
     await chrome.alarms.clear(KEEPALIVE_ALARM);
   }
@@ -84,6 +97,7 @@ export async function hydrateAlarms(): Promise<void> {
   const { schedules, sessions, settings } = await loadRuntimeData();
 
   await chrome.alarms.clearAll();
+  await ensurePendingAutoSyncUploadAlarm();
   await createTimezoneCheckAlarm();
   await rememberTimezoneOffset();
 
@@ -251,6 +265,12 @@ async function updateReminderTab(
 
 async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
   if (alarm.name === KEEPALIVE_ALARM) {
+    return;
+  }
+
+  if (alarm.name === AUTO_SYNC_UPLOAD_ALARM_NAME) {
+    await useSyncStore.getState().refreshStatus();
+    await flushPendingAutoSyncUpload();
     return;
   }
 

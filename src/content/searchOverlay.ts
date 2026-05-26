@@ -154,7 +154,7 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
   const host = document.createElement("div");
   host.id = hostId;
   document.documentElement.appendChild(host);
-  const shadow = host.attachShadow({ mode: "open" });
+  const shadow = host.attachShadow({ mode: "closed" });
   shadow.innerHTML = `
     <style>
       :host { all: initial; }

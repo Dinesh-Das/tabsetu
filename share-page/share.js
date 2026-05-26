@@ -5,6 +5,21 @@ if (typeof window.LZString === "undefined") {
   throw new Error("LZString not loaded");
 }
 
+const MAX_SHARED_TABS = 500;
+
+function safeHttpUrl(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function readSnapshot() {
   const encoded = window.location.hash.slice(1);
   if (!encoded) {
@@ -15,10 +30,36 @@ function readSnapshot() {
     throw new Error("Invalid TabSetu share data.");
   }
   const parsed = JSON.parse(decompressed);
-  if (!parsed || parsed.v !== 1 || !Array.isArray(parsed.tabs)) {
+  if (
+    !parsed ||
+    parsed.v !== 1 ||
+    typeof parsed.name !== "string" ||
+    typeof parsed.description !== "string" ||
+    !Array.isArray(parsed.tabs) ||
+    parsed.tabs.length > MAX_SHARED_TABS
+  ) {
     throw new Error("Invalid TabSetu share data.");
   }
-  return parsed;
+
+  const tabs = parsed.tabs.map((tab) => {
+    const url = safeHttpUrl(tab?.url);
+    if (!url || typeof tab?.title !== "string") {
+      throw new Error("Invalid TabSetu share data.");
+    }
+
+    return {
+      title: tab.title.slice(0, 200),
+      url,
+    };
+  });
+
+  return {
+    v: 1,
+    name: parsed.name.slice(0, 100),
+    description: parsed.description.slice(0, 300),
+    tabs,
+    createdAt: typeof parsed.createdAt === "number" ? parsed.createdAt : Date.now(),
+  };
 }
 
 function setText(id, value) {
@@ -55,7 +96,7 @@ async function importSnapshotIntoTabSetu(snapshot) {
   }
 
   if (chrome.runtime.getURL) {
-    window.open(chrome.runtime.getURL("src/dashboard/index.html?view=home"), "_blank", "noopener,noreferrer");
+    window.open(chrome.runtime.getURL("dashboard.html?view=home"), "_blank", "noopener,noreferrer");
   }
 
   return true;
@@ -64,7 +105,10 @@ async function importSnapshotIntoTabSetu(snapshot) {
 try {
   const snapshot = readSnapshot();
   setText("session-name", snapshot.name || "Shared session");
-  setText("session-description", snapshot.description || "A local-first TabSetu session shared as an encoded link.");
+  setText(
+    "session-description",
+    snapshot.description || "A local-first TabSetu session shared as an encoded link."
+  );
   setText("tab-count", `${snapshot.tabs.length} ${snapshot.tabs.length === 1 ? "tab" : "tabs"}`);
 
   const list = document.getElementById("tabs");
@@ -77,7 +121,7 @@ try {
       const url = document.createElement("small");
       link.href = tab.url;
       link.target = "_blank";
-      link.rel = "noreferrer";
+      link.rel = "noopener noreferrer";
       link.textContent = tab.title || tab.url;
       url.textContent = tab.url;
       item.append(link, url);

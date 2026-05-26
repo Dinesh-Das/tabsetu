@@ -1011,41 +1011,70 @@ export async function loadStorageWithUndoBuffer(): Promise<{
   return { data: withoutDeletedData(migrated), undoBuffer };
 }
 
-type DebouncedTask = () => void;
 type AutoSyncUploadHandler = () => Promise<void>;
 
+export const AUTO_SYNC_UPLOAD_ALARM_NAME = "tabsetu-auto-sync-upload";
+const AUTO_SYNC_UPLOAD_PENDING_KEY = "TabSetu_auto_sync_upload_pending";
+const AUTO_SYNC_UPLOAD_ALARM_DELAY_MINUTES = 0.5;
+
 let autoSyncUploadHandler: AutoSyncUploadHandler | null = null;
+let autoSyncUploadTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export function registerAutoSyncUploadHandler(handler: AutoSyncUploadHandler): void {
   autoSyncUploadHandler = handler;
 }
 
-function debounceTask(task: () => Promise<void>, waitMs: number): DebouncedTask {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-
-  return () => {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-
-    timeout = setTimeout(() => {
-      timeout = null;
-      void task();
-    }, waitMs);
-  };
-}
-
 const syncUploadDelayMs =
   typeof process !== "undefined" && process.env.NODE_ENV === "test" ? 0 : 5_000;
 
-const scheduleSyncUpload = debounceTask(async () => {
-  if (autoSyncUploadHandler) {
-    await autoSyncUploadHandler();
+async function setAutoSyncUploadPending(pending: boolean): Promise<void> {
+  await storageSet(chrome.storage.local, { [AUTO_SYNC_UPLOAD_PENDING_KEY]: pending });
+}
+
+async function hasPendingAutoSyncUpload(): Promise<boolean> {
+  const result = await storageGet<Record<string, unknown>>(chrome.storage.local, [
+    AUTO_SYNC_UPLOAD_PENDING_KEY,
+  ]);
+  return result[AUTO_SYNC_UPLOAD_PENDING_KEY] === true;
+}
+
+async function createAutoSyncUploadAlarm(): Promise<void> {
+  try {
+    await chrome.alarms.create(AUTO_SYNC_UPLOAD_ALARM_NAME, {
+      delayInMinutes: AUTO_SYNC_UPLOAD_ALARM_DELAY_MINUTES,
+    });
+  } catch {
+    // The in-memory timer below still covers active extension pages.
   }
-}, syncUploadDelayMs);
+}
+
+export async function ensurePendingAutoSyncUploadAlarm(): Promise<void> {
+  if (await hasPendingAutoSyncUpload()) {
+    await createAutoSyncUploadAlarm();
+  }
+}
+
+export async function flushPendingAutoSyncUpload(): Promise<void> {
+  if (!(await hasPendingAutoSyncUpload()) || !autoSyncUploadHandler) {
+    return;
+  }
+
+  await autoSyncUploadHandler();
+  await setAutoSyncUploadPending(false);
+}
 
 function scheduleAutoSyncUpload(): void {
-  scheduleSyncUpload();
+  void setAutoSyncUploadPending(true);
+  void createAutoSyncUploadAlarm();
+
+  if (autoSyncUploadTimeout) {
+    clearTimeout(autoSyncUploadTimeout);
+  }
+
+  autoSyncUploadTimeout = setTimeout(() => {
+    autoSyncUploadTimeout = null;
+    void flushPendingAutoSyncUpload().catch(() => undefined);
+  }, syncUploadDelayMs);
 }
 
 export async function saveSessions(sessions: Session[]): Promise<void> {

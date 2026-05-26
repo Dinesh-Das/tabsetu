@@ -40,6 +40,9 @@ interface TokenEndpointResponse {
   refresh_token?: string;
 }
 
+declare const __TABSETU_GOOGLE_CLIENT_ID__: string | undefined;
+declare const __TABSETU_GOOGLE_SCOPES__: string[] | undefined;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -65,18 +68,30 @@ function isStoredToken(value: unknown): value is StoredToken {
 function getOAuthConfig(): { clientId: string; scopes: string[] } | null {
   const manifest = chrome.runtime.getManifest();
   const oauth2 = manifest.oauth2;
-  if (!oauth2?.client_id || oauth2.client_id === "__REPLACE_WITH_CLIENT_ID__") {
+  const manifestClientId =
+    oauth2?.client_id && oauth2.client_id !== "__REPLACE_WITH_CLIENT_ID__" ? oauth2.client_id : "";
+  const buildClientId =
+    typeof __TABSETU_GOOGLE_CLIENT_ID__ === "string" ? __TABSETU_GOOGLE_CLIENT_ID__.trim() : "";
+  const clientId = manifestClientId || buildClientId;
+
+  if (!clientId) {
     return null;
   }
 
-  const scopes = oauth2.scopes?.length
+  const buildScopes =
+    typeof __TABSETU_GOOGLE_SCOPES__ !== "undefined" && Array.isArray(__TABSETU_GOOGLE_SCOPES__)
+      ? __TABSETU_GOOGLE_SCOPES__
+      : [];
+  const scopes = oauth2?.scopes?.length
     ? oauth2.scopes
-    : [
-        "https://www.googleapis.com/auth/drive.appdata",
-        "https://www.googleapis.com/auth/userinfo.email",
-      ];
+    : buildScopes.length
+      ? buildScopes
+      : [
+          "https://www.googleapis.com/auth/drive.appdata",
+          "https://www.googleapis.com/auth/userinfo.email",
+        ];
 
-  return { clientId: oauth2.client_id, scopes };
+  return { clientId, scopes };
 }
 
 function randomState(): string {
@@ -339,6 +354,20 @@ async function authedFetch(
   }
 }
 
+async function requireOkResponse(response: Response | null, operation: string): Promise<Response> {
+  if (!response) {
+    throw new Error(`${operation} failed. Check your Google connection and sign in again.`);
+  }
+
+  if (response.ok) {
+    return response;
+  }
+
+  const body = await response.text().catch(() => "");
+  const detail = body.trim().slice(0, 240);
+  throw new Error(`${operation} failed (${response.status}).${detail ? ` ${detail}` : ""}`);
+}
+
 async function findSyncFile(token: string): Promise<DriveFile | null> {
   const query = encodeURIComponent(
     `name = '${SYNC_FILE_NAME}' and 'appDataFolder' in parents and trashed = false`
@@ -430,14 +459,17 @@ export async function uploadSync(data: StorageData): Promise<void> {
   const body = JSON.stringify(data);
 
   if (existing) {
-    await authedFetch(
-      token,
-      `${DRIVE_UPLOAD_URL}/${encodeURIComponent(existing.id)}?uploadType=media&fields=id,modifiedTime`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body,
-      }
+    await requireOkResponse(
+      await authedFetch(
+        token,
+        `${DRIVE_UPLOAD_URL}/${encodeURIComponent(existing.id)}?uploadType=media&fields=id,modifiedTime`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body,
+        }
+      ),
+      "Google Drive upload"
     );
     return;
   }
@@ -459,11 +491,14 @@ export async function uploadSync(data: StorageData): Promise<void> {
     `--${boundary}--`,
   ].join("\r\n");
 
-  await authedFetch(token, `${DRIVE_UPLOAD_URL}?uploadType=multipart&fields=id,modifiedTime`, {
-    method: "POST",
-    headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
-    body: multipartBody,
-  });
+  await requireOkResponse(
+    await authedFetch(token, `${DRIVE_UPLOAD_URL}?uploadType=multipart&fields=id,modifiedTime`, {
+      method: "POST",
+      headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+      body: multipartBody,
+    }),
+    "Google Drive upload"
+  );
 }
 
 /**

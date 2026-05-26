@@ -47,11 +47,22 @@ type SearchOverlayState = {
   updatedAt: number;
 };
 
+type AuthorizedOverlayActions = {
+  expiresAt: number;
+  urls: Set<string>;
+  tabIds: Set<number>;
+  views: Set<string>;
+};
+
 type SessionCaptureResult = {
   session: Session;
   tabCount: number;
   mode: "save" | "collapse";
 };
+
+const OVERLAY_ACTION_TTL_MS = 5 * 60 * 1000;
+const MAX_SHARED_SESSION_TABS = 500;
+const authorizedOverlayActionsByTabId = new Map<number, AuthorizedOverlayActions>();
 
 function movePreferredTabFirst<T>(tabs: T[], preferredIndex: number): T[] {
   if (preferredIndex <= 0) {
@@ -88,6 +99,164 @@ const HISTORY_PERMISSION = { permissions: ["history"] };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function extensionOrigin(): string {
+  return new URL(chrome.runtime.getURL("/")).origin;
+}
+
+function isExtensionUrl(url: string | undefined): boolean {
+  if (!url) {
+    return false;
+  }
+
+  try {
+    return new URL(url).origin === extensionOrigin();
+  } catch {
+    return false;
+  }
+}
+
+function senderOwnsRuntime(sender: chrome.runtime.MessageSender): boolean {
+  return !sender.id || sender.id === chrome.runtime.id;
+}
+
+function isExtensionPageSender(sender: chrome.runtime.MessageSender): boolean {
+  return senderOwnsRuntime(sender) && isExtensionUrl(sender.url);
+}
+
+function isContentScriptSender(sender: chrome.runtime.MessageSender): boolean {
+  return (
+    senderOwnsRuntime(sender) &&
+    typeof sender.tab?.id === "number" &&
+    typeof sender.url === "string"
+  );
+}
+
+function isTrustedInternalSender(sender: chrome.runtime.MessageSender): boolean {
+  return isExtensionPageSender(sender) || isContentScriptSender(sender);
+}
+
+function isSharePageSender(sender: chrome.runtime.MessageSender): boolean {
+  if (!isExtensionPageSender(sender) || !sender.url) {
+    return false;
+  }
+
+  try {
+    return new URL(sender.url).pathname.endsWith("/share-page/index.html");
+  } catch {
+    return false;
+  }
+}
+
+function normalizeOpenableUrl(url: string): string | null {
+  const trimmed = url.trim();
+  if (!isValidUrl(trimmed) || isRestrictedUrl(trimmed)) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function getAuthorizedOverlayActions(tabId: number): AuthorizedOverlayActions | null {
+  const actions = authorizedOverlayActionsByTabId.get(tabId);
+  if (!actions) {
+    return null;
+  }
+
+  if (actions.expiresAt <= Date.now()) {
+    authorizedOverlayActionsByTabId.delete(tabId);
+    return null;
+  }
+
+  return actions;
+}
+
+function rememberOverlayRows(tabId: number, rows: OverlaySearchRow[]): void {
+  const existing = getAuthorizedOverlayActions(tabId);
+  const actions: AuthorizedOverlayActions = existing ?? {
+    expiresAt: Date.now() + OVERLAY_ACTION_TTL_MS,
+    urls: new Set<string>(),
+    tabIds: new Set<number>(),
+    views: new Set<string>(),
+  };
+
+  actions.expiresAt = Date.now() + OVERLAY_ACTION_TTL_MS;
+  for (const row of rows) {
+    if (row.action.kind === "url") {
+      const url = normalizeOpenableUrl(row.action.url);
+      if (url) {
+        actions.urls.add(url);
+      }
+      continue;
+    }
+
+    if (row.action.kind === "switch-tab") {
+      actions.tabIds.add(row.action.tabId);
+      continue;
+    }
+
+    if (typeof row.action.view === "string") {
+      actions.views.add(row.action.view);
+    }
+  }
+
+  authorizedOverlayActionsByTabId.set(tabId, actions);
+}
+
+function clearOverlayActionAuthorizations(tabId?: number): void {
+  if (typeof tabId === "number") {
+    authorizedOverlayActionsByTabId.delete(tabId);
+    return;
+  }
+
+  authorizedOverlayActionsByTabId.clear();
+}
+
+function isAuthorizedOverlaySender(sender: chrome.runtime.MessageSender): boolean {
+  return (
+    isContentScriptSender(sender) &&
+    typeof sender.tab?.id === "number" &&
+    getAuthorizedOverlayActions(sender.tab.id) !== null
+  );
+}
+
+function senderCanOpenUrl(sender: chrome.runtime.MessageSender, url: string): boolean {
+  if (isExtensionPageSender(sender)) {
+    return true;
+  }
+
+  const tabId = sender.tab?.id;
+  const actions = typeof tabId === "number" ? getAuthorizedOverlayActions(tabId) : null;
+  return Boolean(actions?.urls.has(url));
+}
+
+function senderCanSwitchToTab(sender: chrome.runtime.MessageSender, tabId: number): boolean {
+  if (isExtensionPageSender(sender)) {
+    return true;
+  }
+
+  const senderTabId = sender.tab?.id;
+  const actions = typeof senderTabId === "number" ? getAuthorizedOverlayActions(senderTabId) : null;
+  return Boolean(actions?.tabIds.has(tabId));
+}
+
+function senderCanOpenDashboard(sender: chrome.runtime.MessageSender, view: string): boolean {
+  if (isExtensionPageSender(sender)) {
+    return true;
+  }
+
+  const tabId = sender.tab?.id;
+  const actions = typeof tabId === "number" ? getAuthorizedOverlayActions(tabId) : null;
+  return Boolean(actions && (!view || actions.views.has(view)));
 }
 
 function isSaveMode(value: unknown): value is "save" | "collapse" {
@@ -235,6 +404,7 @@ function isShareSnapshot(value: unknown): value is ShareSnapshot {
     typeof value.description === "string" &&
     typeof value.createdAt === "number" &&
     Array.isArray(value.tabs) &&
+    value.tabs.length <= MAX_SHARED_SESSION_TABS &&
     value.tabs.every(
       (tab) => isRecord(tab) && typeof tab.title === "string" && typeof tab.url === "string"
     )
@@ -245,8 +415,8 @@ function snapshotTabToTabItem(
   tab: ShareSnapshot["tabs"][number],
   position: number
 ): TabItem | null {
-  const url = tab.url.trim();
-  if (!isValidUrl(url)) {
+  const url = normalizeOpenableUrl(tab.url);
+  if (!url) {
     return null;
   }
 
@@ -559,6 +729,7 @@ async function injectSearchOverlayScript(tabId: number): Promise<boolean> {
 async function sendSearchOverlayMessage(tabId: number, payload: OverlayPayload): Promise<boolean> {
   try {
     await chrome.tabs.sendMessage(tabId, { type: "tabsetu:open-overlay", payload });
+    rememberOverlayRows(tabId, payload.rows);
     return true;
   } catch {
     if (!(await injectSearchOverlayScript(tabId))) {
@@ -568,6 +739,7 @@ async function sendSearchOverlayMessage(tabId: number, payload: OverlayPayload):
 
   try {
     await chrome.tabs.sendMessage(tabId, { type: "tabsetu:open-overlay", payload });
+    rememberOverlayRows(tabId, payload.rows);
     return true;
   } catch {
     return false;
@@ -612,6 +784,7 @@ async function broadcastOverlayMessage(message: Record<string, unknown>): Promis
 }
 
 async function closeSearchOverlayEverywhere(): Promise<void> {
+  clearOverlayActionAuthorizations();
   await broadcastOverlayMessage({ type: "tabsetu:close-overlay" });
 }
 
@@ -809,18 +982,32 @@ function handleCollapseWindowShortcut(): void {
 }
 
 function registerRuntimeMessages(): void {
-  chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
     if (!isRecord(message)) {
       return undefined;
     }
 
+    if (!isTrustedInternalSender(sender)) {
+      sendResponse({ ok: false });
+      return undefined;
+    }
+
     if (message.type === "tabsetu:shortcut-open-search-overlay") {
+      if (!isContentScriptSender(sender)) {
+        sendResponse({ ok: false });
+        return undefined;
+      }
       handleOpenSearchShortcut({ requestHistoryPermission: false });
       sendResponse({ ok: true });
       return undefined;
     }
 
     if (message.type === "tabsetu:overlay-closed") {
+      if (!isContentScriptSender(sender)) {
+        sendResponse({ ok: false });
+        return undefined;
+      }
+      clearOverlayActionAuthorizations(sender.tab?.id);
       void handleSearchOverlayClosed()
         .then(() => sendResponse({ ok: true }))
         .catch(() => sendResponse({ ok: false }));
@@ -828,18 +1015,30 @@ function registerRuntimeMessages(): void {
     }
 
     if (message.type === "tabsetu:shortcut-save-window") {
+      if (!isContentScriptSender(sender)) {
+        sendResponse({ ok: false });
+        return undefined;
+      }
       handleSaveWindowShortcut();
       sendResponse({ ok: true });
       return undefined;
     }
 
     if (message.type === "tabsetu:shortcut-collapse-window") {
+      if (!isContentScriptSender(sender)) {
+        sendResponse({ ok: false });
+        return undefined;
+      }
       handleCollapseWindowShortcut();
       sendResponse({ ok: true });
       return undefined;
     }
 
     if (message.type === "tabsetu:get-pending-save-mode") {
+      if (!isExtensionPageSender(sender)) {
+        sendResponse({ ok: false, mode: null });
+        return undefined;
+      }
       const transient = getTransientStorage();
       transient.get([PENDING_SAVE_KEY], (result) => {
         const rawMode: unknown = result[PENDING_SAVE_KEY];
@@ -852,6 +1051,10 @@ function registerRuntimeMessages(): void {
     }
 
     if (message.type === "tabsetu:get-preferred-browser-tab") {
+      if (!isExtensionPageSender(sender)) {
+        sendResponse(null);
+        return undefined;
+      }
       void resolvePreferredBrowserTab()
         .then((tab) => sendResponse(tab))
         .catch(() => sendResponse(null));
@@ -859,7 +1062,12 @@ function registerRuntimeMessages(): void {
     }
 
     if (message.type === "tabsetu:open-url" && typeof message.url === "string") {
-      const url = message.url;
+      const url = normalizeOpenableUrl(message.url);
+      if (!url || !senderCanOpenUrl(sender, url)) {
+        sendResponse({ ok: false });
+        return undefined;
+      }
+
       void chrome.tabs
         .create({ url })
         .then(() => sendResponse({ ok: true }))
@@ -869,6 +1077,11 @@ function registerRuntimeMessages(): void {
 
     if (message.type === "tabsetu:switch-to-tab" && typeof message.tabId === "number") {
       const tabId = message.tabId;
+      if (!senderCanSwitchToTab(sender, tabId)) {
+        sendResponse({ ok: false });
+        return undefined;
+      }
+
       void chrome.tabs
         .get(tabId)
         .then(async (tab) => {
@@ -883,6 +1096,10 @@ function registerRuntimeMessages(): void {
     }
 
     if (message.type === "tabsetu:suspend-background-tabs") {
+      if (!isExtensionPageSender(sender)) {
+        sendResponse({ ok: false, count: 0 });
+        return undefined;
+      }
       void suspendBackgroundTabs()
         .then((count) => sendResponse({ ok: true, count }))
         .catch(() => sendResponse({ ok: false, count: 0 }));
@@ -890,6 +1107,10 @@ function registerRuntimeMessages(): void {
     }
 
     if (message.type === "tabsetu:has-history-permission") {
+      if (!isAuthorizedOverlaySender(sender)) {
+        sendResponse({ ok: false, granted: false });
+        return undefined;
+      }
       void hasHistoryPermission()
         .then((granted) => sendResponse({ ok: true, granted }))
         .catch(() => sendResponse({ ok: false, granted: false }));
@@ -898,17 +1119,28 @@ function registerRuntimeMessages(): void {
 
     if (message.type === "tabsetu:search-history" && typeof message.query === "string") {
       const query = message.query;
+      if (!isAuthorizedOverlaySender(sender) || typeof sender.tab?.id !== "number") {
+        sendResponse({ ok: false, rows: [] });
+        return undefined;
+      }
+      const senderTabId = sender.tab.id;
       void searchBrowserHistory(query)
-        .then((rows) => sendResponse({ ok: true, rows }))
+        .then((rows) => {
+          rememberOverlayRows(senderTabId, rows);
+          sendResponse({ ok: true, rows });
+        })
         .catch(() => sendResponse({ ok: false, rows: [] }));
       return true;
     }
 
     if (message.type === "tabsetu:open-dashboard") {
-      const view =
-        typeof message.view === "string" && message.view.trim()
-          ? `?view=${encodeURIComponent(message.view)}`
-          : "";
+      const rawView = typeof message.view === "string" ? message.view.trim() : "";
+      if (!senderCanOpenDashboard(sender, rawView)) {
+        sendResponse({ ok: false });
+        return undefined;
+      }
+
+      const view = rawView ? `?view=${encodeURIComponent(rawView)}` : "";
       void chrome.tabs
         .create({ url: chrome.runtime.getURL(`dashboard.html${view}`) })
         .then(() => sendResponse({ ok: true }))
@@ -917,6 +1149,10 @@ function registerRuntimeMessages(): void {
     }
 
     if (message.type === "IMPORT_SHARED_SESSION") {
+      if (!isSharePageSender(sender)) {
+        sendResponse({ ok: false });
+        return undefined;
+      }
       const snapshot = message.snapshot;
       if (!isShareSnapshot(snapshot)) {
         sendResponse({ ok: false });

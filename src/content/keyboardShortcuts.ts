@@ -29,7 +29,7 @@ function sendShortcut(type: string): void {
 window.addEventListener(
   "keydown",
   (event) => {
-    if (event.defaultPrevented || event.repeat) {
+    if (!event.isTrusted || event.defaultPrevented || event.repeat) {
       return;
     }
 

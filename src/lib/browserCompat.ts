@@ -237,13 +237,31 @@ export function launchOAuthFlow(url: string, interactive: boolean): Promise<stri
   return new Promise((resolve) => {
     let resolved = false;
     const TIMEOUT_MS = 120_000;
+    const callbackUrl = chrome.runtime.getURL("oauth-callback.html");
+
+    const isExpectedCallbackSender = (sender: chrome.runtime.MessageSender): boolean => {
+      if (sender.id && sender.id !== chrome.runtime.id) {
+        return false;
+      }
+
+      if (!sender.url) {
+        return false;
+      }
+
+      try {
+        return new URL(sender.url).pathname === new URL(callbackUrl).pathname;
+      } catch {
+        return false;
+      }
+    };
 
     const listener = (
       message: unknown,
-      _sender: chrome.runtime.MessageSender,
+      sender: chrome.runtime.MessageSender,
       sendResponse: (response?: unknown) => void
     ) => {
       if (
+        isExpectedCallbackSender(sender) &&
         typeof message === "object" &&
         message !== null &&
         (message as Record<string, unknown>).type === "tabsetu:oauth-callback"

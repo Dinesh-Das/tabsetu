@@ -12,7 +12,21 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: 24, cache: npm }
       - run: npm ci
-      - run: npm run build:all
+      - name: Build browser packages
+        run: npm run build:all
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          REQUIRE_GOOGLE_CLIENT_ID: "true"
+      - name: Verify OAuth client injection
+        run: |
+          if grep "__REPLACE_WITH_CLIENT_ID__" \
+            dist-browsers/chrome/manifest.json \
+            dist-browsers/edge/manifest.json \
+            dist-browsers/brave/manifest.json \
+            dist-browsers/firefox/manifest.json; then
+            echo "OAuth client ID placeholder found in release artifacts."
+            exit 1
+          fi
       - name: Zip browser builds
         run: |
           cd dist-browsers
