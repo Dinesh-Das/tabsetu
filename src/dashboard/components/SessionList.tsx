@@ -42,6 +42,9 @@ export default function SessionList(props: Props) {
 
       {controller.saveModalPrompt ? (
         <SaveModal
+          key={`${controller.saveModalPrompt.mode}:${
+            controller.saveModalPrompt.sourceTabId ?? "window"
+          }`}
           mode={controller.saveModalPrompt.mode}
           selectedTabIds={[]}
           preferredTitleTabId={controller.saveModalPrompt.sourceTabId}

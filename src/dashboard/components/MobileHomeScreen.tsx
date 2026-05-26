@@ -505,6 +505,7 @@ export default function MobileHomeScreen({
 
       {saveModalPrompt ? (
         <SaveModal
+          key={`${saveModalPrompt.mode}:${saveModalPrompt.sourceTabId ?? "window"}`}
           mode={saveModalPrompt.mode}
           selectedTabIds={[]}
           preferredTitleTabId={saveModalPrompt.sourceTabId}

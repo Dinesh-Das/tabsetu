@@ -88,6 +88,11 @@ export default function SaveModal({
   const [newTagName, setNewTagName] = useState("");
 
   useEffect(() => {
+    setIncludePinned(mode === "save" ? true : settings.collapseIncludesPinned);
+    setCloseAfterSave(mode === "collapse");
+  }, [mode, settings.collapseIncludesPinned]);
+
+  useEffect(() => {
     let cancelled = false;
 
     void Promise.all([
@@ -112,10 +117,19 @@ export default function SaveModal({
 
   const sheetTitle = useMemo(() => {
     const count = tabCount || selectedTabIds.length || 1;
-    return mode === "collapse" || closeAfterSave
-      ? `Save ${count} ${count === 1 ? "tab" : "tabs"}`
-      : `Save ${count} ${count === 1 ? "tab" : "tabs"}`;
-  }, [closeAfterSave, mode, selectedTabIds.length, tabCount]);
+    const noun = count === 1 ? "tab" : "tabs";
+    return closeAfterSave ? `Save and collapse ${count} ${noun}` : `Save ${count} ${noun}`;
+  }, [closeAfterSave, selectedTabIds.length, tabCount]);
+
+  const primaryActionLabel = useMemo(() => {
+    const count = tabCount || selectedTabIds.length;
+    if (count <= 0) {
+      return closeAfterSave ? "Save and collapse tabs" : "Save tabs";
+    }
+
+    const noun = count === 1 ? "tab" : "tabs";
+    return closeAfterSave ? `Save and collapse ${count} ${noun}` : `Save ${count} ${noun}`;
+  }, [closeAfterSave, selectedTabIds.length, tabCount]);
 
   const selectedFolder = folders.find((folder) => folder.id === folderId) ?? null;
 
@@ -197,7 +211,7 @@ export default function SaveModal({
         onCollapseSaved?.({ session, windowId });
         addToast(
           "success",
-          `Saved and closed ${tabs.length} ${tabs.length === 1 ? "tab" : "tabs"}.`
+          `Saved and collapsed ${tabs.length} ${tabs.length === 1 ? "tab" : "tabs"}.`
         );
       } else {
         addToast(
@@ -218,7 +232,7 @@ export default function SaveModal({
     <BottomSheet
       title={sheetTitle}
       subtitle={
-        closeAfterSave ? "Review details, then save and close." : "Review details before saving."
+        closeAfterSave ? "Review details, then save and collapse." : "Review details before saving."
       }
       onClose={onClose}
       className="save-bottom-sheet"
@@ -229,7 +243,7 @@ export default function SaveModal({
           disabled={isSaving || tabCount === 0}
           onClick={() => void handleSave()}
         >
-          {closeAfterSave ? `Save and close ${tabCount || ""} tabs` : `Save ${tabCount || ""} tabs`}
+          {primaryActionLabel}
         </button>
       }
     >

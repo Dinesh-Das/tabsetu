@@ -32,7 +32,7 @@
         "default": "Alt+Shift+Y",
         "mac": "Alt+Shift+Y"
       },
-      "description": "Save the current window as a TabSetu session"
+      "description": "Save the current tab as a TabSetu session"
     },
     "collapse-current-window": {
       "suggested_key": {

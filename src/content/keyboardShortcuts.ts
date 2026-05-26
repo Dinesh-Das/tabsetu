@@ -54,7 +54,7 @@ window.addEventListener(
     } else if (usesCollapseShortcut) {
       sendShortcut("tabsetu:shortcut-collapse-window");
     } else {
-      sendShortcut("tabsetu:shortcut-save-window");
+      sendShortcut("tabsetu:shortcut-save-tab");
     }
   },
   true

@@ -48,6 +48,10 @@ interface SaveModalState {
   selectedTabIds: number[];
 }
 
+function saveModalInstanceKey(state: SaveModalState): string {
+  return `${state.mode}:${state.selectedTabIds.join(",")}`;
+}
+
 function titleForView(view: PopupView): string {
   switch (view) {
     case "folders":
@@ -155,8 +159,19 @@ function PopupAppContent() {
           typeof response === "object" &&
           (response as Record<string, unknown>).mode
         ) {
-          const mode = (response as Record<string, unknown>).mode as "save" | "collapse";
-          setSaveModalState({ mode, selectedTabIds: [] });
+          const record = response as Record<string, unknown>;
+          const mode = record.mode;
+          const responseTabIds = record.selectedTabIds;
+          const pendingSelectedTabIds = Array.isArray(responseTabIds)
+            ? responseTabIds.filter(
+                (tabId): tabId is number =>
+                  Number.isInteger(tabId) && tabId > 0 && Number.isSafeInteger(tabId)
+              )
+            : [];
+
+          if (mode === "save" || mode === "collapse") {
+            setSaveModalState({ mode, selectedTabIds: pendingSelectedTabIds });
+          }
         }
       })
       .finally(() => {
@@ -352,6 +367,7 @@ function PopupAppContent() {
 
         {saveModalState ? (
           <SaveModal
+            key={saveModalInstanceKey(saveModalState)}
             mode={saveModalState.mode}
             selectedTabIds={saveModalState.selectedTabIds}
             onClose={() => setSaveModalState(null)}
@@ -397,6 +413,7 @@ function PopupAppContent() {
 
       {saveModalState ? (
         <SaveModal
+          key={saveModalInstanceKey(saveModalState)}
           mode={saveModalState.mode}
           selectedTabIds={saveModalState.selectedTabIds}
           onClose={() => setSaveModalState(null)}

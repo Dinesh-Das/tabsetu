@@ -75,7 +75,11 @@ export async function notifySessionCaptured(result: SessionCaptureResult): Promi
       type: "basic",
       iconUrl: chrome.runtime.getURL("icons/icon128.png"),
       title:
-        result.mode === "collapse" ? "TabSetu collapsed this window" : "TabSetu saved this window",
+        result.mode === "collapse"
+          ? "TabSetu saved and collapsed this window"
+          : result.tabCount === 1
+            ? "TabSetu saved this tab"
+            : "TabSetu saved this window",
       message: `"${result.session.name}" - ${result.tabCount} ${
         result.tabCount === 1 ? "tab" : "tabs"
       }.`,

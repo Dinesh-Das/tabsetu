@@ -60,6 +60,11 @@ type SessionCaptureResult = {
   mode: "save" | "collapse";
 };
 
+type PendingSaveAction = {
+  mode: "save" | "collapse";
+  selectedTabIds: number[];
+};
+
 const OVERLAY_ACTION_TTL_MS = 5 * 60 * 1000;
 const MAX_SHARED_SESSION_TABS = 500;
 const authorizedOverlayActionsByTabId = new Map<number, AuthorizedOverlayActions>();
@@ -263,6 +268,32 @@ function isSaveMode(value: unknown): value is "save" | "collapse" {
   return value === "save" || value === "collapse";
 }
 
+function isTabIdArray(value: unknown): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.every((item) => Number.isInteger(item) && item > 0 && Number.isSafeInteger(item))
+  );
+}
+
+function pendingSaveActionFromStorage(value: unknown): PendingSaveAction | null {
+  if (isSaveMode(value)) {
+    return { mode: value, selectedTabIds: [] };
+  }
+
+  if (!isRecord(value) || !isSaveMode(value.mode)) {
+    return null;
+  }
+
+  return {
+    mode: value.mode,
+    selectedTabIds: isTabIdArray(value.selectedTabIds) ? value.selectedTabIds : [],
+  };
+}
+
+function isCapturableTab(tab: chrome.tabs.Tab | null | undefined): tab is chrome.tabs.Tab {
+  return Boolean(tab?.url && !isRestrictedUrl(tab.url) && isValidUrl(tab.url));
+}
+
 async function hasHistoryPermission(): Promise<boolean> {
   if (historyPermissionKnown) {
     return historyPermissionGranted;
@@ -326,7 +357,7 @@ export async function createSessionFromWindow(
   const { sessions, settings } = await loadStorage();
   const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
   const eligibleTabs = tabs.filter((tab) => {
-    if (!tab.url || isRestrictedUrl(tab.url)) {
+    if (!isCapturableTab(tab)) {
       return false;
     }
 
@@ -391,6 +422,37 @@ export async function createSessionFromWindow(
   }
 
   return { session, tabCount: savedTabs.length, mode };
+}
+
+async function createSessionFromTab(tab: chrome.tabs.Tab): Promise<SessionCaptureResult | null> {
+  if (!isCapturableTab(tab)) {
+    return null;
+  }
+
+  const { sessions } = await loadStorage();
+  const createdAt = Date.now();
+  const savedTab = await chromeTabToTabItemWithFavicon(tab, 0);
+  const session: Session = {
+    id: generateId("session"),
+    name: defaultSavedSessionTitle(false, [savedTab]),
+    description: "",
+    folderId: null,
+    tagIds: [],
+    tabs: [savedTab],
+    note: "",
+    color: null,
+    icon: null,
+    openCount: 0,
+    createdAt,
+    updatedAt: createdAt,
+    lastOpenedAt: null,
+    version: 1,
+    isPinned: false,
+    isArchived: false,
+  };
+
+  await saveSessions([session, ...sessions]);
+  return { session, tabCount: 1, mode: "save" };
 }
 
 function isShareSnapshot(value: unknown): value is ShareSnapshot {
@@ -908,11 +970,29 @@ function handleOpenSearchShortcut(options: { requestHistoryPermission: boolean }
   );
 }
 
-async function openPopupWithSaveMode(mode: "save" | "collapse"): Promise<boolean> {
+async function resolveShortcutTab(sourceTabId?: number): Promise<chrome.tabs.Tab | null> {
+  if (typeof sourceTabId === "number") {
+    const sourceTab = await chrome.tabs.get(sourceTabId).catch(() => null);
+    if (isCapturableTab(sourceTab)) {
+      return sourceTab;
+    }
+  }
+
+  const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  return isCapturableTab(activeTab) ? activeTab : null;
+}
+
+async function openPopupWithSaveMode(
+  mode: "save" | "collapse",
+  selectedTabIds: number[] = []
+): Promise<boolean> {
+  let transient: chrome.storage.StorageArea | null = null;
   try {
-    const transient = getTransientStorage();
+    const storageArea = getTransientStorage();
+    transient = storageArea;
+    const action: PendingSaveAction = { mode, selectedTabIds };
     await new Promise<void>((resolve) => {
-      transient.set({ [PENDING_SAVE_KEY]: mode }, () => resolve());
+      storageArea.set({ [PENDING_SAVE_KEY]: action }, () => resolve());
     });
 
     if (typeof chrome.action.openPopup === "function") {
@@ -923,33 +1003,47 @@ async function openPopupWithSaveMode(mode: "save" | "collapse"): Promise<boolean
     // openPopup may throw if not supported or no user gesture.
   }
 
+  if (transient) {
+    await new Promise<void>((resolve) => {
+      transient.remove(PENDING_SAVE_KEY, () => resolve());
+    });
+  }
+
   return false;
 }
 
-function handleSaveWindowShortcut(): void {
-  if (shouldIgnoreShortcutAction("save-current-window")) {
+function handleSaveTabShortcut(sourceTabId?: number): void {
+  if (shouldIgnoreShortcutAction("save-current-tab")) {
     return;
   }
 
-  void openPopupWithSaveMode("save").then((opened) => {
-    if (opened) {
-      return;
-    }
-
-    // Fallback: popup couldn't open, save immediately as before.
-    void createSessionFromWindow("save")
-      .then((result) => {
-        if (result) {
-          void notifySessionCaptured(result);
-          return;
-        }
-        void notifyCommandProblem(
-          "No tabs saved",
-          "TabSetu did not find any regular pages in the current window."
+  void resolveShortcutTab(sourceTabId)
+    .then(async (tab) => {
+      if (!tab || typeof tab.id !== "number") {
+        await notifyCommandProblem(
+          "No tab saved",
+          "TabSetu can only save regular http and https pages."
         );
-      })
-      .catch(() => notifyCommandProblem("TabSetu could not save this window", "Please try again."));
-  });
+        return;
+      }
+
+      const opened = await openPopupWithSaveMode("save", [tab.id]);
+      if (opened) {
+        return;
+      }
+
+      const result = await createSessionFromTab(tab);
+      if (result) {
+        await notifySessionCaptured(result);
+        return;
+      }
+
+      await notifyCommandProblem(
+        "No tabs saved",
+        "TabSetu can only save regular http and https pages."
+      );
+    })
+    .catch(() => notifyCommandProblem("TabSetu could not save this tab", "Please try again."));
 }
 
 function handleCollapseWindowShortcut(): void {
@@ -1014,12 +1108,15 @@ function registerRuntimeMessages(): void {
       return true;
     }
 
-    if (message.type === "tabsetu:shortcut-save-window") {
+    if (
+      message.type === "tabsetu:shortcut-save-tab" ||
+      message.type === "tabsetu:shortcut-save-window"
+    ) {
       if (!isContentScriptSender(sender)) {
         sendResponse({ ok: false });
         return undefined;
       }
-      handleSaveWindowShortcut();
+      handleSaveTabShortcut(sender.tab?.id);
       sendResponse({ ok: true });
       return undefined;
     }
@@ -1041,11 +1138,14 @@ function registerRuntimeMessages(): void {
       }
       const transient = getTransientStorage();
       transient.get([PENDING_SAVE_KEY], (result) => {
-        const rawMode: unknown = result[PENDING_SAVE_KEY];
-        const mode = isSaveMode(rawMode) ? rawMode : null;
+        const action = pendingSaveActionFromStorage(result[PENDING_SAVE_KEY]);
         // Clear the pending flag after reading it.
         transient.remove(PENDING_SAVE_KEY, () => undefined);
-        sendResponse({ ok: true, mode });
+        sendResponse({
+          ok: true,
+          mode: action?.mode ?? null,
+          selectedTabIds: action?.selectedTabIds ?? [],
+        });
       });
       return true;
     }
@@ -1175,8 +1275,8 @@ function registerCommands(): void {
       handleOpenSearchShortcut({ requestHistoryPermission: true });
     }
 
-    if (command === "save-current-window") {
-      handleSaveWindowShortcut();
+    if (command === "save-current-tab" || command === "save-current-window") {
+      handleSaveTabShortcut();
     }
 
     if (command === "collapse-current-window") {
