@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { normalizeImportedStorageData } from "@/lib/storage";
+import { DEFAULT_SETTINGS, normalizeImportedStorageData } from "@/lib/storage";
 
 describe("normalizeImportedStorageData", () => {
+  it("keeps browser history search off by default", () => {
+    expect(DEFAULT_SETTINGS.browserHistorySearchEnabled).toBe(false);
+    expect(DEFAULT_SETTINGS.searchScopes.browserHistory).toBe(false);
+    expect(normalizeImportedStorageData({ sessions: [] }).settings.browserHistorySearchEnabled).toBe(
+      false
+    );
+  });
+
   it("reindexes positions and normalizes imported entities", () => {
     const result = normalizeImportedStorageData({
       folders: [

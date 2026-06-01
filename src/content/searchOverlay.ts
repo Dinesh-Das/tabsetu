@@ -4,11 +4,12 @@ import type { Settings } from "@/types";
 type OverlayPayload = {
   rows: OverlaySearchRow[];
   searchScopes: Settings["searchScopes"];
+  browserHistorySearchEnabled: boolean;
   fuzzySearchThreshold: number;
   theme: Settings["theme"];
 };
 
-type HistorySearchState = "idle" | "loading" | "unavailable" | "error";
+type HistorySearchState = "idle" | "off" | "loading" | "unavailable" | "error";
 
 type MountedOverlay = {
   host: HTMLDivElement;
@@ -33,7 +34,8 @@ function isSearchScopes(value: unknown): value is Settings["searchScopes"] {
     typeof value.tabs === "boolean" &&
     typeof value.notes === "boolean" &&
     typeof value.tags === "boolean" &&
-    typeof value.folders === "boolean"
+    typeof value.folders === "boolean" &&
+    typeof value.browserHistory === "boolean"
   );
 }
 
@@ -57,6 +59,7 @@ function isOverlayPayload(value: unknown): value is OverlayPayload {
     Array.isArray(value.rows) &&
     value.rows.every(isOverlaySearchRow) &&
     isSearchScopes(value.searchScopes) &&
+    typeof value.browserHistorySearchEnabled === "boolean" &&
     typeof value.fuzzySearchThreshold === "number" &&
     (value.theme === "light" || value.theme === "dark" || value.theme === "system")
   );
@@ -233,11 +236,17 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
       empty.className = "empty";
       if (historyState === "loading") {
         empty.textContent = "Searching browser history...";
-      } else if (historyState === "unavailable" || historyState === "error") {
-        empty.textContent = "History search is unavailable. Check extension permissions.";
+      } else if (
+        historyState === "off" ||
+        historyState === "unavailable" ||
+        historyState === "error"
+      ) {
+        empty.textContent = "Browser history search is off.";
       } else {
         empty.textContent = input.value.trim()
-          ? "No tabs, sessions, or history match that search."
+          ? payload.browserHistorySearchEnabled
+            ? "No tabs, sessions, or history match that search."
+            : "No tabs or sessions match that search."
           : "Start typing to search TabSetu.";
       }
       resultsNode.appendChild(empty);
@@ -279,10 +288,14 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
       status.className = "status";
       status.textContent = "Searching browser history...";
       resultsNode.appendChild(status);
-    } else if (historyState === "unavailable" || historyState === "error") {
+    } else if (
+      historyState === "off" ||
+      historyState === "unavailable" ||
+      historyState === "error"
+    ) {
       const status = document.createElement("div");
       status.className = "status";
-      status.textContent = "History search is unavailable. Check extension permissions.";
+      status.textContent = "Browser history search is off.";
       resultsNode.appendChild(status);
     }
   };
@@ -305,6 +318,13 @@ function mountTabSetuSearchOverlay(payload: OverlayPayload): void {
     if (query.length < 3) {
       historyRows = [];
       historyState = "idle";
+      updateVisibleRows();
+      return;
+    }
+
+    if (!payload.browserHistorySearchEnabled) {
+      historyRows = [];
+      historyState = "off";
       updateVisibleRows();
       return;
     }

@@ -2,7 +2,8 @@
  * Google Drive appDataFolder sync helpers using cross-browser WebExtension OAuth.
  */
 import type { StorageData } from "@/types";
-import { getOAuthRedirectUrl, launchOAuthFlow } from "@/lib/browserCompat";
+import { getOAuthRedirectUrl, hasIdentityApi, launchOAuthFlow } from "@/lib/browserCompat";
+import { removeOptionalPermission, requestOptionalPermission } from "@/lib/optionalPermissions";
 
 const SYNC_FILE_NAME = "tabsetu-sync.json";
 const DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files";
@@ -398,6 +399,10 @@ async function findSyncFile(token: string): Promise<DriveFile | null> {
  * Opens the Google account consent flow and returns an OAuth access token, or null on failure.
  */
 export async function signIn(): Promise<string | null> {
+  if (hasIdentityApi() && !(await requestOptionalPermission("identity"))) {
+    return null;
+  }
+
   return requestToken(true);
 }
 
@@ -418,6 +423,7 @@ export async function signOut(): Promise<void> {
   }
 
   await storageRemoveToken();
+  await removeOptionalPermission("identity");
 }
 
 /**

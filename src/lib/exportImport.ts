@@ -6,16 +6,11 @@ import {
 import {
   clampText,
   generateId,
-  isRestrictedUrl,
   isValidUrl,
   sanitizeLabel,
   stripHtml,
 } from "@/lib/tabHelpers";
 import type { AIShareConfig, Session, StorageData, TabItem } from "@/types";
-
-const MAX_PAGE_TEXT_TABS = 8;
-const MAX_PAGE_TEXT_CHARS_PER_TAB = 12_000;
-const PAGE_TEXT_FETCH_TIMEOUT_MS = 5_000;
 
 function downloadFile(content: string, fileName: string, mimeType: string): void {
   const blob = new Blob([content], { type: mimeType });
@@ -752,95 +747,4 @@ export function generateAIPrompt(session: Session, config?: Partial<AIShareConfi
   ]
     .filter(Boolean)
     .join("\n");
-}
-
-async function fetchTabPageText(url: string): Promise<string | null> {
-  if (!isValidUrl(url) || isRestrictedUrl(url)) {
-    return null;
-  }
-
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return null;
-    }
-  } catch {
-    return null;
-  }
-
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), PAGE_TEXT_FETCH_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(url, {
-      credentials: "omit",
-      referrerPolicy: "no-referrer",
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      return null;
-    }
-
-    const contentType = response.headers.get("content-type") ?? "";
-    if (contentType && !contentType.toLowerCase().includes("text/html")) {
-      return null;
-    }
-
-    const html = await limitedResponseText(response, MAX_PAGE_TEXT_CHARS_PER_TAB * 2);
-    return clampText(stripHtml(html), MAX_PAGE_TEXT_CHARS_PER_TAB);
-  } catch {
-    return null;
-  } finally {
-    window.clearTimeout(timeoutId);
-  }
-}
-
-async function limitedResponseText(response: Response, maxChars: number): Promise<string> {
-  const reader = response.body?.getReader();
-  if (!reader) {
-    return (await response.text()).slice(0, maxChars);
-  }
-
-  const decoder = new TextDecoder();
-  let text = "";
-
-  while (text.length < maxChars) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-
-    text += decoder.decode(value, { stream: true });
-  }
-
-  await reader.cancel().catch(() => undefined);
-  return text.slice(0, maxChars);
-}
-
-export async function generateAIPromptWithPageText(
-  session: Session,
-  config?: Partial<AIShareConfig>
-): Promise<string> {
-  const basePrompt = generateAIPrompt(session, config);
-  const pageTexts = await Promise.all(
-    session.tabs.slice(0, MAX_PAGE_TEXT_TABS).map(async (tab) => ({
-      tab,
-      text: await fetchTabPageText(tab.url),
-    }))
-  );
-
-  const availableTexts = pageTexts.filter(
-    (item): item is { tab: Session["tabs"][number]; text: string } => Boolean(item.text)
-  );
-
-  if (availableTexts.length === 0) {
-    return `${basePrompt}\n\nPage text:\nNo page text could be fetched from the saved URLs. Use the saved titles, URLs, and notes above.`;
-  }
-
-  return [
-    basePrompt,
-    "",
-    "Page text:",
-    ...availableTexts.flatMap((item) => ["", `## ${item.tab.title}`, item.tab.url, item.text]),
-  ].join("\n");
 }

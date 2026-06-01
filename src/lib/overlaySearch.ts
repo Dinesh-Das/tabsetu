@@ -80,6 +80,7 @@ export function scoreOverlayRows(
     notes: true,
     tags: true,
     folders: true,
+    browserHistory: false,
   };
 
   const keys: Array<{ name: keyof OverlaySearchRow; weight: number }> = [];
@@ -88,6 +89,7 @@ export function scoreOverlayRows(
   const useNotes = scopes.notes ?? true;
   const useTags = scopes.tags ?? true;
   const useFolders = scopes.folders ?? true;
+  const useBrowserHistory = scopes.browserHistory ?? false;
 
   if (useSessions) {
     keys.push({ name: "sessionName", weight: 0.3 }, { name: "sessionDescription", weight: 0.12 });
@@ -109,7 +111,11 @@ export function scoreOverlayRows(
   if (useTabs) {
     keys.push(
       { name: "tabTitle", weight: 0.14 },
-      { name: "tabUrl", weight: 0.1 },
+      { name: "tabUrl", weight: 0.1 }
+    );
+  }
+  if (useBrowserHistory) {
+    keys.push(
       { name: "historyTitle", weight: 0.14 },
       { name: "historyUrl", weight: 0.1 }
     );

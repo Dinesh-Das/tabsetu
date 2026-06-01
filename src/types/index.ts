@@ -115,6 +115,7 @@ export interface Settings {
   remindersEnabled: boolean;
   searchOverlayEnabled: boolean;
   searchOverlayShortcut: string;
+  browserHistorySearchEnabled: boolean;
   quickInfoEnabled: boolean;
   quickInfoDelayMs: 200 | 400 | 700;
   aiEnabled: boolean;
@@ -131,6 +132,7 @@ export interface Settings {
     notes: boolean;
     tags: boolean;
     folders: boolean;
+    browserHistory: boolean;
   };
   fuzzySearchThreshold: number;
   autoArchiveDays: 30 | 60 | 90 | null;

@@ -5,10 +5,10 @@ import {
   copyLinksToClipboard,
   downloadMarkdown,
   generateAIPrompt,
-  generateAIPromptWithPageText,
   sessionToMarkdown,
   sessionToPlainText,
 } from "@/lib/exportImport";
+import { normalizeCustomAIProviderUrl } from "@/lib/aiPromptSharing";
 import { createShareSnapshot, encodeShareSnapshot, tryGenerateShareUrl } from "@/lib/shareEncoder";
 import { copyTextToClipboard } from "@/lib/sessionBrowser";
 import { useShareStore } from "@/store/shareStore";
@@ -31,7 +31,7 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
   const settings = useSettingsStore((state) => state.settings);
   const createShareLink = useShareStore((state) => state.createShareLink);
   const [includeNotes, setIncludeNotes] = useState(settings.exportIncludeNotes);
-  const [includePageText, setIncludePageText] = useState(false);
+  const [shareDisclosureAccepted, setShareDisclosureAccepted] = useState(false);
   const [tooLargeTabCount, setTooLargeTabCount] = useState<number | null>(null);
 
   const promptConfig = {
@@ -47,20 +47,24 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
   };
 
   const openProvider = async (url: string) => {
-    const generatedPrompt = includePageText
-      ? await generateAIPromptWithPageText(session, promptConfig)
-      : generateAIPrompt(session, promptConfig);
+    const normalizedUrl = normalizeCustomAIProviderUrl(url);
+    if (!normalizedUrl) {
+      addToast("error", "Enter a valid HTTPS URL for the custom AI provider.");
+      return;
+    }
+
+    const generatedPrompt = generateAIPrompt(session, promptConfig);
     const prompt = settings.customAIPromptTemplate
       ? settings.customAIPromptTemplate.replace("{{session}}", generatedPrompt)
       : generatedPrompt;
     await copy("AI prompt", prompt);
-    await chrome.tabs.create({ url, active: true });
+    await chrome.tabs.create({ url: normalizedUrl, active: true });
   };
 
   return (
     <ModalShell
       title="Share session"
-      description="Export links, copy an AI prompt, or create a private encoded link."
+      description="Export links, copy an AI-ready prompt, or create an encoded local snapshot."
       onClose={onClose}
       maxWidth={540}
       footer={
@@ -83,20 +87,22 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
             onChange={(event) => setIncludeNotes(event.target.checked)}
           />
         </label>
-        <label className="toggle-row">
-          <span>
-            <strong style={{ display: "block", marginBottom: 4 }}>Include page text</strong>
-            <span style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
-              Best-effort fetch from saved URLs. Pages that require sign-in or block fetches fall
-              back to saved context.
-            </span>
-          </span>
-          <input
-            type="checkbox"
-            checked={includePageText}
-            onChange={(event) => setIncludePageText(event.target.checked)}
-          />
-        </label>
+        <div className="card-raised" style={{ padding: 14 }}>
+          <strong>Encoded share-link privacy</strong>
+          <p style={{ color: "var(--color-text-muted)", fontSize: 12, margin: "8px 0 0" }}>
+            A share link is an encoded local snapshot, not a hosted cloud link. Share links and
+            exports may include tab titles, URLs, notes, folder or tag names, and session metadata,
+            depending on the format. Anyone with the link or file can view or import that snapshot.
+          </p>
+          <label style={{ display: "flex", gap: 8, marginTop: 10, fontSize: 12 }}>
+            <input
+              type="checkbox"
+              checked={shareDisclosureAccepted}
+              onChange={(event) => setShareDisclosureAccepted(event.target.checked)}
+            />
+            I understand what may be included before creating a share link.
+          </label>
+        </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <button
@@ -126,6 +132,7 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
           <button
             className="btn btn-secondary"
             type="button"
+            disabled={!shareDisclosureAccepted}
             onClick={() => {
               const result = tryGenerateShareUrl(session);
               if (!result.ok) {
@@ -153,9 +160,7 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
             type="button"
             onClick={() => {
               void (async () => {
-                const prompt = includePageText
-                  ? await generateAIPromptWithPageText(session, promptConfig)
-                  : generateAIPrompt(session, promptConfig);
+                const prompt = generateAIPrompt(session, promptConfig);
                 await copy("AI prompt", prompt);
               })();
             }}
@@ -168,8 +173,7 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
         {tooLargeTabCount ? (
           <div className="card-raised share-too-large">
             <p>
-              This session has {tooLargeTabCount} tabs and is too large to share via link. Use{" "}
-              <strong>Export - Markdown</strong> to share it instead.
+              This session is too large for a URL. Export Markdown or JSON instead.
             </p>
             <button
               className="btn btn-secondary"
@@ -183,7 +187,12 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
         ) : null}
 
         <div className="card-raised" style={{ padding: 14 }}>
-          <strong>Open with AI</strong>
+          <strong>AI prompt sharing</strong>
+          <p style={{ color: "var(--color-text-muted)", fontSize: 12, margin: "8px 0 0" }}>
+            Prompt contents may include tab titles, URLs, notes, and selected metadata. TabSetu
+            copies the prompt and opens the provider only when you choose one. The selected
+            third-party provider's own privacy terms apply after you open or submit there.
+          </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
             {PROVIDERS.map((provider) => (
               <button

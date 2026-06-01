@@ -49,7 +49,7 @@ export default defineConfig(({ mode }) => {
         targets: [
           { src: "share-page/*", dest: "share-page" },
           { src: "node_modules/lz-string/libs/lz-string.min.js", dest: "share-page/vendor" },
-          { src: "oauth-callback.html", dest: "." },
+          { src: "oauth-callback.*", dest: "." },
         ],
       }),
     ],

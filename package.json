@@ -1,7 +1,8 @@
 {
   "name": "tabsetu",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "TabSetu - Save your tabs. Clear your mind.",
+  "license": "MIT",
   "type": "module",
   "private": true,
   "scripts": {
@@ -21,7 +22,9 @@
     "lint": "eslint src --ext ts,tsx --max-warnings 0",
     "lint:fix": "eslint src --ext ts,tsx --fix",
     "format": "prettier --write src",
-    "format:check": "prettier --check src"
+    "format:check": "prettier --check src",
+    "compliance:check": "node scripts/compliance-check.mjs",
+    "verify": "npm run type-check && npm run type-check:strict && npm run lint && npm test && npm run build:all && npm run compliance:check"
   },
   "dependencies": {
     "framer-motion": "^11.3.8",

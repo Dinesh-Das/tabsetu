@@ -78,6 +78,9 @@ function toSafariManifest(manifest) {
   const permissions = (rest.permissions ?? []).filter(
     (perm) => perm !== "identity"
   );
+  const optionalPermissions = (rest.optional_permissions ?? []).filter(
+    (perm) => perm !== "identity"
+  );
 
   const webAccessibleResources = (rest.web_accessible_resources ?? []).map(
     (entry) => {
@@ -92,6 +95,7 @@ function toSafariManifest(manifest) {
   return {
     ...rest,
     permissions,
+    optional_permissions: optionalPermissions,
     web_accessible_resources: webAccessibleResources,
   };
 }

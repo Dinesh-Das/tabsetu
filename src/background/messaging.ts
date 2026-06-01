@@ -31,6 +31,7 @@ import {
 } from "@/background/notifications";
 import { resolvePreferredBrowserTab, storeBrowserTab } from "@/background/tabTracking";
 import { getTransientStorage } from "@/lib/browserCompat";
+import { hasOptionalPermission } from "@/lib/optionalPermissions";
 
 const PENDING_SAVE_KEY = "tabsetuPendingSaveMode";
 const SEARCH_OVERLAY_STATE_KEY = "tabsetuSearchOverlayState";
@@ -38,6 +39,7 @@ const SEARCH_OVERLAY_STATE_KEY = "tabsetuSearchOverlayState";
 type OverlayPayload = {
   rows: OverlaySearchRow[];
   searchScopes: Settings["searchScopes"];
+  browserHistorySearchEnabled: boolean;
   fuzzySearchThreshold: number;
   theme: Settings["theme"];
 };
@@ -95,12 +97,6 @@ async function preferredTitleTabIndex(tabs: chrome.tabs.Tab[]): Promise<number> 
 
   return tabs.findIndex((tab) => tab.id === preferred.id);
 }
-
-let historyPermissionKnown = false;
-let historyPermissionGranted = false;
-let historyPermissionRequestStarted = false;
-
-const HISTORY_PERMISSION = { permissions: ["history"] };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -295,60 +291,11 @@ function isCapturableTab(tab: chrome.tabs.Tab | null | undefined): tab is chrome
 }
 
 async function hasHistoryPermission(): Promise<boolean> {
-  if (historyPermissionKnown) {
-    return historyPermissionGranted;
-  }
-
   if (typeof chrome.history?.search !== "function") {
-    historyPermissionKnown = true;
-    historyPermissionGranted = false;
-    return historyPermissionGranted;
+    return false;
   }
 
-  if (typeof chrome.permissions?.contains !== "function") {
-    historyPermissionKnown = true;
-    historyPermissionGranted = true;
-    return historyPermissionGranted;
-  }
-
-  try {
-    historyPermissionGranted = await chrome.permissions.contains(HISTORY_PERMISSION);
-  } catch {
-    historyPermissionGranted = false;
-  }
-  historyPermissionKnown = true;
-  return historyPermissionGranted;
-}
-
-function requestHistoryPermissionFromCommand(): void {
-  if (historyPermissionGranted || historyPermissionRequestStarted) {
-    return;
-  }
-
-  historyPermissionRequestStarted = true;
-  void (async () => {
-    if (await hasHistoryPermission()) {
-      historyPermissionRequestStarted = false;
-      return;
-    }
-
-    if (typeof chrome.permissions?.request !== "function") {
-      historyPermissionRequestStarted = false;
-      return;
-    }
-
-    try {
-      chrome.permissions.request(HISTORY_PERMISSION, (granted) => {
-        historyPermissionKnown = true;
-        historyPermissionGranted = Boolean(granted) && !chrome.runtime.lastError;
-        historyPermissionRequestStarted = false;
-      });
-    } catch {
-      historyPermissionKnown = true;
-      historyPermissionGranted = false;
-      historyPermissionRequestStarted = false;
-    }
-  })();
+  return hasOptionalPermission("history");
 }
 
 export async function createSessionFromWindow(
@@ -575,6 +522,11 @@ async function searchBrowserHistory(query: string): Promise<OverlaySearchRow[]> 
     return [];
   }
 
+  const { settings } = await loadStorage();
+  if (!settings.browserHistorySearchEnabled || !settings.searchScopes.browserHistory) {
+    return [];
+  }
+
   if (!(await hasHistoryPermission())) {
     return [];
   }
@@ -677,6 +629,8 @@ async function buildOverlayPayload(data: StorageData): Promise<OverlayPayload> {
   return {
     rows,
     searchScopes: settings.searchScopes,
+    browserHistorySearchEnabled:
+      settings.browserHistorySearchEnabled && settings.searchScopes.browserHistory,
     fuzzySearchThreshold: settings.fuzzySearchThreshold,
     theme: settings.theme,
   };
@@ -956,13 +910,9 @@ function shouldIgnoreShortcutAction(action: string): boolean {
   return now - previous < SHORTCUT_ACTION_DEBOUNCE_MS;
 }
 
-function handleOpenSearchShortcut(options: { requestHistoryPermission: boolean }): void {
+function handleOpenSearchShortcut(): void {
   if (shouldIgnoreShortcutAction("open-search-overlay")) {
     return;
-  }
-
-  if (options.requestHistoryPermission) {
-    requestHistoryPermissionFromCommand();
   }
 
   void openSearchOverlay().catch(() =>
@@ -1091,7 +1041,7 @@ function registerRuntimeMessages(): void {
         sendResponse({ ok: false });
         return undefined;
       }
-      handleOpenSearchShortcut({ requestHistoryPermission: false });
+      handleOpenSearchShortcut();
       sendResponse({ ok: true });
       return undefined;
     }
@@ -1272,7 +1222,7 @@ function registerRuntimeMessages(): void {
 function registerCommands(): void {
   chrome.commands.onCommand.addListener((command) => {
     if (command === "open-search-overlay") {
-      handleOpenSearchShortcut({ requestHistoryPermission: true });
+      handleOpenSearchShortcut();
     }
 
     if (command === "save-current-tab" || command === "save-current-window") {

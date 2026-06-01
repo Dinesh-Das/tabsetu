@@ -58,6 +58,7 @@ export const DEFAULT_SETTINGS: Settings = {
   remindersEnabled: true,
   searchOverlayEnabled: true,
   searchOverlayShortcut: "Ctrl+Shift+F",
+  browserHistorySearchEnabled: false,
   quickInfoEnabled: true,
   quickInfoDelayMs: 400,
   aiEnabled: true,
@@ -74,6 +75,7 @@ export const DEFAULT_SETTINGS: Settings = {
     notes: true,
     tags: true,
     folders: true,
+    browserHistory: false,
   },
   fuzzySearchThreshold: 0.32,
   autoArchiveDays: null,
@@ -546,6 +548,10 @@ function normalizeSettings(raw: unknown): Settings {
       raw.searchOverlayShortcut,
       DEFAULT_SETTINGS.searchOverlayShortcut
     ),
+    browserHistorySearchEnabled: asBoolean(
+      raw.browserHistorySearchEnabled,
+      DEFAULT_SETTINGS.browserHistorySearchEnabled
+    ),
     quickInfoEnabled: asBoolean(raw.quickInfoEnabled, DEFAULT_SETTINGS.quickInfoEnabled),
     quickInfoDelayMs:
       quickInfoDelayMs === 200 || quickInfoDelayMs === 400 || quickInfoDelayMs === 700
@@ -578,6 +584,10 @@ function normalizeSettings(raw: unknown): Settings {
       notes: asBoolean(rawScopes.notes, DEFAULT_SETTINGS.searchScopes.notes),
       tags: asBoolean(rawScopes.tags, DEFAULT_SETTINGS.searchScopes.tags),
       folders: asBoolean(rawScopes.folders, DEFAULT_SETTINGS.searchScopes.folders),
+      browserHistory: asBoolean(
+        rawScopes.browserHistory,
+        DEFAULT_SETTINGS.searchScopes.browserHistory
+      ),
     },
     fuzzySearchThreshold,
     autoArchiveDays,

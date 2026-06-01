@@ -40,7 +40,7 @@ export default function SessionSharePanel({
       <section className="detail-section">
         <div className="detail-section-header">
           <h3>Export and share</h3>
-          <span className="badge badge-subtle">No backend required</span>
+          <span className="badge badge-subtle">Encoded local snapshots</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <button className="btn btn-secondary" onClick={() => downloadMarkdown(session)}>
@@ -82,8 +82,7 @@ export default function SessionSharePanel({
         {!shareResult.ok ? (
           <div className="card-raised share-too-large">
             <p>
-              This session has {shareResult.tabCount} tabs and is too large to share via link. Use{" "}
-              <strong>Export - Markdown</strong> to share it instead.
+              This session is too large for a URL. Export Markdown or JSON instead.
             </p>
             <button
               className="btn btn-secondary"

@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Session, StorageData, TabItem } from "@/types";
 import {
   generateAIPrompt,
-  generateAIPromptWithPageText,
   importFile,
   sessionToMarkdown,
   sessionToPlainText,
@@ -124,6 +123,7 @@ describe("exportImport", () => {
         remindersEnabled: true,
         searchOverlayEnabled: true,
         searchOverlayShortcut: "Ctrl+Shift+F",
+        browserHistorySearchEnabled: false,
         quickInfoEnabled: true,
         quickInfoDelayMs: 400,
         aiEnabled: true,
@@ -140,6 +140,7 @@ describe("exportImport", () => {
           notes: true,
           tags: true,
           folders: true,
+          browserHistory: false,
         },
         fuzzySearchThreshold: 0.32,
         autoArchiveDays: null,
@@ -159,23 +160,12 @@ describe("exportImport", () => {
     );
   });
 
-  it("adds fetched page text to AI prompts when requested", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<() => Promise<Response>>(() =>
-        Promise.resolve(
-          new Response(
-            "<html><body><h1>Fetched insight</h1><script>ignored()</script></body></html>",
-            {
-              status: 200,
-              headers: { "content-type": "text/html" },
-            }
-          )
-        )
-      )
-    );
+  it("does not upload prompts or fetch saved URLs while generating them", () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
 
-    await expect(generateAIPromptWithPageText(makeSession())).resolves.toContain("Fetched insight");
+    expect(generateAIPrompt(makeSession())).toContain("https://example.com/docs");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("continues to import existing TabSetu JSON backups", async () => {

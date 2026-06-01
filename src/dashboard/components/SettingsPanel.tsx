@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Cloud, Download, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import type { Folder, Tag, ToastMessage } from "@/types";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
@@ -7,6 +7,12 @@ import { exportJSON } from "@/lib/exportImport";
 import { formatRelativeTime } from "@/lib/format";
 import { clearAllData, loadStorage } from "@/lib/storage";
 import { checkStorageQuota, formatBytes, type StorageQuotaStatus } from "@/lib/storageQuota";
+import {
+  hasOptionalPermission,
+  removeOptionalPermission,
+  requestOptionalPermission,
+} from "@/lib/optionalPermissions";
+import { normalizeCustomAIProviderUrl } from "@/lib/aiPromptSharing";
 import { useFolderStore } from "@/store/folderStore";
 import { useNotesStore } from "@/store/notesStore";
 import { useScheduleStore } from "@/store/scheduleStore";
@@ -92,6 +98,9 @@ export default function SettingsPanel({ addToast }: Props) {
   const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null);
   const [tagToDelete, setTagToDelete] = useState<Tag | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [historyPermissionGranted, setHistoryPermissionGranted] = useState(false);
+  const [notificationsPermissionGranted, setNotificationsPermissionGranted] = useState(false);
+  const [identityPermissionGranted, setIdentityPermissionGranted] = useState(false);
 
   useEffect(() => {
     void checkStorageQuota().then(setStorageQuota);
@@ -108,6 +117,75 @@ export default function SettingsPanel({ addToast }: Props) {
   useEffect(() => {
     void refreshSyncStatus();
   }, [refreshSyncStatus]);
+
+  const refreshOptionalPermissions = useCallback(async () => {
+    const [history, notifications, identity] = await Promise.all([
+      hasOptionalPermission("history"),
+      hasOptionalPermission("notifications"),
+      hasOptionalPermission("identity"),
+    ]);
+    setHistoryPermissionGranted(history);
+    setNotificationsPermissionGranted(notifications);
+    setIdentityPermissionGranted(identity);
+    if (!history && settings.browserHistorySearchEnabled) {
+      updateSettings({
+        browserHistorySearchEnabled: false,
+        searchScopes: { ...settings.searchScopes, browserHistory: false },
+      });
+    }
+  }, [settings.browserHistorySearchEnabled, settings.searchScopes, updateSettings]);
+
+  useEffect(() => {
+    void refreshOptionalPermissions();
+  }, [refreshOptionalPermissions]);
+
+  const enableBrowserHistorySearch = async () => {
+    const granted = await requestOptionalPermission("history");
+    setHistoryPermissionGranted(granted);
+    updateSettings({
+      browserHistorySearchEnabled: granted,
+      searchScopes: { ...settings.searchScopes, browserHistory: granted },
+    });
+    addToast(
+      granted ? "success" : "info",
+      granted
+        ? "Browser history search enabled."
+        : "Browser history permission was not granted. TabSetu search is unchanged."
+    );
+  };
+
+  const disableBrowserHistorySearch = async () => {
+    await removeOptionalPermission("history");
+    setHistoryPermissionGranted(false);
+    updateSettings({
+      browserHistorySearchEnabled: false,
+      searchScopes: { ...settings.searchScopes, browserHistory: false },
+    });
+    addToast("success", "Browser history search disabled.");
+  };
+
+  const enableNotifications = async () => {
+    const granted = await requestOptionalPermission("notifications");
+    setNotificationsPermissionGranted(granted);
+    addToast(
+      granted ? "success" : "info",
+      granted
+        ? "Notification permission enabled."
+        : "Notification permission was not granted. Core tab saving still works."
+    );
+  };
+
+  const disableNotifications = async () => {
+    await removeOptionalPermission("notifications");
+    setNotificationsPermissionGranted(false);
+    addToast("success", "Notification permission revoked.");
+  };
+
+  const disconnectGoogleDrive = async () => {
+    await signOut();
+    setIdentityPermissionGranted(false);
+    addToast("success", "Google Drive sync disconnected.");
+  };
 
   const handleExport = async () => {
     const data = await loadStorage();
@@ -289,8 +367,8 @@ export default function SettingsPanel({ addToast }: Props) {
                 onChange={(checked) => updateSettings({ quickInfoEnabled: checked })}
               />
               <ToggleRow
-                label="Enable AI sharing"
-                description="Copy prompts and open the AI provider only when you request it."
+                label="Enable AI prompt sharing"
+                description="Generate and copy prompts from selected saved sessions. Providers open only when you request it."
                 checked={settings.aiEnabled}
                 onChange={(checked) => updateSettings({ aiEnabled: checked })}
               />
@@ -411,6 +489,12 @@ export default function SettingsPanel({ addToast }: Props) {
                   onChange={(event) => updateSettings({ customAIProviderUrl: event.target.value })}
                   placeholder="https://example.com/new"
                 />
+                {settings.customAIProviderUrl &&
+                !normalizeCustomAIProviderUrl(settings.customAIProviderUrl) ? (
+                  <div style={{ fontSize: 12, color: "var(--color-warning)", marginTop: 6 }}>
+                    Use a valid HTTPS URL. TabSetu will not open an invalid custom provider.
+                  </div>
+                ) : null}
               </div>
 
               <div>
@@ -483,6 +567,119 @@ export default function SettingsPanel({ addToast }: Props) {
                   ) : null}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card settings-card" style={{ marginTop: 22 }}>
+          <h3>Privacy &amp; permissions</h3>
+          <p style={{ color: "var(--color-text-secondary)", marginTop: 8 }}>
+            Core tab saving works without optional browser history, notifications, Google Drive, or
+            AI prompt sharing.
+          </p>
+          <div className="form-stack" style={{ marginTop: 18 }}>
+            <div className="card-raised" style={{ padding: 14 }}>
+              <strong>Core permissions currently used</strong>
+              <p style={{ color: "var(--color-text-muted)", fontSize: 12, margin: "8px 0 0" }}>
+                Tabs and storage save your library. Alarms support schedules and reminders.
+                Scripting with active-tab access opens the search overlay only after your command.
+                Context menus add explicit save actions.
+              </p>
+            </div>
+
+            <div className="card-raised" style={{ padding: 14 }}>
+              <strong>Optional browser history search</strong>
+              <p style={{ color: "var(--color-text-muted)", fontSize: 12, margin: "8px 0 0" }}>
+                Off by default. TabSetu does not read browser history unless you enable this feature.
+                When enabled, TabSetu uses browser history only to show matching results in the
+                local search overlay. TabSetu does not upload browser history to a TabSetu server.
+                You can revoke the permission and disable the feature any time.
+              </p>
+              <p style={{ fontSize: 12, margin: "10px 0 0" }}>
+                Status:{" "}
+                <strong>
+                  {settings.browserHistorySearchEnabled && historyPermissionGranted
+                    ? "Enabled"
+                    : "Off"}
+                </strong>
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                {settings.browserHistorySearchEnabled && historyPermissionGranted ? (
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    onClick={() => void disableBrowserHistorySearch()}
+                  >
+                    Disable browser history search
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    onClick={() => void enableBrowserHistorySearch()}
+                  >
+                    Enable browser history search
+                  </button>
+                )}
+                <button
+                  className="btn btn-ghost"
+                  type="button"
+                  onClick={() => void refreshOptionalPermissions()}
+                >
+                  Check permission
+                </button>
+              </div>
+            </div>
+
+            <div className="card-raised" style={{ padding: 14 }}>
+              <strong>Optional notifications</strong>
+              <p style={{ color: "var(--color-text-muted)", fontSize: 12, margin: "8px 0 0" }}>
+                Notifications show reminder, schedule, and capture notices. Saving sessions still
+                works when notifications are off.
+              </p>
+              <p style={{ fontSize: 12, margin: "10px 0 0" }}>
+                Status: <strong>{notificationsPermissionGranted ? "Enabled" : "Off"}</strong>
+              </p>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                style={{ marginTop: 12 }}
+                onClick={() =>
+                  void (notificationsPermissionGranted
+                    ? disableNotifications()
+                    : enableNotifications())
+                }
+              >
+                {notificationsPermissionGranted ? "Revoke notifications" : "Enable notifications"}
+              </button>
+            </div>
+
+            <div className="card-raised" style={{ padding: 14 }}>
+              <strong>Optional Google Drive sync</strong>
+              <p style={{ color: "var(--color-text-muted)", fontSize: 12, margin: "8px 0 0" }}>
+                Google Drive sync is off until you connect it. It uses your Drive app data folder
+                and does not depend on a TabSetu backend.
+              </p>
+              <p style={{ fontSize: 12, margin: "10px 0 0" }}>
+                Status:{" "}
+                <strong>
+                  {syncEnabled
+                    ? `Connected${syncEmail ? ` as ${syncEmail}` : ""}`
+                    : identityPermissionGranted
+                      ? "Permission granted, not connected"
+                      : "Off"}
+                </strong>
+              </p>
+              {syncEnabled || identityPermissionGranted ? (
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  style={{ marginTop: 12 }}
+                  onClick={() => void disconnectGoogleDrive()}
+                >
+                  Disconnect Google Drive
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
@@ -610,7 +807,7 @@ export default function SettingsPanel({ addToast }: Props) {
                   className="btn btn-secondary"
                   type="button"
                   disabled={isSyncing}
-                  onClick={() => void signOut()}
+                  onClick={() => void disconnectGoogleDrive()}
                 >
                   Sign out
                 </button>
