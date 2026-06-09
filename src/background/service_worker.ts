@@ -7,7 +7,12 @@ import {
   updateBadge,
 } from "@/background/notifications";
 import { findFallbackBrowserTab, registerTabTrackingListeners } from "@/background/tabTracking";
-import { initializeStorageForInstall, loadStorage, migrateSettingsToSync } from "@/lib/storage";
+import {
+  flushPendingAutoSyncUpload,
+  initializeStorageForInstall,
+  loadStorage,
+  migrateSettingsToSync,
+} from "@/lib/storage";
 import { useSyncStore } from "@/store/syncStore";
 
 registerTabTrackingListeners();
@@ -45,6 +50,13 @@ chrome.runtime.onStartup.addListener(() => {
   void (async () => {
     await hydrateAlarms();
     await refreshSyncAndBootstrapTabs();
+  })();
+});
+
+chrome.runtime.onSuspend?.addListener(() => {
+  void (async () => {
+    await useSyncStore.getState().refreshStatus();
+    await flushPendingAutoSyncUpload();
   })();
 });
 

@@ -1,13 +1,21 @@
 import { describe, expect, it } from "vitest";
+import sourceManifest from "@/manifest.json";
 import { DEFAULT_SETTINGS, normalizeImportedStorageData } from "@/lib/storage";
 
 describe("normalizeImportedStorageData", () => {
+  it("uses the manifest version for default settings", () => {
+    expect(DEFAULT_SETTINGS.version).toBe(sourceManifest.version);
+    expect(normalizeImportedStorageData({ sessions: [] }).settings.version).toBe(
+      sourceManifest.version
+    );
+  });
+
   it("keeps browser history search off by default", () => {
     expect(DEFAULT_SETTINGS.browserHistorySearchEnabled).toBe(false);
     expect(DEFAULT_SETTINGS.searchScopes.browserHistory).toBe(false);
-    expect(normalizeImportedStorageData({ sessions: [] }).settings.browserHistorySearchEnabled).toBe(
-      false
-    );
+    expect(
+      normalizeImportedStorageData({ sessions: [] }).settings.browserHistorySearchEnabled
+    ).toBe(false);
   });
 
   it("reindexes positions and normalizes imported entities", () => {

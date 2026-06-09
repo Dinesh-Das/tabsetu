@@ -15,18 +15,28 @@ type ManifestWithOAuth = Parameters<typeof crx>[0]["manifest"] & {
   };
 };
 
+function resolveGoogleClientId(env: Record<string, string>): string {
+  return (
+    [env.VITE_GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_ID]
+      .map((value) => value?.trim() ?? "")
+      .find(Boolean) ?? ""
+  );
+}
+
 function loadExtensionManifest(mode: string): ManifestWithOAuth {
   const manifest = JSON.parse(
     readFileSync(path.resolve(projectRoot, "src/manifest.json"), "utf8")
   ) as ManifestWithOAuth;
   const env = loadEnv(mode, projectRoot, "");
-  const googleClientId = env.GOOGLE_CLIENT_ID?.trim();
+  const googleClientId = resolveGoogleClientId(env);
   const requiresGoogleClientId = env.REQUIRE_GOOGLE_CLIENT_ID === "true";
 
   if (googleClientId && manifest.oauth2) {
     manifest.oauth2.client_id = googleClientId;
   } else if (requiresGoogleClientId && manifest.oauth2) {
-    throw new Error("GOOGLE_CLIENT_ID is required for this extension build.");
+    throw new Error(
+      "GOOGLE_CLIENT_ID or VITE_GOOGLE_CLIENT_ID is required for this extension build."
+    );
   }
 
   return manifest;
@@ -35,7 +45,7 @@ function loadExtensionManifest(mode: string): ManifestWithOAuth {
 export default defineConfig(({ mode }) => {
   const manifest = loadExtensionManifest(mode);
   const env = loadEnv(mode, projectRoot, "");
-  const googleClientId = env.GOOGLE_CLIENT_ID?.trim() ?? "";
+  const googleClientId = resolveGoogleClientId(env);
 
   return {
     define: {

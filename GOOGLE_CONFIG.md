@@ -26,6 +26,8 @@ Create `.env` from `.env.example` and set the public Web application OAuth clien
 GOOGLE_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
 ```
 
+CI can also set `VITE_GOOGLE_CLIENT_ID` with the same value.
+
 Do not add an OAuth client secret to the extension.
 
 `src/manifest.json` intentionally contains `__REPLACE_WITH_CLIENT_ID__` as a source placeholder.

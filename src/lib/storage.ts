@@ -11,13 +11,25 @@ import type {
   Tag,
   UndoCollapseBuffer,
 } from "@/types";
+import sourceManifest from "@/manifest.json";
 import { checkStorageQuota } from "@/lib/storageQuota";
 import { clampText, generateId, isValidUrl, sanitizeLabel, stripHtml } from "@/lib/tabHelpers";
 import { defaultSavedSessionTitle } from "@/lib/sessionLabels";
 import { getOnboardingFolders, getOnboardingTags } from "@/lib/onboarding";
 import { getSyncStorage, safeCreateNotification } from "@/lib/browserCompat";
 
-const APP_VERSION = "1.0.0";
+function getAppVersion(): string {
+  if (typeof chrome !== "undefined" && typeof chrome.runtime?.getManifest === "function") {
+    const manifestVersion = chrome.runtime.getManifest()?.version;
+    if (manifestVersion) {
+      return manifestVersion;
+    }
+  }
+
+  return sourceManifest.version;
+}
+
+const APP_VERSION = getAppVersion();
 const SCHEMA_VERSION = 4;
 const SESSION_CHUNK_SIZE = 200;
 const TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
