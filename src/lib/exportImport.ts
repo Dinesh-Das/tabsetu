@@ -3,13 +3,7 @@ import {
   normalizeImportedStorageData,
   normalizeStorageData,
 } from "@/lib/storage";
-import {
-  clampText,
-  generateId,
-  isValidUrl,
-  sanitizeLabel,
-  stripHtml,
-} from "@/lib/tabHelpers";
+import { clampText, generateId, isValidUrl, sanitizeLabel, stripHtml } from "@/lib/tabHelpers";
 import type { AIShareConfig, Session, StorageData, TabItem } from "@/types";
 
 function downloadFile(content: string, fileName: string, mimeType: string): void {

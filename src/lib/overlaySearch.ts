@@ -109,16 +109,10 @@ export function scoreOverlayRows(
     keys.push({ name: "tagNames", weight: 0.08 });
   }
   if (useTabs) {
-    keys.push(
-      { name: "tabTitle", weight: 0.14 },
-      { name: "tabUrl", weight: 0.1 }
-    );
+    keys.push({ name: "tabTitle", weight: 0.14 }, { name: "tabUrl", weight: 0.1 });
   }
   if (useBrowserHistory) {
-    keys.push(
-      { name: "historyTitle", weight: 0.14 },
-      { name: "historyUrl", weight: 0.1 }
-    );
+    keys.push({ name: "historyTitle", weight: 0.14 }, { name: "historyUrl", weight: 0.1 });
   }
 
   if (keys.length === 0) {

@@ -172,9 +172,7 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
 
         {tooLargeTabCount ? (
           <div className="card-raised share-too-large">
-            <p>
-              This session is too large for a URL. Export Markdown or JSON instead.
-            </p>
+            <p>This session is too large for a URL. Export Markdown or JSON instead.</p>
             <button
               className="btn btn-secondary"
               type="button"

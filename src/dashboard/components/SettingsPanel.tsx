@@ -590,10 +590,10 @@ export default function SettingsPanel({ addToast }: Props) {
             <div className="card-raised" style={{ padding: 14 }}>
               <strong>Optional browser history search</strong>
               <p style={{ color: "var(--color-text-muted)", fontSize: 12, margin: "8px 0 0" }}>
-                Off by default. TabSetu does not read browser history unless you enable this feature.
-                When enabled, TabSetu uses browser history only to show matching results in the
-                local search overlay. TabSetu does not upload browser history to a TabSetu server.
-                You can revoke the permission and disable the feature any time.
+                Off by default. TabSetu does not read browser history unless you enable this
+                feature. When enabled, TabSetu uses browser history only to show matching results in
+                the local search overlay. TabSetu does not upload browser history to a TabSetu
+                server. You can revoke the permission and disable the feature any time.
               </p>
               <p style={{ fontSize: 12, margin: "10px 0 0" }}>
                 Status:{" "}
