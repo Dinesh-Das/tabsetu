@@ -7,9 +7,11 @@ import {
 } from "@/dashboard/components/useSessionListController";
 import SaveModal from "@/popup/components/SaveModal";
 import type { ReactNode } from "react";
+import type { UndoCollapseBuffer } from "@/types";
 
 type Props = SessionListControllerOptions & {
   syncBanner?: ReactNode;
+  onCollapseSaved?: (buffer: UndoCollapseBuffer) => void;
 };
 
 export default function SessionList(props: Props) {
@@ -50,6 +52,7 @@ export default function SessionList(props: Props) {
           preferredTitleTabId={controller.saveModalPrompt.sourceTabId}
           onClose={controller.closeSaveModal}
           addToast={props.addToast}
+          onCollapseSaved={props.onCollapseSaved}
         />
       ) : null}
 

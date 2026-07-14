@@ -148,14 +148,26 @@ function storageGetToken(): Promise<StoredToken | null> {
 }
 
 function storageSetToken(token: StoredToken): Promise<void> {
-  return new Promise((resolve) => {
-    chrome.storage.local.set({ [TOKEN_STORAGE_KEY]: token }, () => resolve());
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set({ [TOKEN_STORAGE_KEY]: token }, () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve();
+    });
   });
 }
 
 function storageRemoveToken(): Promise<void> {
-  return new Promise((resolve) => {
-    chrome.storage.local.remove([TOKEN_STORAGE_KEY], () => resolve());
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.remove([TOKEN_STORAGE_KEY], () => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve();
+    });
   });
 }
 
@@ -458,7 +470,7 @@ export async function getSignedInEmail(): Promise<string | null> {
 export async function uploadSync(data: StorageData): Promise<void> {
   const token = await getSilentToken();
   if (!token) {
-    return;
+    throw new Error("Google Drive authorization is unavailable. Reconnect sync and try again.");
   }
 
   const existing = await findSyncFile(token);
@@ -513,7 +525,7 @@ export async function uploadSync(data: StorageData): Promise<void> {
 export async function downloadSync(): Promise<Partial<StorageData> | null> {
   const token = await getSilentToken();
   if (!token) {
-    return null;
+    throw new Error("Google Drive authorization is unavailable. Reconnect sync and try again.");
   }
 
   const existing = await findSyncFile(token);

@@ -25,7 +25,7 @@ TabSetu provides local-first browser tab and session management.
 
 ## Feature List
 
-- Unlimited sessions, tabs, folders, tags, and notes.
+- Sessions, tabs, folders, tags, and notes stored within the browser's extension-storage quota.
 - Save, collapse, restore, pin, archive, and search sessions.
 - Reminders and scheduled reopening.
 - JSON backup, Markdown, plain text, and URL-list export.

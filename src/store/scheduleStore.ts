@@ -4,6 +4,7 @@ import { nextMatchingDate } from "@/lib/alarmScheduling";
 import { loadStorage, saveSchedules } from "@/lib/storage";
 import { useHydrationStore } from "@/store/hydration";
 import { generateId } from "@/lib/tabHelpers";
+import { PersistenceQueue } from "@/store/persistenceQueue";
 
 function alarmName(scheduleId: string): string {
   return `schedule_${scheduleId}`;
@@ -58,11 +59,10 @@ interface ScheduleState {
   syncAlarms: (schedulesEnabled: boolean) => Promise<void>;
 }
 
-let writePromise: Promise<void> = Promise.resolve();
+const persistenceQueue = new PersistenceQueue("schedules");
 
 function persistSchedules(schedules: Schedule[]): void {
-  writePromise = writePromise.then(() => saveSchedules(schedules));
-  void writePromise;
+  void persistenceQueue.enqueue(() => saveSchedules(schedules));
 }
 
 function activeSchedules(schedules: Schedule[]): Schedule[] {

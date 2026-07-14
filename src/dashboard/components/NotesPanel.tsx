@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { FileText, Pin, Plus, Search, Trash2 } from "lucide-react";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
+import ModalShell from "@/components/shared/ModalShell";
 import { formatDateTime } from "@/lib/format";
 import { useNotesStore } from "@/store/notesStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -265,45 +266,41 @@ export default function NotesPanel({ addToast, onOpenSession }: Props) {
       </div>
 
       {editing ? (
-        <div
-          className="overlay"
-          onClick={(event) => event.target === event.currentTarget && setEditing(null)}
+        <ModalShell
+          title="Edit note"
+          onClose={() => setEditing(null)}
+          onSubmit={saveEditing}
+          maxWidth={520}
+          footer={
+            <>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                style={{ flex: 1 }}
+                onClick={() => setEditing(null)}
+              >
+                Cancel
+              </button>
+              <button className="btn btn-primary" type="submit" style={{ flex: 1 }}>
+                Save note
+              </button>
+            </>
+          }
         >
-          <div className="modal animate-scale-in" style={{ maxWidth: 520 }}>
-            <div className="form-stack">
-              <h3>Edit note</h3>
-              <input
-                className="input"
-                value={editing.title}
-                disabled={editing.kind !== "standalone"}
-                onChange={(event) => setEditing({ ...editing, title: event.target.value })}
-              />
-              <textarea
-                className="input"
-                value={editing.content}
-                onChange={(event) => setEditing({ ...editing, content: event.target.value })}
-              />
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  className="btn btn-secondary"
-                  type="button"
-                  style={{ flex: 1 }}
-                  onClick={() => setEditing(null)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn btn-primary"
-                  type="button"
-                  style={{ flex: 1 }}
-                  onClick={saveEditing}
-                >
-                  Save note
-                </button>
-              </div>
-            </div>
+          <div className="form-stack">
+            <input
+              className="input"
+              value={editing.title}
+              disabled={editing.kind !== "standalone"}
+              onChange={(event) => setEditing({ ...editing, title: event.target.value })}
+            />
+            <textarea
+              className="input"
+              value={editing.content}
+              onChange={(event) => setEditing({ ...editing, content: event.target.value })}
+            />
           </div>
-        </div>
+        </ModalShell>
       ) : null}
 
       {pendingDelete ? (

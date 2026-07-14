@@ -10,7 +10,7 @@ import SyncOptInBanner from "@/dashboard/components/SyncOptInBanner";
 import MobileSchedulesScreen from "@/dashboard/components/MobileSchedulesScreen";
 import RemindersPage from "@/dashboard/pages/RemindersPage";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import type { ToastMessage } from "@/types";
+import type { ToastMessage, UndoCollapseBuffer } from "@/types";
 import { useSessionStore } from "@/store/sessionStore";
 
 interface Props {
@@ -18,6 +18,7 @@ interface Props {
   initialView?: DesktopSidebarView;
   initialSavePrompt?: { mode: "save" | "collapse"; sourceTabId: number | null } | null;
   onInitialSavePromptHandled?: () => void;
+  onCollapseSaved?: (buffer: UndoCollapseBuffer) => void;
 }
 
 function normalizeDesktopView(view: DesktopSidebarView | undefined): DesktopSidebarView {
@@ -39,6 +40,7 @@ export default function DesktopLayout({
   initialView,
   initialSavePrompt,
   onInitialSavePromptHandled,
+  onCollapseSaved,
 }: Props) {
   const sessions = useSessionStore((state) => state.sessions);
   const [view, setView] = useState<DesktopSidebarView>(() => normalizeDesktopView(initialView));
@@ -90,6 +92,7 @@ export default function DesktopLayout({
               addToast={addToast}
               initialSavePrompt={initialSavePrompt}
               onInitialSavePromptHandled={onInitialSavePromptHandled}
+              {...(onCollapseSaved ? { onCollapseSaved } : {})}
               syncBanner={<SyncOptInBanner onOpenSettings={() => setView("settings")} />}
             />
           </ErrorBoundary>

@@ -42,6 +42,7 @@ type DeleteState = { type: "folder"; item: Folder } | { type: "tag"; item: Tag }
 type ActiveCollection =
   | { type: "folder"; id: string; name: string; color: string }
   | { type: "tag"; id: string; name: string; color: string }
+  | { type: "favourites"; name: string; color: string }
   | null;
 
 interface FolderEditorProps {
@@ -295,11 +296,14 @@ export default function MobileFoldersScreen({ addToast }: Props) {
 
     return sessions.flatMap((session) =>
       session.tabs
-        .filter((tab) =>
-          activeCollection.type === "folder"
+        .filter((tab) => {
+          if (activeCollection.type === "favourites") {
+            return session.isPinned;
+          }
+          return activeCollection.type === "folder"
             ? tabBelongsToFolder(session, tab, activeCollection.id)
-            : tabBelongsToTag(session, tab, activeCollection.id)
-        )
+            : tabBelongsToTag(session, tab, activeCollection.id);
+        })
         .map((tab) => ({ session, tab }))
     );
   }, [activeCollection, sessions]);
@@ -395,10 +399,20 @@ export default function MobileFoldersScreen({ addToast }: Props) {
           <EmptyState
             compact
             icon={
-              activeCollection.type === "folder" ? <FolderOpen size={42} /> : <TagIcon size={42} />
+              activeCollection.type === "folder" ? (
+                <FolderOpen size={42} />
+              ) : activeCollection.type === "tag" ? (
+                <TagIcon size={42} />
+              ) : (
+                <Heart size={42} />
+              )
             }
             title="No tabs here yet"
-            description={`Save tabs into this ${activeCollection.type} and they will appear here.`}
+            description={
+              activeCollection.type === "favourites"
+                ? "Pin a session and its tabs will appear here."
+                : `Save tabs into this ${activeCollection.type} and they will appear here.`
+            }
           />
         ) : (
           <div className="collection-detail-list">
@@ -457,7 +471,12 @@ export default function MobileFoldersScreen({ addToast }: Props) {
             <strong>Favourites</strong>
             <span>{pinnedTabs} tabs</span>
           </div>
-          <MobileIconButton title="Pinned sessions">
+          <MobileIconButton
+            title="Open pinned sessions"
+            onClick={() =>
+              setActiveCollection({ type: "favourites", name: "Favourites", color: "#ef4444" })
+            }
+          >
             <MoreHorizontal size={18} />
           </MobileIconButton>
         </GlassCard>

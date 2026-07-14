@@ -6,6 +6,7 @@ import {
   safeSetBadgeTextColor,
   detectBrowser,
 } from "@/lib/browserCompat";
+import { isValidUrl } from "@/lib/tabHelpers";
 
 type SessionCaptureResult = {
   session: Session;
@@ -32,7 +33,11 @@ export function clearNotification(notificationId: string): Promise<boolean> {
 }
 
 export async function updateBadge(): Promise<void> {
-  const { sessions } = await loadStorage();
+  const { sessions, settings } = await loadStorage();
+  if (!settings.remindersEnabled) {
+    await chrome.action.setBadgeText({ text: "" });
+    return;
+  }
   const pending = sessions.reduce(
     (count, session) =>
       count +
@@ -171,7 +176,7 @@ async function restoreLastCollapse(): Promise<boolean> {
     return false;
   }
 
-  const urls = buffer.tabs.map((tab) => tab.url).filter(Boolean);
+  const urls = buffer.tabs.map((tab) => tab.url).filter(isValidUrl);
   if (urls.length === 0) {
     await saveUndoBuffer(null);
     return false;

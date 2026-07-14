@@ -13,6 +13,7 @@ import {
   requestOptionalPermission,
 } from "@/lib/optionalPermissions";
 import { normalizeCustomAIProviderUrl } from "@/lib/aiPromptSharing";
+import { reconcileReminderAlarms } from "@/lib/reminderAlarms";
 import { useFolderStore } from "@/store/folderStore";
 import { useNotesStore } from "@/store/notesStore";
 import { useScheduleStore } from "@/store/scheduleStore";
@@ -78,6 +79,7 @@ export default function SettingsPanel({ addToast }: Props) {
   const standaloneNotes = useNotesStore((state) => state.standaloneNotes);
   const importNotes = useNotesStore((state) => state.importNotes);
   const shareLinks = useShareStore((state) => state.shareLinks);
+  const clearShareLinks = useShareStore((state) => state.clearShareLinks);
   const importShareLinks = useShareStore((state) => state.importShareLinks);
   const syncAlarms = useScheduleStore((state) => state.syncAlarms);
   const syncEnabled = useSyncStore((state) => state.enabled);
@@ -209,37 +211,7 @@ export default function SettingsPanel({ addToast }: Props) {
   };
 
   const syncReminderAlarms = async (enabled: boolean) => {
-    const alarms = await chrome.alarms.getAll();
-    await Promise.all(
-      alarms
-        .filter((alarm) => alarm.name.startsWith("reminder_"))
-        .map((alarm) => chrome.alarms.clear(alarm.name))
-    );
-
-    if (!enabled) {
-      return;
-    }
-
-    const reminderTabs = sessions.flatMap((session) =>
-      session.tabs
-        .map((tab) => ({
-          id: tab.id,
-          dueAt: tab.reminderSnoozedUntil ?? tab.reminderAt,
-          dismissed: tab.reminderDismissed,
-        }))
-        .filter(
-          (tab): tab is { id: string; dueAt: number; dismissed: false } =>
-            Boolean(tab.dueAt) && !tab.dismissed
-        )
-    );
-
-    await Promise.all(
-      reminderTabs.map((tab) =>
-        chrome.alarms.create(`reminder_${tab.id}`, {
-          when: Math.max(tab.dueAt, Date.now() + 1000),
-        })
-      )
-    );
+    await reconcileReminderAlarms(sessions, enabled);
   };
 
   const storageUsagePercent = Math.min(100, (storageQuota?.percentage ?? 0) * 100);
@@ -839,6 +811,18 @@ export default function SettingsPanel({ addToast }: Props) {
             tags, {schedules.length} schedules, {standaloneNotes.length} notes, {shareLinks.length}{" "}
             share links.
           </div>
+          {shareLinks.length > 0 ? (
+            <button
+              className="btn btn-secondary"
+              style={{ marginTop: 12 }}
+              onClick={() => {
+                clearShareLinks();
+                addToast("success", "Cleared local share-link records.");
+              }}
+            >
+              Clear share-link records
+            </button>
+          ) : null}
         </div>
       </div>
 

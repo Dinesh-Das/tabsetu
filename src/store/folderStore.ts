@@ -3,6 +3,7 @@ import type { Folder } from "@/types";
 import { loadStorage, saveFolders } from "@/lib/storage";
 import { useHydrationStore } from "@/store/hydration";
 import { generateId, sanitizeLabel } from "@/lib/tabHelpers";
+import { PersistenceQueue } from "@/store/persistenceQueue";
 
 interface FolderState {
   folders: Folder[];
@@ -13,11 +14,10 @@ interface FolderState {
   importFolders: (folders: Folder[]) => void;
 }
 
-let writePromise: Promise<void> = Promise.resolve();
+const persistenceQueue = new PersistenceQueue("folders");
 
 function persistFolders(folders: Folder[]): void {
-  writePromise = writePromise.then(() => saveFolders(folders));
-  void writePromise;
+  void persistenceQueue.enqueue(() => saveFolders(folders));
 }
 
 function activeFolders(folders: Folder[]): Folder[] {

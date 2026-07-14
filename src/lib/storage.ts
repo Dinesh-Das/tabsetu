@@ -95,6 +95,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 export const DEFAULT_AI_CONFIG: AIShareConfig = {
+  updatedAt: 0,
   defaultProvider: "chatgpt",
   customProviderUrl: "",
   customPromptTemplate: "",
@@ -393,6 +394,7 @@ function normalizeTag(raw: unknown): Tag | null {
   }
 
   const createdAt = asNumber(raw.createdAt, Date.now());
+  const updatedAt = asNumber(raw.updatedAt, createdAt);
   const name = asString(raw.name, "Tag").trim();
 
   if (!name) {
@@ -404,6 +406,7 @@ function normalizeTag(raw: unknown): Tag | null {
     name: clampText(stripHtml(name).replace(/[^a-zA-Z0-9\- ]/g, ""), 30) || "Tag",
     color: asString(raw.color, "#60A5FA"),
     createdAt,
+    updatedAt,
     ...optionalDeletedAt(raw.deletedAt),
   };
 }
@@ -501,6 +504,7 @@ function normalizeAIConfig(raw: unknown): AIShareConfig {
   const defaultProvider = asString(raw.defaultProvider, DEFAULT_AI_CONFIG.defaultProvider);
 
   return {
+    updatedAt: asNumber(raw.updatedAt, DEFAULT_AI_CONFIG.updatedAt),
     defaultProvider:
       defaultProvider === "chatgpt" ||
       defaultProvider === "claude" ||
@@ -723,20 +727,39 @@ async function saveSessionChunks(sessions: Session[]): Promise<void> {
   const existing = await storageGet<Record<string, unknown>>(chrome.storage.local, null);
   const nextChunks = sessionChunksRecord(sessions);
   const staleChunkKeys = sessionChunkKeys(existing).filter((key) => !hasOwnKey(nextChunks, key));
+  const clearedStaleChunks = Object.fromEntries(staleChunkKeys.map((key) => [key, []]));
 
   await storageSet(chrome.storage.local, {
     ...nextChunks,
+    ...clearedStaleChunks,
     [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
   });
 
-  await storageRemove(chrome.storage.local, [...staleChunkKeys, STORAGE_KEYS.sessions, "sessions"]);
+  await storageRemove(chrome.storage.local, [
+    ...staleChunkKeys,
+    STORAGE_KEYS.sessions,
+    "sessions",
+  ]).catch(() => undefined);
 }
 
 async function saveLocalStorageData(data: StorageData): Promise<void> {
-  await Promise.all([
-    storageSet(chrome.storage.local, toLocalStorageRecord(data)),
-    saveSessionChunks(data.sessions),
-  ]);
+  const existing = await storageGet<Record<string, unknown>>(chrome.storage.local, null);
+  const nextChunks = sessionChunksRecord(data.sessions);
+  const staleChunkKeys = sessionChunkKeys(existing).filter((key) => !hasOwnKey(nextChunks, key));
+  const clearedStaleChunks = Object.fromEntries(staleChunkKeys.map((key) => [key, []]));
+
+  // One storage.set call is the commit point for local entities and session chunks.
+  // Stale chunks are emptied in that same commit so cleanup failure cannot resurrect sessions.
+  await storageSet(chrome.storage.local, {
+    ...toLocalStorageRecord(data),
+    ...nextChunks,
+    ...clearedStaleChunks,
+  });
+  await storageRemove(chrome.storage.local, [
+    ...staleChunkKeys,
+    STORAGE_KEYS.sessions,
+    "sessions",
+  ]).catch(() => undefined);
 }
 
 function isQuotaError(error: unknown): boolean {
@@ -1180,12 +1203,23 @@ export async function saveStorageData(
   options: { scheduleSync?: boolean } = {}
 ): Promise<void> {
   const normalized = purgeStorageTombstones(normalizeStorageData(data));
+  const syncStorage = getSyncStorage();
+  const syncUsesLocalStorage = syncStorage === chrome.storage.local;
+  const [previousLocal, previousSync] = await Promise.all([
+    storageGet<Record<string, unknown>>(chrome.storage.local, null),
+    storageGet<Record<string, unknown>>(syncStorage, null),
+  ]);
+  const previousData = normalizeStorageData({ ...previousLocal, ...previousSync });
   try {
-    await Promise.all([
-      saveLocalStorageData(normalized),
-      storageSet(getSyncStorage(), toSyncStorageRecord(normalized)),
-    ]);
+    await saveLocalStorageData(normalized);
+    await storageSet(syncStorage, toSyncStorageRecord(normalized));
   } catch (error) {
+    // A full-library save spans two Chrome storage areas. Restore the previous
+    // complete snapshot if either commit fails so loadStorage never observes a mix.
+    await Promise.allSettled([
+      saveLocalStorageData(previousData),
+      storageSet(syncStorage, toSyncStorageRecord(previousData)),
+    ]);
     if (isQuotaError(error)) {
       dispatchStorageQuotaError();
     }
@@ -1195,9 +1229,8 @@ export async function saveStorageData(
   await storageRemove(chrome.storage.local, [
     ...LEGACY_KEYS,
     "aiConfig",
-    STORAGE_KEYS.settings,
-    STORAGE_KEYS.aiConfig,
-  ]);
+    ...(syncUsesLocalStorage ? [] : [STORAGE_KEYS.settings, STORAGE_KEYS.aiConfig]),
+  ]).catch(() => undefined);
   if (options.scheduleSync !== false) {
     scheduleAutoSyncUpload();
   }
@@ -1256,13 +1289,14 @@ export async function migrateSettingsToSync(): Promise<void> {
     );
   }
 
+  const syncStorage = getSyncStorage();
+  const syncUsesLocalStorage = syncStorage === chrome.storage.local;
   if (Object.keys(nextSync).length !== 0) {
-    await storageSet(getSyncStorage(), nextSync);
+    await storageSet(syncStorage, nextSync);
   }
 
   await storageRemove(chrome.storage.local, [
-    STORAGE_KEYS.settings,
-    STORAGE_KEYS.aiConfig,
+    ...(syncUsesLocalStorage ? [] : [STORAGE_KEYS.settings, STORAGE_KEYS.aiConfig]),
     "settings",
     "aiConfig",
   ]);

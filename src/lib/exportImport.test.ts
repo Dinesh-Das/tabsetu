@@ -105,6 +105,7 @@ describe("exportImport", () => {
       ],
       shareLinks: [],
       aiConfig: {
+        updatedAt: 0,
         defaultProvider: "chatgpt",
         customProviderUrl: "",
         customPromptTemplate: "",
@@ -292,5 +293,29 @@ describe("exportImport", () => {
     await expect(
       importFile(makeImportFile("empty.txt", "not a saved tab export", "text/plain"))
     ).rejects.toThrow("No valid tabs were found");
+  });
+
+  it("rejects oversized files before reading them", async () => {
+    const text = vi.fn(() => Promise.resolve("https://example.com"));
+    const oversized = {
+      name: "oversized.json",
+      type: "application/json",
+      size: 25 * 1024 * 1024 + 1,
+      text,
+    } as unknown as File;
+
+    await expect(importFile(oversized)).rejects.toThrow("25 MB");
+    expect(text).not.toHaveBeenCalled();
+  });
+
+  it("rejects excessively nested foreign JSON", async () => {
+    let nested: Record<string, unknown> = { tab: { url: "https://example.com" } };
+    for (let depth = 0; depth < 60; depth += 1) {
+      nested = { child: nested };
+    }
+
+    await expect(
+      importFile(makeImportFile("nested.json", JSON.stringify(nested), "application/json"))
+    ).rejects.toThrow("too deeply nested");
   });
 });

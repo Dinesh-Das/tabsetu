@@ -57,4 +57,30 @@ describe("scoreOverlayRows", () => {
       })
     ).toEqual([]);
   });
+
+  it("makes higher sensitivity values more forgiving", () => {
+    const fuzzyRow: OverlaySearchRow = {
+      id: "fuzzy-tab",
+      kind: "tab",
+      title: "abcdef",
+      subtitle: "saved tab",
+      action: { kind: "url", url: "https://example.com" },
+      tabTitle: "abcdef",
+    };
+    const searchScopes = {
+      sessions: false,
+      tabs: true,
+      notes: false,
+      tags: false,
+      folders: false,
+      browserHistory: false,
+    };
+
+    expect(
+      scoreOverlayRows([fuzzyRow], "ace", { searchScopes, fuzzySearchThreshold: 0.1 })
+    ).toEqual([]);
+    expect(
+      scoreOverlayRows([fuzzyRow], "ace", { searchScopes, fuzzySearchThreshold: 0.6 })
+    ).toEqual([fuzzyRow]);
+  });
 });

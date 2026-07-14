@@ -86,27 +86,33 @@ export default function MobileNotesScreen({ addToast }: Props) {
   const deleteNote = useNotesStore((state) => state.deleteNote);
   const [query, setQuery] = useState("");
   const [layout, setLayout] = useState<"list" | "grid">("list");
+  const [showPinnedOnly, setShowPinnedOnly] = useState(false);
   const [editorNote, setEditorNote] = useState<StandaloneNote | null | "new">(null);
   const [pendingDelete, setPendingDelete] = useState<StandaloneNote | null>(null);
 
   const visibleNotes = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
-    if (!trimmed) {
-      return notes;
-    }
-
     return notes.filter(
       (note) =>
-        note.title.toLowerCase().includes(trimmed) || note.content.toLowerCase().includes(trimmed)
+        (!showPinnedOnly || note.isPinned) &&
+        (!trimmed ||
+          note.title.toLowerCase().includes(trimmed) ||
+          note.content.toLowerCase().includes(trimmed))
     );
-  }, [notes, query]);
+  }, [notes, query, showPinnedOnly]);
 
   return (
     <>
       <div className="notes-toolbar-row">
-        <button className="mobile-secondary-button notes-filter-button" type="button">
+        <button
+          className="mobile-secondary-button notes-filter-button"
+          type="button"
+          data-active={showPinnedOnly || undefined}
+          aria-pressed={showPinnedOnly}
+          onClick={() => setShowPinnedOnly((current) => !current)}
+        >
           <Filter size={18} />
-          Filter
+          {showPinnedOnly ? "Pinned" : "Filter"}
         </button>
         <div className="notes-layout-toggle">
           <button

@@ -43,10 +43,16 @@ export function getOnboardingFolders(now = Date.now()): Folder[] {
 
 export function getOnboardingTags(now = Date.now()): Tag[] {
   return [
-    { id: "tag-docs", name: "Docs", color: "#60A5FA", createdAt: now },
-    { id: "tag-coding", name: "Coding", color: "#A78BFA", createdAt: now },
-    { id: "tag-ai", name: "AI", color: "#34D399", createdAt: now },
-    { id: "tag-important", name: "Important", color: "#F87171", createdAt: now },
-    { id: "tag-later", name: "Later", color: "#FCD34D", createdAt: now },
+    { id: "tag-docs", name: "Docs", color: "#60A5FA", createdAt: now, updatedAt: now },
+    { id: "tag-coding", name: "Coding", color: "#A78BFA", createdAt: now, updatedAt: now },
+    { id: "tag-ai", name: "AI", color: "#34D399", createdAt: now, updatedAt: now },
+    {
+      id: "tag-important",
+      name: "Important",
+      color: "#F87171",
+      createdAt: now,
+      updatedAt: now,
+    },
+    { id: "tag-later", name: "Later", color: "#FCD34D", createdAt: now, updatedAt: now },
   ];
 }

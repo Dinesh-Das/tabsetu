@@ -1,11 +1,13 @@
-import React, { type ReactNode, useEffect, useState } from "react";
+import React, { type ReactNode, useCallback, useEffect, useState } from "react";
 import { Download, MoreHorizontal, Settings } from "lucide-react";
 import { MobileAppShell, MobileIconButton, type MobileNavView } from "@/components/mobile/MobileUI";
 import ThemeToggle from "@/components/shared/ThemeToggle";
 import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import type { ToastMessage } from "@/types";
-import { clearAllData } from "@/lib/storage";
+import RecoveryScreen from "@/components/shared/RecoveryScreen";
+import type { ToastMessage, UndoCollapseBuffer } from "@/types";
+import { saveUndoBuffer } from "@/lib/storage";
+import { isValidUrl } from "@/lib/tabHelpers";
 import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
 import { useFolderStore } from "@/store/folderStore";
 import { useNotesStore } from "@/store/notesStore";
@@ -27,6 +29,7 @@ import DesktopLayout from "./layouts/DesktopLayout";
 import RemindersPage from "./pages/RemindersPage";
 import type { DesktopSidebarView } from "./components/Sidebar";
 import { useSyncStore } from "@/store/syncStore";
+import { subscribeToPersistenceFailures } from "@/store/persistenceQueue";
 
 type DashView = MobileNavView | "settings" | "importexport";
 type SavePromptMode = "save" | "collapse";
@@ -137,29 +140,6 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-function ErrorScreen({ error, onReset }: { error: Error; onReset: () => void }) {
-  return (
-    <div className="mobile-dashboard-stage">
-      <div className="empty-state" style={{ margin: 24 }}>
-        <h3>TabSetu hit a problem</h3>
-        <p>{error.message}</p>
-        <button
-          className="btn btn-danger"
-          type="button"
-          onClick={() => {
-            void clearAllData().then(() => {
-              onReset();
-              window.location.reload();
-            });
-          }}
-        >
-          Clear all data and reload
-        </button>
-      </div>
-    </div>
-  );
-}
-
 class AppErrorBoundary extends React.Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
   static getDerivedStateFromError(error: Error) {
@@ -167,9 +147,7 @@ class AppErrorBoundary extends React.Component<{ children: ReactNode }, { error:
   }
   render() {
     if (this.state.error) {
-      return (
-        <ErrorScreen error={this.state.error} onReset={() => this.setState({ error: null })} />
-      );
+      return <RecoveryScreen error={this.state.error} />;
     }
     return this.props.children;
   }
@@ -184,19 +162,24 @@ function DashboardAppContent() {
   const [savePrompt, setSavePrompt] = useState(getInitialSavePrompt);
   const [menuOpen, setMenuOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [hydrationError, setHydrationError] = useState<Error | null>(null);
   const isDesktop = useMediaQuery("(min-width: 900px)");
 
   useEffect(() => {
-    void loadHydratedStorage().then((data) => {
-      useSessionStore.getState().importSessions(data.sessions);
-      useFolderStore.getState().importFolders(data.folders);
-      useTagStore.getState().importTags(data.tags);
-      useScheduleStore.getState().importSchedules(data.schedules);
-      useNotesStore.getState().importNotes(data.standaloneNotes);
-      useShareStore.getState().importShareLinks(data.shareLinks);
-      useSettingsStore.setState({ settings: data.settings });
-      Array.from({ length: 7 }).forEach(() => useHydrationStore.getState().markOneHydrated());
-    });
+    void loadHydratedStorage()
+      .then((data) => {
+        useSessionStore.getState().importSessions(data.sessions);
+        useFolderStore.getState().importFolders(data.folders);
+        useTagStore.getState().importTags(data.tags);
+        useScheduleStore.getState().importSchedules(data.schedules);
+        useNotesStore.getState().importNotes(data.standaloneNotes);
+        useShareStore.getState().importShareLinks(data.shareLinks);
+        useSettingsStore.setState({ settings: data.settings });
+        Array.from({ length: 7 }).forEach(() => useHydrationStore.getState().markOneHydrated());
+      })
+      .catch((error: unknown) => {
+        setHydrationError(error instanceof Error ? error : new Error("Storage hydration failed."));
+      });
   }, []);
 
   useEffect(() => {
@@ -208,20 +191,73 @@ function DashboardAppContent() {
     return subscribeToSystemTheme(settings.theme, () => applyTheme("system"));
   }, [settings.theme]);
 
-  const addToast = (type: ToastMessage["type"], message: string) => {
-    const id = `toast-${Date.now()}`;
-    setToasts((current) => [...current, { id, type, message }]);
-    window.setTimeout(() => {
-      setToasts((current) => current.filter((toast) => toast.id !== id));
-    }, 3400);
-  };
+  const addToast = useCallback(
+    (type: ToastMessage["type"], message: string, options?: Partial<ToastMessage>) => {
+      const id = options?.id ?? `toast-${Date.now()}`;
+      const toast: ToastMessage = { id, type, message, ...options };
+      setToasts((current) => [...current, toast]);
+      if (!toast.persistent) {
+        window.setTimeout(() => {
+          setToasts((current) => current.filter((item) => item.id !== id));
+        }, toast.durationMs ?? 3400);
+      }
+    },
+    []
+  );
+
+  useEffect(
+    () =>
+      subscribeToPersistenceFailures(({ store }) => {
+        addToast("error", `Changes to ${store} could not be saved. Your next edit will retry.`);
+      }),
+    [addToast]
+  );
 
   const handleInitialSavePromptHandled = () => {
     setSavePrompt(null);
     clearSavePromptUrl();
   };
 
+  const handleCollapseSaved = (buffer: UndoCollapseBuffer) => {
+    const toastId = `toast-undo-${buffer.createdAt}`;
+    addToast("info", `Collapsed "${buffer.sessionName}". You can undo for 10 seconds.`, {
+      id: toastId,
+      actionLabel: "Undo",
+      durationMs: Math.max(buffer.expiresAt - Date.now(), 1000),
+      onAction: () => {
+        void (async () => {
+          try {
+            let targetWindowId = buffer.windowId;
+            for (const tab of buffer.tabs) {
+              if (!isValidUrl(tab.url)) {
+                continue;
+              }
+              if (targetWindowId) {
+                try {
+                  await chrome.tabs.create({ windowId: targetWindowId, url: tab.url });
+                  continue;
+                } catch {
+                  targetWindowId = null;
+                }
+              }
+              await chrome.tabs.create({ url: tab.url });
+            }
+            await saveUndoBuffer(null);
+            setToasts((current) => current.filter((toast) => toast.id !== toastId));
+            addToast("success", `Restored tabs from "${buffer.sessionName}".`);
+          } catch {
+            addToast("error", "TabSetu could not restore the collapsed tabs.");
+          }
+        })();
+      },
+    });
+  };
+
   const activeNavView = isMobileNavView(view) ? view : "home";
+
+  if (hydrationError) {
+    return <RecoveryScreen error={hydrationError} />;
+  }
 
   if (!isReady) {
     return <LoadingSkeleton />;
@@ -235,6 +271,7 @@ function DashboardAppContent() {
           initialView={desktopViewFromDashView(view)}
           initialSavePrompt={savePrompt}
           onInitialSavePromptHandled={handleInitialSavePromptHandled}
+          onCollapseSaved={handleCollapseSaved}
         />
         <DashToast toasts={toasts} />
       </div>
@@ -288,6 +325,7 @@ function DashboardAppContent() {
           <ErrorBoundary>
             <MobileHomeScreen
               addToast={addToast}
+              onCollapseSaved={handleCollapseSaved}
               initialSavePrompt={savePrompt}
               onInitialSavePromptHandled={handleInitialSavePromptHandled}
             />

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearRememberedFavicons, getRememberedFaviconForOrigin } from "@/lib/favicon";
-import { chromeTabToTabItemWithFavicon } from "@/lib/tabHelpers";
+import { chromeTabToTabItemWithFavicon, isValidUrl } from "@/lib/tabHelpers";
 
 afterEach(() => {
   clearRememberedFavicons();
@@ -40,5 +40,16 @@ describe("chromeTabToTabItemWithFavicon", () => {
 
     expect(item.favIconUrl).toBeNull();
     expect(getRememberedFaviconForOrigin("https://example.com/other")).toBeNull();
+  });
+});
+
+describe("isValidUrl", () => {
+  it("allows only HTTP and HTTPS URLs", () => {
+    expect(isValidUrl("https://example.com/path")).toBe(true);
+    expect(isValidUrl("http://localhost:3000")).toBe(true);
+    expect(isValidUrl("mailto:person@example.com")).toBe(false);
+    expect(isValidUrl("intent://example.com")).toBe(false);
+    expect(isValidUrl("ftp://example.com/file")).toBe(false);
+    expect(isValidUrl("javascript:alert(1)")).toBe(false);
   });
 });

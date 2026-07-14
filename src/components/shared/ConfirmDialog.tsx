@@ -33,7 +33,6 @@ export default function ConfirmDialog({
             className={danger ? "btn btn-danger" : "btn btn-primary"}
             type="submit"
             style={{ flex: 1.2 }}
-            autoFocus
           >
             {confirmLabel}
           </button>

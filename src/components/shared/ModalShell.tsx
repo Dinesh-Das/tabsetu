@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { X } from "lucide-react";
+import { useDialogFocus } from "@/hooks/useDialogFocus";
 
 interface Props {
   title: string;
@@ -20,6 +21,9 @@ export default function ModalShell({
   maxWidth = 440,
   onSubmit,
 }: Props) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const dialogRef = useDialogFocus<HTMLDivElement>(onClose);
   const content = (
     <>
       <div
@@ -31,9 +35,14 @@ export default function ModalShell({
         }}
       >
         <div>
-          <h3 style={{ fontSize: 18 }}>{title}</h3>
+          <h3 id={titleId} style={{ fontSize: 18 }}>
+            {title}
+          </h3>
           {description ? (
-            <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--color-text-muted)" }}>
+            <p
+              id={descriptionId}
+              style={{ margin: "6px 0 0", fontSize: 12, color: "var(--color-text-muted)" }}
+            >
               {description}
             </p>
           ) : null}
@@ -55,8 +64,21 @@ export default function ModalShell({
   );
 
   return (
-    <div className="overlay" onClick={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="modal animate-scale-in" style={{ maxWidth }}>
+    <div
+      className="overlay"
+      role="presentation"
+      onClick={(event) => event.target === event.currentTarget && onClose()}
+    >
+      <div
+        ref={dialogRef}
+        className="modal animate-scale-in"
+        style={{ maxWidth }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
+        tabIndex={-1}
+      >
         {onSubmit ? (
           <form
             onSubmit={(event) => {

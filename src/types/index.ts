@@ -53,6 +53,7 @@ export interface Tag {
   name: string;
   color: string;
   createdAt: number;
+  updatedAt: number;
   deletedAt?: number;
 }
 
@@ -96,6 +97,7 @@ export interface ShareLink {
 }
 
 export interface AIShareConfig {
+  updatedAt: number;
   defaultProvider: "chatgpt" | "claude" | "gemini" | "custom";
   customProviderUrl: string;
   customPromptTemplate: string;

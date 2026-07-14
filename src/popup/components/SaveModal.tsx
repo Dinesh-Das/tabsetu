@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, FolderOpen, Paintbrush, Plus, Tag } from "lucide-react";
 import { BottomSheet } from "@/components/mobile/MobileUI";
-import type { Session, ToastMessage } from "@/types";
+import type { ToastMessage, UndoCollapseBuffer } from "@/types";
+import { COLLAPSE_UNDO_MS, saveUndoBuffer } from "@/lib/storage";
+import { commitCollapseTransaction } from "@/lib/collapseTransaction";
 import { defaultSavedSessionTitle } from "@/lib/sessionLabels";
 import {
   closeTabs,
@@ -11,7 +13,7 @@ import {
   sanitizeLabel,
 } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
-import { useSessionStore } from "@/store/sessionStore";
+import { flushSessionPersistence, useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useTagStore } from "@/store/tagStore";
 
@@ -21,7 +23,7 @@ interface Props {
   preferredTitleTabId?: number | null | undefined;
   onClose: () => void;
   addToast: (type: ToastMessage["type"], message: string) => void;
-  onCollapseSaved?: ((payload: { session: Session; windowId: number | null }) => void) | undefined;
+  onCollapseSaved?: ((buffer: UndoCollapseBuffer) => void) | undefined;
 }
 
 const COLOR_LABELS: Array<{ value: string | null; label: string }> = [
@@ -207,13 +209,31 @@ export default function SaveModal({
 
       if (closeAfterSave) {
         const windowId = tabs[0]?.windowId ?? null;
-        await closeTabs(tabs);
-        onCollapseSaved?.({ session, windowId });
+        const createdAt = Date.now();
+        const buffer: UndoCollapseBuffer = {
+          sessionId: session.id,
+          sessionName: session.name,
+          tabs: session.tabs,
+          windowId,
+          createdAt,
+          expiresAt: createdAt + COLLAPSE_UNDO_MS,
+        };
+        await commitCollapseTransaction({
+          buffer,
+          flushSession: flushSessionPersistence,
+          persistUndoBuffer: saveUndoBuffer,
+          closeBrowserTabs: () => closeTabs(tabs),
+        });
+        window.setTimeout(() => {
+          void saveUndoBuffer(null);
+        }, COLLAPSE_UNDO_MS);
+        onCollapseSaved?.(buffer);
         addToast(
           "success",
           `Saved and collapsed ${tabs.length} ${tabs.length === 1 ? "tab" : "tabs"}.`
         );
       } else {
+        await flushSessionPersistence();
         addToast(
           "success",
           `Saved ${tabs.length} ${tabs.length === 1 ? "tab" : "tabs"} to TabSetu.`

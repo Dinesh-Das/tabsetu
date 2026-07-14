@@ -72,7 +72,7 @@ function toFirefoxManifest(manifest) {
 
 function toSafariManifest(manifest) {
   // Safari does not support the `identity` permission or the `oauth2` key.
-  // Remove them and add the oauth-callback page to web_accessible_resources.
+  // Remove them while retaining the packaged tab-based OAuth callback fallback.
   const { oauth2: _oauth2, ...rest } = manifest;
 
   const permissions = (rest.permissions ?? []).filter(
@@ -82,15 +82,10 @@ function toSafariManifest(manifest) {
     (perm) => perm !== "identity"
   );
 
-  const webAccessibleResources = (rest.web_accessible_resources ?? []).map(
-    (entry) => {
-      const { use_dynamic_url: _useDynamicUrl, ...entryRest } = entry;
-      return {
-        ...entryRest,
-        resources: [...new Set([...entryRest.resources, "oauth-callback.html"])],
-      };
-    }
-  );
+  const webAccessibleResources = (rest.web_accessible_resources ?? []).map((entry) => {
+    const { use_dynamic_url: _useDynamicUrl, ...entryRest } = entry;
+    return entryRest;
+  });
 
   return {
     ...rest,

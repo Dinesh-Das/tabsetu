@@ -1,12 +1,12 @@
 import type { Session, TabItem } from "@/types";
-import { isRestrictedUrl } from "@/lib/tabHelpers";
+import { isRestrictedUrl, isValidUrl } from "@/lib/tabHelpers";
 
 export function getOpenableTabs(tabs: TabItem[]): TabItem[] {
-  return tabs.filter((tab) => tab.url && !isRestrictedUrl(tab.url));
+  return tabs.filter((tab) => tab.url && isValidUrl(tab.url) && !isRestrictedUrl(tab.url));
 }
 
 export async function openSavedTab(tab: TabItem, openInNewWindow = false): Promise<boolean> {
-  if (!tab.url || isRestrictedUrl(tab.url)) {
+  if (!tab.url || !isValidUrl(tab.url) || isRestrictedUrl(tab.url)) {
     return false;
   }
 

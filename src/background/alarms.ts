@@ -11,6 +11,8 @@ import {
 } from "@/lib/storage";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useSyncStore } from "@/store/syncStore";
+import { isValidUrl } from "@/lib/tabHelpers";
+import { reconcileReminderAlarms } from "@/lib/reminderAlarms";
 import {
   clearNotification,
   createNotification,
@@ -80,6 +82,24 @@ async function createScheduleAlarm(schedule: Schedule, from = new Date()): Promi
   });
 }
 
+async function handleScheduleWithoutOpenableTabs(
+  schedule: Schedule,
+  schedules: Schedule[],
+  currentAlarmName: string,
+  now = Date.now()
+): Promise<void> {
+  if (schedule.type !== "once") {
+    await createScheduleAlarm(schedule, new Date(now + 1000));
+    return;
+  }
+
+  const updatedSchedules = schedules.map((item) =>
+    item.id === schedule.id ? { ...item, enabled: false, updatedAt: now } : item
+  );
+  await saveSchedules(updatedSchedules);
+  await chrome.alarms.clear(currentAlarmName);
+}
+
 async function loadRuntimeData(): Promise<{
   schedules: Schedule[];
   sessions: Session[];
@@ -112,25 +132,7 @@ export async function hydrateAlarms(): Promise<void> {
 
   await createAutoArchiveAlarm(settings);
 
-  if (!settings.remindersEnabled) {
-    return;
-  }
-
-  for (const session of sessions) {
-    for (const tab of session.tabs) {
-      const dueAt = tab.reminderSnoozedUntil ?? tab.reminderAt;
-      if (!dueAt || tab.reminderDismissed) {
-        continue;
-      }
-
-      const name = reminderAlarmName(tab.id);
-      await chrome.alarms.clear(name);
-      await chrome.alarms.create(name, {
-        when: Math.max(dueAt, Date.now() + 1000),
-      });
-    }
-  }
-
+  await reconcileReminderAlarms(sessions, settings.remindersEnabled);
   await updateBadge();
   await maybeStartKeepalive();
 }
@@ -309,6 +311,7 @@ async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
 
   const session = sessions.find((item) => item.id === schedule.sessionId);
   if (!session || session.tabs.length === 0) {
+    await handleScheduleWithoutOpenableTabs(schedule, schedules, alarm.name);
     return;
   }
 
@@ -318,14 +321,60 @@ async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
     return;
   }
 
-  const urls = session.tabs.map((tab) => tab.url).filter(Boolean);
+  const urls = session.tabs.map((tab) => tab.url).filter(isValidUrl);
   if (urls.length === 0) {
+    await handleScheduleWithoutOpenableTabs(schedule, schedules, alarm.name);
     return;
   }
 
-  const windowRef = await chrome.windows.create({ url: urls[0], focused: true });
-  for (const url of urls.slice(1)) {
-    await chrome.tabs.create({ windowId: windowRef.id, url });
+  let openedCount = 0;
+  try {
+    const windowRef = await chrome.windows.create({ url: urls[0], focused: true });
+    openedCount = 1;
+    for (const url of urls.slice(1)) {
+      await chrome.tabs.create({ windowId: windowRef.id, url });
+      openedCount += 1;
+    }
+  } catch (error) {
+    const failedAt = Date.now();
+    if (schedule.type === "once") {
+      if (openedCount === 0) {
+        await chrome.alarms.create(alarm.name, { when: failedAt + 5 * 60 * 1000 });
+      } else {
+        await saveSchedules(
+          schedules.map((item) =>
+            item.id === schedule.id
+              ? { ...item, enabled: false, lastFiredAt: failedAt, updatedAt: failedAt }
+              : item
+          )
+        );
+      }
+    } else {
+      const nextSchedule =
+        openedCount === 0 ? schedule : { ...schedule, lastFiredAt: failedAt, updatedAt: failedAt };
+      if (openedCount !== 0) {
+        await saveSchedules(
+          schedules.map((item) => (item.id === schedule.id ? nextSchedule : item))
+        );
+      }
+      await createScheduleAlarm(nextSchedule, new Date(failedAt + 1000));
+    }
+
+    try {
+      await createNotification(`tabsetu-schedule-error-${schedule.id}-${failedAt}`, {
+        type: "basic",
+        iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+        title: `TabSetu could not fully open "${session.name}"`,
+        message:
+          openedCount === 0
+            ? "No tabs were opened. TabSetu will retry or wait for the next occurrence."
+            : `${openedCount} of ${urls.length} tabs opened. The schedule was advanced safely.`,
+      });
+    } catch {
+      // The schedule has already been reconciled; notifications are best effort.
+    }
+    console.error("[TabSetu] Scheduled session open failed:", error);
+    return;
   }
   await notifyScheduledSessionOpened(session, urls.length);
 
@@ -382,7 +431,7 @@ function registerReminderNotificationButtons(): void {
     if (buttonIndex === 0) {
       void updateReminderTab(tabId, (tab) => ({ ...tab, reminderDismissed: true })).then(
         async (tab) => {
-          if (tab?.url) {
+          if (tab?.url && isValidUrl(tab.url)) {
             await chrome.tabs.create({ url: tab.url });
           }
           await clearNotification(notificationId);

@@ -15,19 +15,13 @@ interface Props {
   session: Session;
   addToast: (type: ToastMessage["type"], message: string) => void;
   aiEnabled: boolean;
-  defaultAIProvider: string;
+  includeNotes: boolean;
 }
 
-export default function SessionSharePanel({
-  session,
-  addToast,
-  aiEnabled,
-  defaultAIProvider,
-}: Props) {
+export default function SessionSharePanel({ session, addToast, aiEnabled, includeNotes }: Props) {
   const [showShareModal, setShowShareModal] = useState(false);
   const shareResult = tryGenerateShareUrl(session);
-  void aiEnabled;
-  void defaultAIProvider;
+  const exportOptions = { includeNotes };
 
   useEffect(() => {
     const open = () => setShowShareModal(true);
@@ -43,11 +37,17 @@ export default function SessionSharePanel({
           <span className="badge badge-subtle">Encoded local snapshots</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <button className="btn btn-secondary" onClick={() => downloadMarkdown(session)}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => downloadMarkdown(session, exportOptions)}
+          >
             <Link2 size={14} />
             Markdown
           </button>
-          <button className="btn btn-secondary" onClick={() => downloadPlainText(session)}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => downloadPlainText(session, exportOptions)}
+          >
             <ClipboardCopy size={14} />
             Plain text
           </button>
@@ -63,8 +63,9 @@ export default function SessionSharePanel({
           </button>
           <button
             className="btn btn-secondary"
+            disabled={!aiEnabled}
             onClick={async () => {
-              await copyTextToClipboard(generateAIPrompt(session));
+              await copyTextToClipboard(generateAIPrompt(session, exportOptions));
               addToast("success", "Copied the AI-ready prompt.");
             }}
           >
@@ -85,7 +86,7 @@ export default function SessionSharePanel({
             <button
               className="btn btn-secondary"
               type="button"
-              onClick={() => downloadMarkdown(session)}
+              onClick={() => downloadMarkdown(session, exportOptions)}
             >
               <Link2 size={14} />
               Export Markdown

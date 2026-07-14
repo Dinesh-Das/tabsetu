@@ -36,20 +36,12 @@ function mergeByUpdatedAt<T extends MergeableEntity>(
   return options.includeDeleted ? items : items.filter((item) => item.deletedAt == null);
 }
 
-function hasUpdatedAt(value: AIShareConfig): value is AIShareConfig & { updatedAt: number } {
-  return "updatedAt" in value && typeof value.updatedAt === "number";
-}
-
 function mergeAIConfig(local: AIShareConfig, remote: AIShareConfig | undefined): AIShareConfig {
   if (!remote) {
     return local;
   }
 
-  if (hasUpdatedAt(local) && hasUpdatedAt(remote)) {
-    return remote.updatedAt > local.updatedAt ? remote : local;
-  }
-
-  return remote;
+  return remote.updatedAt > local.updatedAt ? remote : local;
 }
 
 function settingsTimestamp(settings: Settings): number | null {

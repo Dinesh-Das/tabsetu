@@ -22,7 +22,15 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { getFaviconFallbackUrl } from "@/lib/favicon";
 import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
 import { getDomainLabel, openSavedTab } from "@/lib/sessionBrowser";
-import type { Folder, Session, SortOption, TabItem, Tag as TagItem, ToastMessage } from "@/types";
+import type {
+  Folder,
+  Session,
+  SortOption,
+  TabItem,
+  Tag as TagItem,
+  ToastMessage,
+  UndoCollapseBuffer,
+} from "@/types";
 import { useFolderStore } from "@/store/folderStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -31,7 +39,7 @@ import SaveModal from "@/popup/components/SaveModal";
 
 interface Props {
   addToast: (type: ToastMessage["type"], message: string) => void;
-  onCollapseSaved?: (payload: { session: Session; windowId: number | null }) => void;
+  onCollapseSaved?: (buffer: UndoCollapseBuffer) => void;
   onSelectTabs?: () => void;
   onQuickSave?: () => void;
   onCollapseCurrent?: () => void;
@@ -130,6 +138,7 @@ export default function MobileHomeScreen({
   const sortBy = useSessionStore((state) => state.sortBy);
   const setSortBy = useSessionStore((state) => state.setSortBy);
   const viewFilter = useSessionStore((state) => state.viewFilter);
+  const setViewFilter = useSessionStore((state) => state.setViewFilter);
   const activeFolderId = useSessionStore((state) => state.activeFolderId);
   const activeTagId = useSessionStore((state) => state.activeTagId);
   const removeTabFromSession = useSessionStore((state) => state.removeTabFromSession);
@@ -350,10 +359,18 @@ export default function MobileHomeScreen({
             placeholder="Search sessions and tabs... Ctrl+K"
           />
         </label>
-        <MobileIconButton title="Filter">
+        <MobileIconButton
+          title={homeFilter === "folders" ? "Group by tags" : "Group by folders"}
+          active={homeFilter === "tags"}
+          onClick={() => setHomeFilter((current) => (current === "folders" ? "tags" : "folders"))}
+        >
           <Filter size={18} />
         </MobileIconButton>
-        <MobileIconButton title="Focus">
+        <MobileIconButton
+          title={viewFilter === "pinned" ? "Show all sessions" : "Show pinned sessions"}
+          active={viewFilter === "pinned"}
+          onClick={() => setViewFilter(viewFilter === "pinned" ? "all" : "pinned")}
+        >
           <Maximize2 size={18} />
         </MobileIconButton>
       </div>

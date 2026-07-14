@@ -1,4 +1,4 @@
-import React, { type ReactNode, useEffect, useState } from "react";
+import React, { type ReactNode, useCallback, useEffect, useState } from "react";
 import { ListChecks } from "lucide-react";
 import {
   MobileAppShell,
@@ -10,16 +10,12 @@ import {
 import ThemeToggle from "@/components/shared/ThemeToggle";
 import LoadingSkeleton from "@/components/shared/LoadingSkeleton";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import type { Session, ToastMessage, UndoCollapseBuffer } from "@/types";
-import {
-  clearAllData,
-  COLLAPSE_UNDO_MS,
-  loadStorageWithUndoBuffer,
-  saveUndoBuffer,
-} from "@/lib/storage";
+import RecoveryScreen from "@/components/shared/RecoveryScreen";
+import type { ToastMessage, UndoCollapseBuffer } from "@/types";
+import { loadStorageWithUndoBuffer, saveUndoBuffer } from "@/lib/storage";
 import { filterCapturableTabs } from "@/lib/popupTabs";
 import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
-import { getCurrentTabs } from "@/lib/tabHelpers";
+import { getCurrentTabs, isValidUrl } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
 import { useNotesStore } from "@/store/notesStore";
 import { useScheduleStore } from "@/store/scheduleStore";
@@ -38,6 +34,7 @@ import Onboarding from "./components/Onboarding";
 import SaveModal from "./components/SaveModal";
 import Toast from "./components/Toast";
 import { useSyncStore } from "@/store/syncStore";
+import { subscribeToPersistenceFailures } from "@/store/persistenceQueue";
 
 type SaveMode = "save" | "collapse";
 // "capture" is the popup-only tab selection workflow used before opening SaveModal.
@@ -70,29 +67,6 @@ function titleForView(view: PopupView): string {
   }
 }
 
-function ErrorScreen({ error, onReset }: { error: Error; onReset: () => void }) {
-  return (
-    <MobileFrame className="mobile-popup-frame">
-      <div className="empty-state" style={{ margin: 16 }}>
-        <h3>TabSetu hit a problem</h3>
-        <p>{error.message}</p>
-        <button
-          className="btn btn-danger"
-          type="button"
-          onClick={() => {
-            void clearAllData().then(() => {
-              onReset();
-              window.location.reload();
-            });
-          }}
-        >
-          Clear all data and reload
-        </button>
-      </div>
-    </MobileFrame>
-  );
-}
-
 class AppErrorBoundary extends React.Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
   static getDerivedStateFromError(error: Error) {
@@ -100,9 +74,7 @@ class AppErrorBoundary extends React.Component<{ children: ReactNode }, { error:
   }
   render() {
     if (this.state.error) {
-      return (
-        <ErrorScreen error={this.state.error} onReset={() => this.setState({ error: null })} />
-      );
+      return <RecoveryScreen error={this.state.error} compact />;
     }
     return this.props.children;
   }
@@ -120,6 +92,7 @@ function PopupAppContent() {
   const [saveModalState, setSaveModalState] = useState<SaveModalState | null>(null);
   const [currentTabCount, setCurrentTabCount] = useState(0);
   const [isBootstrapped, setIsBootstrapped] = useState(false);
+  const [bootstrapError, setBootstrapError] = useState<Error | null>(null);
 
   useEffect(() => {
     document.body.classList.add("is-popup-root");
@@ -174,6 +147,13 @@ function PopupAppContent() {
           }
         }
       })
+      .catch((error: unknown) => {
+        if (mounted) {
+          setBootstrapError(
+            error instanceof Error ? error : new Error("Storage hydration failed.")
+          );
+        }
+      })
       .finally(() => {
         if (mounted) {
           setIsBootstrapped(true);
@@ -198,20 +178,27 @@ function PopupAppContent() {
     void getCurrentTabs().then((tabs) => setCurrentTabCount(filterCapturableTabs(tabs).length));
   }, []);
 
-  const addToast = (
-    type: ToastMessage["type"],
-    message: string,
-    options?: Partial<ToastMessage>
-  ) => {
-    const id = options?.id ?? `toast-${Date.now()}`;
-    const toast: ToastMessage = { id, type, message, ...options };
-    setToasts((current) => [...current, toast]);
-    if (!toast.persistent) {
-      window.setTimeout(() => {
-        setToasts((current) => current.filter((item) => item.id !== id));
-      }, toast.durationMs ?? 3200);
-    }
-  };
+  const addToast = useCallback(
+    (type: ToastMessage["type"], message: string, options?: Partial<ToastMessage>) => {
+      const id = options?.id ?? `toast-${Date.now()}`;
+      const toast: ToastMessage = { id, type, message, ...options };
+      setToasts((current) => [...current, toast]);
+      if (!toast.persistent) {
+        window.setTimeout(() => {
+          setToasts((current) => current.filter((item) => item.id !== id));
+        }, toast.durationMs ?? 3200);
+      }
+    },
+    []
+  );
+
+  useEffect(
+    () =>
+      subscribeToPersistenceFailures(({ store }) => {
+        addToast("error", `Changes to ${store} could not be saved. Your next edit will retry.`);
+      }),
+    [addToast]
+  );
 
   const openSaveModal = (mode: SaveMode, ids: number[] = []) => {
     setSaveModalState({ mode, selectedTabIds: ids });
@@ -225,6 +212,9 @@ function PopupAppContent() {
     try {
       let targetWindowId = buffer.windowId;
       for (const tab of buffer.tabs) {
+        if (!isValidUrl(tab.url)) {
+          continue;
+        }
         if (targetWindowId) {
           try {
             await chrome.tabs.create({ windowId: targetWindowId, url: tab.url });
@@ -259,26 +249,7 @@ function PopupAppContent() {
     });
   };
 
-  const handleCollapseSaved = ({
-    session,
-    windowId,
-  }: {
-    session: Session;
-    windowId: number | null;
-  }) => {
-    const createdAt = Date.now();
-    const buffer: UndoCollapseBuffer = {
-      sessionId: session.id,
-      sessionName: session.name,
-      tabs: session.tabs,
-      windowId,
-      createdAt,
-      expiresAt: createdAt + COLLAPSE_UNDO_MS,
-    };
-    void saveUndoBuffer(buffer);
-    window.setTimeout(() => {
-      void saveUndoBuffer(null);
-    }, COLLAPSE_UNDO_MS);
+  const handleCollapseSaved = (buffer: UndoCollapseBuffer) => {
     showUndoToast(buffer);
   };
 
@@ -334,6 +305,10 @@ function PopupAppContent() {
       </MobileIconButton>
     </div>
   );
+
+  if (bootstrapError) {
+    return <RecoveryScreen error={bootstrapError} compact />;
+  }
 
   if (!isReady || !isBootstrapped) {
     return (

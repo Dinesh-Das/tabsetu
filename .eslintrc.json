@@ -27,11 +27,8 @@
     "react-hooks/set-state-in-effect": "off",
     "react-refresh/only-export-components": "off",
     "react-hooks/purity": "off",
-    "jsx-a11y/click-events-have-key-events": "off",
     "jsx-a11y/label-has-associated-control": "off",
     "jsx-a11y/no-autofocus": "off",
-    "jsx-a11y/no-noninteractive-element-interactions": "off",
-    "jsx-a11y/no-static-element-interactions": "off",
     "no-console": ["warn", { "allow": ["warn", "error"] }]
   },
   "env": { "browser": true, "es2022": true }

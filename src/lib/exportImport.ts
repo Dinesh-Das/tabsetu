@@ -6,6 +6,13 @@ import {
 import { clampText, generateId, isValidUrl, sanitizeLabel, stripHtml } from "@/lib/tabHelpers";
 import type { AIShareConfig, Session, StorageData, TabItem } from "@/types";
 
+const MAX_IMPORT_FILE_BYTES = 25 * 1024 * 1024;
+const MAX_IMPORT_DEPTH = 50;
+const MAX_IMPORT_NODES = 100_000;
+const MAX_IMPORT_SESSIONS = 5_000;
+const MAX_IMPORT_TABS = 50_000;
+const MAX_IMPORT_COLLECTIONS = 10_000;
+
 function downloadFile(content: string, fileName: string, mimeType: string): void {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
@@ -123,12 +130,16 @@ function decodeHtmlEntities(value: string): string {
     ): string => {
       if (decimal) {
         const codePoint = Number.parseInt(decimal, 10);
-        return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match;
+        return Number.isFinite(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+          ? String.fromCodePoint(codePoint)
+          : match;
       }
 
       if (hex) {
         const codePoint = Number.parseInt(hex, 16);
-        return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match;
+        return Number.isFinite(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+          ? String.fromCodePoint(codePoint)
+          : match;
       }
 
       if (named) {
@@ -327,8 +338,15 @@ function collectJsonSections(
   value: unknown,
   inheritedName: string | null,
   sections: LegacySection[],
-  looseTabs: LegacyTabSeed[]
+  looseTabs: LegacyTabSeed[],
+  traversal = { depth: 0, nodes: 0 }
 ): void {
+  traversal.nodes += 1;
+  if (traversal.depth > MAX_IMPORT_DEPTH || traversal.nodes > MAX_IMPORT_NODES) {
+    throw new Error("Import JSON is too deeply nested or contains too many records.");
+  }
+
+  const childTraversal = { ...traversal, depth: traversal.depth + 1 };
   if (Array.isArray(value)) {
     const tabs = value
       .map((item) => (isRecord(item) ? tabSeedFromRecord(item) : null))
@@ -340,7 +358,9 @@ function collectJsonSections(
     }
 
     for (const item of value) {
-      collectJsonSections(item, inheritedName, sections, looseTabs);
+      childTraversal.nodes = traversal.nodes;
+      collectJsonSections(item, inheritedName, sections, looseTabs, childTraversal);
+      traversal.nodes = childTraversal.nodes;
     }
     return;
   }
@@ -378,7 +398,9 @@ function collectJsonSections(
       continue;
     }
 
-    collectJsonSections(child, nextName, sections, looseTabs);
+    childTraversal.nodes = traversal.nodes;
+    collectJsonSections(child, nextName, sections, looseTabs, childTraversal);
+    traversal.nodes = childTraversal.nodes;
   }
 }
 
@@ -551,6 +573,27 @@ export function summarizeStorageData(data: StorageData): StorageSummary {
   };
 }
 
+function validateImportEntityLimits(data: StorageData): StorageData {
+  const summary = summarizeStorageData(data);
+  if (summary.sessions > MAX_IMPORT_SESSIONS || summary.tabs > MAX_IMPORT_TABS) {
+    throw new Error(
+      `Import exceeds the supported limit of ${MAX_IMPORT_SESSIONS} sessions or ${MAX_IMPORT_TABS} tabs.`
+    );
+  }
+
+  if (
+    data.folders.length > MAX_IMPORT_COLLECTIONS ||
+    data.tags.length > MAX_IMPORT_COLLECTIONS ||
+    data.schedules.length > MAX_IMPORT_COLLECTIONS ||
+    data.standaloneNotes.length > MAX_IMPORT_COLLECTIONS ||
+    data.shareLinks.length > MAX_IMPORT_COLLECTIONS
+  ) {
+    throw new Error(`Import contains more than ${MAX_IMPORT_COLLECTIONS} records in one section.`);
+  }
+
+  return data;
+}
+
 function entityTimestamp(value: {
   deletedAt?: number | null;
   updatedAt?: number | null;
@@ -615,6 +658,10 @@ export function mergeStorageData(current: StorageData, imported: StorageData): S
 }
 
 export async function importFile(file: File): Promise<StorageData> {
+  if (file.size > MAX_IMPORT_FILE_BYTES) {
+    throw new Error("Import file is larger than the supported 25 MB limit.");
+  }
+
   let text: string;
   try {
     text = await file.text();
@@ -629,19 +676,19 @@ export async function importFile(file: File): Promise<StorageData> {
 
   const jsonImport = parseJsonImport(trimmedText);
   if (jsonImport) {
-    return jsonImport;
+    return validateImportEntityLimits(jsonImport);
   }
 
   if (isLikelyHtml(trimmedText, file)) {
     const htmlSections = parseHtmlSections(trimmedText);
     if (htmlSections.length !== 0) {
-      return storageFromLegacySections(htmlSections, "HTML export");
+      return validateImportEntityLimits(storageFromLegacySections(htmlSections, "HTML export"));
     }
   }
 
   const textSections = parseTextSections(trimmedText);
   if (textSections.length !== 0) {
-    return storageFromLegacySections(textSections, "OneTab text");
+    return validateImportEntityLimits(storageFromLegacySections(textSections, "OneTab text"));
   }
 
   throw new Error("No valid tabs were found in that import file.");
@@ -692,17 +739,17 @@ export function sessionToPlainText(session: Session, options?: SessionExportOpti
   return lines.join("\n");
 }
 
-export function downloadMarkdown(session: Session): void {
+export function downloadMarkdown(session: Session, options?: SessionExportOptions): void {
   downloadFile(
-    sessionToMarkdown(session),
+    sessionToMarkdown(session, options),
     `${session.name.replace(/\s+/g, "-").toLowerCase() || "session"}.md`,
     "text/markdown"
   );
 }
 
-export function downloadPlainText(session: Session): void {
+export function downloadPlainText(session: Session, options?: SessionExportOptions): void {
   downloadFile(
-    sessionToPlainText(session),
+    sessionToPlainText(session, options),
     `${session.name.replace(/\s+/g, "-").toLowerCase() || "session"}.txt`,
     "text/plain"
   );

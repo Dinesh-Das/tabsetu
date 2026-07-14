@@ -252,7 +252,7 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
           session={session}
           addToast={addToast}
           aiEnabled={settings.aiEnabled}
-          defaultAIProvider={settings.defaultAIProvider}
+          includeNotes={settings.exportIncludeNotes}
         />
         <SessionTabList
           session={session}

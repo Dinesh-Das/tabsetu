@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Settings } from "@/types";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, STORAGE_KEYS } from "@/lib/storage";
 import { useHydrationStore } from "@/store/hydration";
+import { PersistenceQueue } from "@/store/persistenceQueue";
 
 interface SettingsState {
   settings: Settings;
@@ -10,11 +11,10 @@ interface SettingsState {
   replaceSettings: (settings: Settings) => void;
 }
 
-let writePromise: Promise<void> = Promise.resolve();
+const persistenceQueue = new PersistenceQueue("settings");
 
 function persistSettings(settings: Settings): void {
-  writePromise = writePromise.then(() => saveSettings(settings));
-  void writePromise;
+  void persistenceQueue.enqueue(() => saveSettings(settings));
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

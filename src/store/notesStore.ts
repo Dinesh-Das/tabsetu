@@ -3,6 +3,7 @@ import type { StandaloneNote } from "@/types";
 import { loadStorage, saveStandaloneNotes } from "@/lib/storage";
 import { useHydrationStore } from "@/store/hydration";
 import { clampText, generateId, sanitizeLabel, stripHtml } from "@/lib/tabHelpers";
+import { PersistenceQueue } from "@/store/persistenceQueue";
 
 interface NotesState {
   standaloneNotes: StandaloneNote[];
@@ -18,11 +19,10 @@ interface NotesState {
   importNotes: (notes: StandaloneNote[]) => void;
 }
 
-let writePromise: Promise<void> = Promise.resolve();
+const persistenceQueue = new PersistenceQueue("notes");
 
 function persistNotes(notes: StandaloneNote[]): void {
-  writePromise = writePromise.then(() => saveStandaloneNotes(notes));
-  void writePromise;
+  void persistenceQueue.enqueue(() => saveStandaloneNotes(notes));
 }
 
 function activeNotes(notes: StandaloneNote[]): StandaloneNote[] {

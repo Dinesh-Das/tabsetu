@@ -120,6 +120,7 @@ export function scoreOverlayRows(
   }
 
   const threshold = Math.max(0.1, Math.min(0.6, settings?.fuzzySearchThreshold ?? 0.32));
+  const minimumSimilarityScore = (0.7 - threshold) * 0.1;
 
   return rows
     .map((row, index) => {
@@ -130,7 +131,7 @@ export function scoreOverlayRows(
       );
       return { row, score, index };
     })
-    .filter((result) => result.score >= threshold * 0.1)
+    .filter((result) => result.score >= minimumSimilarityScore)
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .map((result) => result.row);
 }

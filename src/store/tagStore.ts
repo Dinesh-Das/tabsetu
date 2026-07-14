@@ -3,6 +3,7 @@ import type { Tag } from "@/types";
 import { loadStorage, saveTags } from "@/lib/storage";
 import { useHydrationStore } from "@/store/hydration";
 import { clampText, generateId, stripHtml } from "@/lib/tabHelpers";
+import { PersistenceQueue } from "@/store/persistenceQueue";
 
 interface TagState {
   tags: Tag[];
@@ -13,11 +14,10 @@ interface TagState {
   importTags: (tags: Tag[]) => void;
 }
 
-let writePromise: Promise<void> = Promise.resolve();
+const persistenceQueue = new PersistenceQueue("tags");
 
 function persistTags(tags: Tag[]): void {
-  writePromise = writePromise.then(() => saveTags(tags));
-  void writePromise;
+  void persistenceQueue.enqueue(() => saveTags(tags));
 }
 
 function activeTags(tags: Tag[]): Tag[] {
@@ -36,11 +36,13 @@ export const useTagStore = create<TagState>((set, get) => ({
   createTag: (name, color) => {
     const sanitizedName =
       clampText(stripHtml(name).replace(/[^a-zA-Z0-9\- ]/g, ""), 30) || "New Tag";
+    const createdAt = Date.now();
     const tag: Tag = {
       id: generateId("tag"),
       name: sanitizedName,
       color,
-      createdAt: Date.now(),
+      createdAt,
+      updatedAt: createdAt,
     };
     const tags = [...get().tags, tag];
     set({ tags });
@@ -54,7 +56,9 @@ export const useTagStore = create<TagState>((set, get) => ({
         ? { name: clampText(stripHtml(updates.name).replace(/[^a-zA-Z0-9\- ]/g, ""), 30) || "Tag" }
         : {}),
     };
-    const tags = get().tags.map((t) => (t.id === id ? { ...t, ...sanitizedUpdates } : t));
+    const tags = get().tags.map((t) =>
+      t.id === id ? { ...t, ...sanitizedUpdates, updatedAt: Date.now() } : t
+    );
     set({ tags });
     persistTags(tags);
   },
@@ -67,7 +71,8 @@ export const useTagStore = create<TagState>((set, get) => ({
 
     const tags = get().tags.filter((tag) => tag.id !== id);
     set({ tags });
-    persistTags([...tags, { ...target, deletedAt: Date.now() }]);
+    const deletedAt = Date.now();
+    persistTags([...tags, { ...target, deletedAt, updatedAt: deletedAt }]);
   },
 
   importTags: (tags) => {

@@ -70,18 +70,40 @@ export default function SessionCard({
     : (searchResult?.highlights.sessionDescription ?? []);
 
   return (
-    <article
+    <div
       className="session-card"
       data-active={active}
       data-selected={selected || undefined}
       data-card-style={cardStyle}
-      onClick={() => {
+      onClick={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.target.closest("button, input, textarea, select, a, form")
+        ) {
+          return;
+        }
         if (selectMode) {
           onToggleSelected(session.id);
           return;
         }
 
         onSelect(session.id);
+      }}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selectMode ? selected : undefined}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) {
+          return;
+        }
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          if (selectMode) {
+            onToggleSelected(session.id);
+          } else {
+            onSelect(session.id);
+          }
+        }
       }}
       style={{
         padding: cardStyle === "compact" ? 14 : cardStyle === "grid" ? 16 : 18,
@@ -130,7 +152,6 @@ export default function SessionCard({
                   event.preventDefault();
                   onCommitRename(session);
                 }}
-                onClick={(event) => event.stopPropagation()}
               >
                 <input
                   className="input"
@@ -298,6 +319,6 @@ export default function SessionCard({
           <Trash2 size={14} />
         </button>
       </div>
-    </article>
+    </div>
   );
 }

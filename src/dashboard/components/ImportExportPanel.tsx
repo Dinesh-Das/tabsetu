@@ -14,6 +14,7 @@ import {
 } from "@/lib/exportImport";
 import { copyTextToClipboard } from "@/lib/sessionBrowser";
 import { loadStorage, saveStorageData } from "@/lib/storage";
+import { reconcileReminderAlarms } from "@/lib/reminderAlarms";
 import { useFolderStore } from "@/store/folderStore";
 import { useNotesStore } from "@/store/notesStore";
 import { useScheduleStore } from "@/store/scheduleStore";
@@ -60,6 +61,7 @@ export default function ImportExportPanel({ addToast }: Props) {
       standaloneNotes,
       shareLinks,
       aiConfig: {
+        updatedAt: settings.updatedAt,
         defaultProvider: settings.defaultAIProvider,
         customProviderUrl: settings.customAIProviderUrl,
         customPromptTemplate: settings.customAIPromptTemplate,
@@ -133,6 +135,7 @@ export default function ImportExportPanel({ addToast }: Props) {
       importShareLinks(resultData.shareLinks);
       updateSettings(resultData.settings);
       await syncAlarms(resultData.settings.schedulesEnabled);
+      await reconcileReminderAlarms(resultData.sessions, resultData.settings.remindersEnabled);
       addToast(
         "success",
         pendingImport.mode === "replace"
@@ -223,11 +226,21 @@ export default function ImportExportPanel({ addToast }: Props) {
                 <div
                   style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}
                 >
-                  <button className="btn btn-secondary" onClick={() => downloadMarkdown(session)}>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() =>
+                      downloadMarkdown(session, { includeNotes: settings.exportIncludeNotes })
+                    }
+                  >
                     <Link2 size={14} />
                     Markdown
                   </button>
-                  <button className="btn btn-secondary" onClick={() => downloadPlainText(session)}>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() =>
+                      downloadPlainText(session, { includeNotes: settings.exportIncludeNotes })
+                    }
+                  >
                     Text
                   </button>
                   <button
@@ -241,8 +254,11 @@ export default function ImportExportPanel({ addToast }: Props) {
                   </button>
                   <button
                     className="btn btn-secondary"
+                    disabled={!settings.aiEnabled}
                     onClick={async () => {
-                      await copyTextToClipboard(generateAIPrompt(session));
+                      await copyTextToClipboard(
+                        generateAIPrompt(session, { includeNotes: settings.exportIncludeNotes })
+                      );
                       addToast("success", `Copied the AI prompt for "${session.name}".`);
                     }}
                   >

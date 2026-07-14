@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "TabSetu",
   "version": "1.0.2",
-  "description": "Save, organize, and restore browser sessions. Unlimited tabs, folders, and tags. Free forever.",
+  "description": "Save, organize, and restore browser sessions with folders, tags, notes, and schedules.",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -68,15 +68,15 @@
   "options_page": "dashboard.html",
   "web_accessible_resources": [
     {
-      "resources": [
-        "dashboard.html",
-        "oauth-callback.html",
-        "oauth-callback.css",
-        "oauth-callback.js",
-        "share-page/index.html",
-        "share-page/share.css",
-        "share-page/share.js"
-      ],
+      "resources": ["oauth-callback.html", "oauth-callback.css", "oauth-callback.js"],
+      "matches": [
+        "https://accounts.google.com/*",
+        "https://oauth2.googleapis.com/*",
+        "https://*.googleusercontent.com/*"
+      ]
+    },
+    {
+      "resources": ["share-page/index.html", "share-page/share.css", "share-page/share.js"],
       "matches": ["*://*/*"]
     }
   ]

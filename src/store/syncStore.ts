@@ -119,7 +119,10 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
         reloadStoresFromStorage(data);
       }
       await uploadSync(data);
-      const lastSyncedAt = (await getLastSyncedAt()) ?? Date.now();
+      const lastSyncedAt = await getLastSyncedAt();
+      if (lastSyncedAt == null) {
+        throw new Error("Google Drive did not confirm the uploaded sync file.");
+      }
       set({ lastSyncedAt, syncError: null });
     } catch (error) {
       set({ syncError: syncErrorMessage(error) });

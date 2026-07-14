@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "@/lib/storage";
-import { buildSessionListItems, sortSessions } from "@/lib/sessionQuery";
+import { buildSearchIndex, buildSessionListItems, sortSessions } from "@/lib/sessionQuery";
 import type { Folder, Session, Tag, TabItem } from "@/types";
 
 function createTab(id: string, createdAt: number): TabItem {
@@ -72,8 +72,8 @@ const folders: Folder[] = [
 ];
 
 const tags: Tag[] = [
-  { id: "tag-focus", name: "Focus", color: "#34D399", createdAt: 1 },
-  { id: "tag-later", name: "Later", color: "#FCD34D", createdAt: 1 },
+  { id: "tag-focus", name: "Focus", color: "#34D399", createdAt: 1, updatedAt: 1 },
+  { id: "tag-later", name: "Later", color: "#FCD34D", createdAt: 1, updatedAt: 1 },
 ];
 
 describe("buildSessionListItems", () => {
@@ -147,6 +147,35 @@ describe("buildSessionListItems", () => {
     });
 
     expect(items.map((item) => item.session.id)).toEqual(["tab-level"]);
+  });
+
+  it("keeps a global search index scoped to the active filters", () => {
+    const work = { ...createSession("work-match", 300, "folder-work", []), name: "Research" };
+    const life = { ...createSession("life-match", 200, "folder-life", []), name: "Research" };
+    const archived = {
+      ...createSession("archived-match", 100, "folder-work", []),
+      name: "Research",
+      isArchived: true,
+    };
+    const sessions = [work, life, archived];
+    const settings = {
+      searchScopes: DEFAULT_SETTINGS.searchScopes,
+      fuzzySearchThreshold: DEFAULT_SETTINGS.fuzzySearchThreshold,
+    };
+
+    const items = buildSessionListItems({
+      sessions,
+      folders,
+      tags,
+      settings,
+      query: "Research",
+      sortBy: "updatedAt",
+      folderId: "folder-work",
+      viewFilter: "all",
+      searchIndex: buildSearchIndex(sessions, folders, tags, settings),
+    });
+
+    expect(items.map((item) => item.session.id)).toEqual(["work-match"]);
   });
 });
 

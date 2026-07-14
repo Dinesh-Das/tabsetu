@@ -158,6 +158,7 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
           <button
             className="btn btn-secondary"
             type="button"
+            disabled={!settings.aiEnabled}
             onClick={() => {
               void (async () => {
                 const prompt = generateAIPrompt(session, promptConfig);
@@ -176,7 +177,7 @@ export default function ShareSessionModal({ session, onClose, addToast }: Props)
             <button
               className="btn btn-secondary"
               type="button"
-              onClick={() => downloadMarkdown(session)}
+              onClick={() => downloadMarkdown(session, { includeNotes })}
             >
               <Link2 size={14} />
               Export Markdown

@@ -121,4 +121,26 @@ describe("mergeStorageData", () => {
 
     expect(result.sessions[0]?.deletedAt).toBe(20);
   });
+
+  it("uses tag updatedAt for cross-device edits", () => {
+    const local = getDefaultStorageData();
+    local.tags = [{ id: "tag-1", name: "Local", color: "#111111", createdAt: 1, updatedAt: 10 }];
+
+    const result = mergeStorageData(local, {
+      tags: [{ id: "tag-1", name: "Remote", color: "#222222", createdAt: 1, updatedAt: 20 }],
+    });
+
+    expect(result.tags[0]?.name).toBe("Remote");
+  });
+
+  it("keeps the newest AI sharing configuration", () => {
+    const local = getDefaultStorageData();
+    local.aiConfig = { ...local.aiConfig, updatedAt: 20, includeNotes: false };
+
+    const result = mergeStorageData(local, {
+      aiConfig: { ...local.aiConfig, updatedAt: 10, includeNotes: true },
+    });
+
+    expect(result.aiConfig.includeNotes).toBe(false);
+  });
 });

@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
-import { Bell, ChevronLeft, X, CalendarDays, FileText, FolderOpen, Home, User } from "lucide-react";
+import { useId, type ReactNode } from "react";
+import { Bell, ChevronLeft, X, CalendarDays, FileText, FolderOpen, Home } from "lucide-react";
 import { TabSetuLogo } from "@/components/shared/TabSetuLogo";
 import { getFaviconFallbackUrl } from "@/lib/favicon";
+import { useDialogFocus } from "@/hooks/useDialogFocus";
 
 export type MobileNavView = "home" | "folders" | "schedules" | "reminders" | "notes";
 
@@ -47,11 +48,7 @@ export function MobileTopBar({
         {subtitle ? <span>{subtitle}</span> : null}
       </div>
       <div className="mobile-topbar-side mobile-topbar-side-right">
-        {trailing ?? (
-          <button className="mobile-avatar" type="button" title="Account">
-            <User size={18} />
-          </button>
-        )}
+        {trailing ?? <span aria-hidden="true" />}
       </div>
     </header>
   );
@@ -237,7 +234,23 @@ export function TabRow({
   preview,
 }: TabRowProps) {
   return (
-    <div className="mobile-tab-row" data-selected={selected || undefined} onClick={onSelect}>
+    <div
+      className="mobile-tab-row"
+      data-selected={selected || undefined}
+      onClick={onSelect}
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      aria-pressed={onSelect && showCheckbox ? Boolean(selected) : undefined}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || !onSelect) {
+          return;
+        }
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+    >
       {onSelect && showCheckbox ? (
         <span className="mobile-checkbox" data-checked={selected || undefined} aria-hidden />
       ) : null}
@@ -286,21 +299,26 @@ export function BottomSheet({
   footer,
   className = "",
 }: BottomSheetProps) {
+  const titleId = useId();
+  const dialogRef = useDialogFocus<HTMLElement>(onClose);
   return (
     <div
       className="mobile-sheet-overlay"
+      role="presentation"
       onClick={(event) => event.target === event.currentTarget && onClose()}
     >
       <section
+        ref={dialogRef}
         className={`mobile-bottom-sheet ${className}`}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="mobile-sheet-title"
+        aria-labelledby={titleId}
+        tabIndex={-1}
       >
         <div className="mobile-sheet-handle" />
         <div className="mobile-sheet-header">
           <div>
-            <h2 id="mobile-sheet-title">{title}</h2>
+            <h2 id={titleId}>{title}</h2>
             {subtitle ? <p>{subtitle}</p> : null}
           </div>
           <MobileIconButton title="Close" onClick={onClose}>

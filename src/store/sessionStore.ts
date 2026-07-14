@@ -3,6 +3,7 @@ import type { Session, SortOption, TabItem, ViewFilter } from "@/types";
 import { loadStorage, saveSessions } from "@/lib/storage";
 import { useHydrationStore } from "@/store/hydration";
 import { clampText, cloneTabItem, generateId, sanitizeLabel, stripHtml } from "@/lib/tabHelpers";
+import { PersistenceQueue } from "@/store/persistenceQueue";
 
 interface SessionState {
   sessions: Session[];
@@ -48,7 +49,7 @@ interface SessionState {
   clearSessions: () => void;
 }
 
-let writePromise: Promise<void> = Promise.resolve();
+const persistenceQueue = new PersistenceQueue("sessions");
 let folderIndex = new Map<string, Set<string>>();
 let tagIndex = new Map<string, Set<string>>();
 
@@ -57,8 +58,11 @@ function activeSessions(sessions: Session[]): Session[] {
 }
 
 function persistSessions(sessions: Session[]): void {
-  writePromise = writePromise.then(() => saveSessions(sessions));
-  void writePromise;
+  void persistenceQueue.enqueue(() => saveSessions(sessions));
+}
+
+export function flushSessionPersistence(): Promise<void> {
+  return persistenceQueue.flush();
 }
 
 function addToIndex(

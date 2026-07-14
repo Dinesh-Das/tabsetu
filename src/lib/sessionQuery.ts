@@ -114,10 +114,11 @@ export function buildSessionListItems({
       return [];
     }
 
+    const visibleIds = new Set(visible.map((session) => session.id));
     const searchResults = searchSessions(
       searchIndex ?? buildSearchIndex(visible, activeFolders, activeTags, settings),
       trimmedQuery
-    );
+    ).filter((result) => visibleIds.has(result.session.id));
 
     visible = searchResults.map((result) => result.session);
     for (const result of searchResults) {

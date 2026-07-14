@@ -40,7 +40,7 @@ describe("normalizeImportedStorageData", () => {
           updatedAt: 1,
         },
       ],
-      tags: [{ id: "tag-keep", name: "Keep", color: "#34D399", createdAt: 1 }],
+      tags: [{ id: "tag-keep", name: "Keep", color: "#34D399", createdAt: 1, updatedAt: 1 }],
       sessions: [
         {
           id: "session-1",
