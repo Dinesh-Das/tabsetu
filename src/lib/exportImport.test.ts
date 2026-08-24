@@ -123,7 +123,6 @@ describe("exportImport", () => {
         schedulesEnabled: true,
         remindersEnabled: true,
         searchOverlayEnabled: true,
-        searchOverlayShortcut: "Ctrl+Shift+F",
         browserHistorySearchEnabled: false,
         quickInfoEnabled: true,
         quickInfoDelayMs: 400,

@@ -13,7 +13,12 @@ import {
   summarizeStorageData,
 } from "@/lib/exportImport";
 import { copyTextToClipboard } from "@/lib/sessionBrowser";
-import { loadStorage, saveStorageData } from "@/lib/storage";
+import {
+  hideDeletedStorageData,
+  loadStorage,
+  prepareStorageReplacement,
+  saveStorageData,
+} from "@/lib/storage";
 import { reconcileReminderAlarms } from "@/lib/reminderAlarms";
 import { useFolderStore } from "@/store/folderStore";
 import { useNotesStore } from "@/store/notesStore";
@@ -126,16 +131,23 @@ export default function ImportExportPanel({ addToast }: Props) {
     setIsApplyingImport(true);
 
     try {
-      await saveStorageData(resultData);
-      importSessions(resultData.sessions);
-      importFolders(resultData.folders);
-      importTags(resultData.tags);
-      importSchedules(resultData.schedules);
-      importNotes(resultData.standaloneNotes);
-      importShareLinks(resultData.shareLinks);
-      updateSettings(resultData.settings);
-      await syncAlarms(resultData.settings.schedulesEnabled);
-      await reconcileReminderAlarms(resultData.sessions, resultData.settings.remindersEnabled);
+      const latestData = await loadStorage({ includeDeleted: true });
+      const dataToSave =
+        pendingImport.mode === "replace"
+          ? prepareStorageReplacement(latestData, pendingImport.data)
+          : mergeStorageData(latestData, pendingImport.data);
+      const visibleData = hideDeletedStorageData(dataToSave);
+
+      await saveStorageData(dataToSave);
+      importSessions(visibleData.sessions);
+      importFolders(visibleData.folders);
+      importTags(visibleData.tags);
+      importSchedules(visibleData.schedules);
+      importNotes(visibleData.standaloneNotes);
+      importShareLinks(visibleData.shareLinks);
+      updateSettings(visibleData.settings);
+      await syncAlarms(visibleData.settings.schedulesEnabled);
+      await reconcileReminderAlarms(visibleData.sessions, visibleData.settings.remindersEnabled);
       addToast(
         "success",
         pendingImport.mode === "replace"

@@ -1,4 +1,4 @@
-export type OptionalPermission = "history" | "notifications" | "identity";
+export type OptionalPermission = "history" | "notifications" | "identity" | "tabGroups";
 
 function permissionDetails(permission: OptionalPermission): chrome.permissions.Permissions {
   return { permissions: [permission] };

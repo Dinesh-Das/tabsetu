@@ -15,7 +15,13 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
-      include: ["src/lib/**", "src/store/**"],
+      include: ["src/lib/**", "src/store/**", "src/background/**"],
+      thresholds: {
+        statements: 40,
+        branches: 32,
+        functions: 48,
+        lines: 40,
+      },
     },
   },
 });

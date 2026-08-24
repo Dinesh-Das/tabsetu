@@ -75,7 +75,13 @@ export function chromeTabToTabItem(tab: chrome.tabs.Tab, position = 0): TabItem 
     folderId: null,
     tagIds: [],
     pinned: tab.pinned ?? false,
+    muted: tab.mutedInfo?.muted ?? false,
     windowId: tab.windowId ?? null,
+    groupKey:
+      typeof tab.groupId === "number" && tab.groupId >= 0 ? `browser-group-${tab.groupId}` : null,
+    groupTitle: null,
+    groupColor: null,
+    groupCollapsed: false,
     note: "",
     reminderAt: null,
     reminderSnoozedUntil: null,
@@ -93,8 +99,22 @@ export async function chromeTabToTabItemWithFavicon(
 ): Promise<TabItem> {
   const base = chromeTabToTabItem(tab, position);
   rememberFaviconForOrigin(base.url, base.favIconUrl);
-  await Promise.resolve();
-  return base;
+  if (typeof tab.groupId !== "number" || tab.groupId < 0 || !chrome.tabGroups?.get) {
+    return base;
+  }
+
+  try {
+    const group = await chrome.tabGroups.get(tab.groupId);
+    return {
+      ...base,
+      groupTitle: group.title?.trim() || null,
+      groupColor: group.color,
+      groupCollapsed: group.collapsed,
+    };
+  } catch {
+    // Group membership is still preserved when optional metadata permission is absent.
+    return base;
+  }
 }
 
 export async function getCurrentTabs(): Promise<chrome.tabs.Tab[]> {
@@ -117,7 +137,7 @@ async function requestPreferredBrowserTab(): Promise<chrome.tabs.Tab | null> {
     }
 
     const tab = response as chrome.tabs.Tab;
-    if (!tab.url || isRestrictedUrl(tab.url)) {
+    if (tab.incognito || !tab.url || isRestrictedUrl(tab.url)) {
       return null;
     }
 
@@ -134,12 +154,12 @@ export async function getPreferredBrowserTab(): Promise<chrome.tabs.Tab | null> 
   }
 
   const active = await getActiveTab();
-  if (active?.url && !isRestrictedUrl(active.url)) {
+  if (!active?.incognito && active?.url && !isRestrictedUrl(active.url)) {
     return active;
   }
 
   const activeTabs = await chrome.tabs.query({ active: true });
-  const fallback = activeTabs.find((tab) => tab.url && !isRestrictedUrl(tab.url));
+  const fallback = activeTabs.find((tab) => !tab.incognito && tab.url && !isRestrictedUrl(tab.url));
   return fallback ?? null;
 }
 
@@ -152,7 +172,7 @@ export async function collectTabsForSession(options?: {
   const tabs = await getCurrentTabs();
 
   return tabs.filter((tab) => {
-    if (!tab.url || isRestrictedUrl(tab.url)) {
+    if (tab.incognito || !tab.url || isRestrictedUrl(tab.url)) {
       return false;
     }
 

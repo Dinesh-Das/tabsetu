@@ -3,7 +3,7 @@ import { ExternalLink, FolderOpen, Plus, Save, Share2, Trash2, X } from "lucide-
 import type { Session, ToastMessage } from "@/types";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { formatDateTime } from "@/lib/format";
-import { openSessionTabs } from "@/lib/sessionBrowser";
+import { openSessionTabsDetailed } from "@/lib/sessionBrowser";
 import { chromeTabToTabItem, isRestrictedUrl } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
 import { useScheduleStore } from "@/store/scheduleStore";
@@ -64,13 +64,23 @@ export default function SessionDetail({ session, onClose, addToast }: Props) {
   };
 
   const handleOpenSession = async (openInNewWindow = settings.openInNewWindow) => {
-    const opened = await openSessionTabs(session, openInNewWindow);
-    if (opened === 0) {
-      addToast("error", "This session has no openable tabs.");
+    const result = await openSessionTabsDetailed(session, openInNewWindow);
+    if (result.openedCount === 0) {
+      addToast(
+        "error",
+        result.failedTabs.length > 0
+          ? `TabSetu could not open ${result.failedTabs.length} saved tabs.`
+          : "This session has no openable tabs."
+      );
       return;
     }
     recordOpened(session.id);
-    addToast("success", `Opened "${session.name}".`);
+    addToast(
+      result.failedTabs.length > 0 || result.warnings.length > 0 ? "error" : "success",
+      result.failedTabs.length > 0 || result.warnings.length > 0
+        ? `Opened ${result.openedCount} tabs; some tabs or groups could not be restored.`
+        : `Opened "${session.name}".`
+    );
   };
 
   const handleDeleteSession = () => {

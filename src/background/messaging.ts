@@ -19,8 +19,18 @@ import {
 import { defaultSavedSessionTitle } from "@/lib/sessionLabels";
 import {
   COLLAPSE_UNDO_MS,
+  clearAllData,
   loadStorage,
+  saveAIConfig,
+  saveFolders,
+  saveSchedules,
   saveSessions,
+  saveSettings,
+  saveSettingsPatch,
+  saveShareLinks,
+  saveStandaloneNotes,
+  saveStorageData,
+  saveTags,
   saveUndoBuffer,
   STORAGE_KEYS,
 } from "@/lib/storage";
@@ -100,6 +110,63 @@ async function preferredTitleTabIndex(tabs: chrome.tabs.Tab[]): Promise<number> 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+async function handleCoordinatedStorageWrite(message: Record<string, unknown>): Promise<void> {
+  const { target, value } = message;
+  const requireArray = (): unknown[] => {
+    if (!Array.isArray(value)) throw new Error("The storage write payload is invalid.");
+    return value;
+  };
+
+  switch (target) {
+    case "sessions":
+      await saveSessions(requireArray() as Session[]);
+      return;
+    case "folders":
+      await saveFolders(requireArray() as Parameters<typeof saveFolders>[0]);
+      return;
+    case "tags":
+      await saveTags(requireArray() as Parameters<typeof saveTags>[0]);
+      return;
+    case "schedules":
+      await saveSchedules(requireArray() as Parameters<typeof saveSchedules>[0]);
+      return;
+    case "standaloneNotes":
+      await saveStandaloneNotes(requireArray() as Parameters<typeof saveStandaloneNotes>[0]);
+      return;
+    case "shareLinks":
+      await saveShareLinks(requireArray() as Parameters<typeof saveShareLinks>[0]);
+      return;
+    case "settings":
+      if (!isRecord(value)) throw new Error("The settings write payload is invalid.");
+      await saveSettings(value as unknown as Settings);
+      return;
+    case "settingsPatch":
+      if (!isRecord(value)) throw new Error("The settings patch payload is invalid.");
+      await saveSettingsPatch(value);
+      return;
+    case "aiConfig":
+      if (!isRecord(value)) throw new Error("The AI settings write payload is invalid.");
+      await saveAIConfig(value as unknown as Parameters<typeof saveAIConfig>[0]);
+      return;
+    case "storageData": {
+      if (!isRecord(value)) throw new Error("The library write payload is invalid.");
+      const scheduleSync =
+        isRecord(message.options) && typeof message.options.scheduleSync === "boolean"
+          ? message.options.scheduleSync
+          : undefined;
+      await saveStorageData(value as unknown as StorageData, {
+        ...(scheduleSync == null ? {} : { scheduleSync }),
+      });
+      return;
+    }
+    case "clearAllData":
+      await clearAllData();
+      return;
+    default:
+      throw new Error("The storage write target is invalid.");
+  }
 }
 
 function extensionOrigin(): string {
@@ -287,7 +354,7 @@ function pendingSaveActionFromStorage(value: unknown): PendingSaveAction | null 
 }
 
 function isCapturableTab(tab: chrome.tabs.Tab | null | undefined): tab is chrome.tabs.Tab {
-  return Boolean(tab?.url && !isRestrictedUrl(tab.url) && isValidUrl(tab.url));
+  return Boolean(!tab?.incognito && tab?.url && !isRestrictedUrl(tab.url) && isValidUrl(tab.url));
 }
 
 async function hasHistoryPermission(): Promise<boolean> {
@@ -1036,14 +1103,20 @@ function registerRuntimeMessages(): void {
       return undefined;
     }
 
-    if (message.type === "tabsetu:shortcut-open-search-overlay") {
-      if (!isContentScriptSender(sender)) {
-        sendResponse({ ok: false });
+    if (message.type === "tabsetu:storage-write") {
+      if (!isExtensionPageSender(sender)) {
+        sendResponse({ ok: false, error: "Storage writes require an extension page." });
         return undefined;
       }
-      handleOpenSearchShortcut();
-      sendResponse({ ok: true });
-      return undefined;
+      void handleCoordinatedStorageWrite(message)
+        .then(() => sendResponse({ ok: true }))
+        .catch((error: unknown) =>
+          sendResponse({
+            ok: false,
+            error: error instanceof Error ? error.message : "The storage write failed.",
+          })
+        );
+      return true;
     }
 
     if (message.type === "tabsetu:overlay-closed") {
@@ -1056,29 +1129,6 @@ function registerRuntimeMessages(): void {
         .then(() => sendResponse({ ok: true }))
         .catch(() => sendResponse({ ok: false }));
       return true;
-    }
-
-    if (
-      message.type === "tabsetu:shortcut-save-tab" ||
-      message.type === "tabsetu:shortcut-save-window"
-    ) {
-      if (!isContentScriptSender(sender)) {
-        sendResponse({ ok: false });
-        return undefined;
-      }
-      handleSaveTabShortcut(sender.tab?.id);
-      sendResponse({ ok: true });
-      return undefined;
-    }
-
-    if (message.type === "tabsetu:shortcut-collapse-window") {
-      if (!isContentScriptSender(sender)) {
-        sendResponse({ ok: false });
-        return undefined;
-      }
-      handleCollapseWindowShortcut();
-      sendResponse({ ok: true });
-      return undefined;
     }
 
     if (message.type === "tabsetu:get-pending-save-mode") {

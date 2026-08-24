@@ -25,10 +25,38 @@ interface StoredToken {
 interface DriveFile {
   id: string;
   modifiedTime?: string;
+  version?: string;
 }
 
 interface DriveFilesResponse {
   files?: DriveFile[];
+}
+
+export interface DriveSyncSnapshot {
+  data: Partial<StorageData>;
+  fileId: string;
+  etag: string | null;
+  version: string | null;
+}
+
+export interface DriveSyncVersion {
+  fileId: string;
+  etag: string | null;
+  version: string | null;
+}
+
+export class GoogleDriveSyncError extends Error {
+  constructor(
+    message: string,
+    readonly status: number | null = null
+  ) {
+    super(message);
+    this.name = "GoogleDriveSyncError";
+  }
+
+  get isConflict(): boolean {
+    return this.status === 409 || this.status === 412;
+  }
 }
 
 interface UserInfoResponse {
@@ -369,7 +397,9 @@ async function authedFetch(
 
 async function requireOkResponse(response: Response | null, operation: string): Promise<Response> {
   if (!response) {
-    throw new Error(`${operation} failed. Check your Google connection and sign in again.`);
+    throw new GoogleDriveSyncError(
+      `${operation} failed. Check your Google connection and sign in again.`
+    );
   }
 
   if (response.ok) {
@@ -378,32 +408,32 @@ async function requireOkResponse(response: Response | null, operation: string): 
 
   const body = await response.text().catch(() => "");
   const detail = body.trim().slice(0, 240);
-  throw new Error(`${operation} failed (${response.status}).${detail ? ` ${detail}` : ""}`);
+  throw new GoogleDriveSyncError(
+    `${operation} failed (${response.status}).${detail ? ` ${detail}` : ""}`,
+    response.status
+  );
 }
 
 async function findSyncFile(token: string): Promise<DriveFile | null> {
   const query = encodeURIComponent(
     `name = '${SYNC_FILE_NAME}' and 'appDataFolder' in parents and trashed = false`
   );
-  const fields = encodeURIComponent("files(id,name,modifiedTime)");
-  const response = await authedFetch(
-    token,
-    `${DRIVE_FILES_URL}?spaces=appDataFolder&q=${query}&fields=${fields}`
+  const fields = encodeURIComponent("files(id,name,modifiedTime,version)");
+  const response = await requireOkResponse(
+    await authedFetch(token, `${DRIVE_FILES_URL}?spaces=appDataFolder&q=${query}&fields=${fields}`),
+    "Google Drive file lookup"
   );
-
-  if (!response?.ok) {
-    return null;
-  }
 
   try {
     const body: unknown = await response.json();
     if (!isDriveFilesResponse(body)) {
-      return null;
+      throw new GoogleDriveSyncError("Google Drive returned an invalid file-list response.");
     }
 
     return body.files?.find(isDriveFile) ?? null;
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof GoogleDriveSyncError) throw error;
+    throw new GoogleDriveSyncError("Google Drive returned an unreadable file-list response.");
   }
 }
 
@@ -467,7 +497,10 @@ export async function getSignedInEmail(): Promise<string | null> {
 /**
  * Uploads a full TabSetu storage snapshot to Drive appDataFolder.
  */
-export async function uploadSync(data: StorageData): Promise<void> {
+export async function uploadSync(
+  data: StorageData,
+  options: { expectedRemote?: DriveSyncVersion | null } = {}
+): Promise<void> {
   const token = await getSilentToken();
   if (!token) {
     throw new Error("Google Drive authorization is unavailable. Reconnect sync and try again.");
@@ -477,19 +510,48 @@ export async function uploadSync(data: StorageData): Promise<void> {
   const body = JSON.stringify(data);
 
   if (existing) {
+    if (options.expectedRemote === null) {
+      throw new GoogleDriveSyncError(
+        "The Google Drive backup changed during sync. TabSetu will merge it before uploading.",
+        409
+      );
+    }
+    if (options.expectedRemote && options.expectedRemote.fileId !== existing.id) {
+      throw new GoogleDriveSyncError(
+        "The Google Drive backup was replaced during sync. TabSetu will merge it before uploading.",
+        409
+      );
+    }
+    if (options.expectedRemote?.version && existing.version !== options.expectedRemote.version) {
+      throw new GoogleDriveSyncError(
+        "The Google Drive backup changed during sync. TabSetu will merge it before uploading.",
+        409
+      );
+    }
+    const headers = new Headers({ "Content-Type": "application/json" });
+    if (options.expectedRemote?.etag) {
+      headers.set("If-Match", options.expectedRemote.etag);
+    }
     await requireOkResponse(
       await authedFetch(
         token,
         `${DRIVE_UPLOAD_URL}/${encodeURIComponent(existing.id)}?uploadType=media&fields=id,modifiedTime`,
         {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body,
         }
       ),
       "Google Drive upload"
     );
     return;
+  }
+
+  if (options.expectedRemote) {
+    throw new GoogleDriveSyncError(
+      "The Google Drive backup was removed during sync. TabSetu will check it again.",
+      409
+    );
   }
 
   const boundary = `tabsetu-${Date.now()}`;
@@ -522,7 +584,7 @@ export async function uploadSync(data: StorageData): Promise<void> {
 /**
  * Downloads the TabSetu storage snapshot from Drive appDataFolder.
  */
-export async function downloadSync(): Promise<Partial<StorageData> | null> {
+export async function downloadSync(): Promise<DriveSyncSnapshot | null> {
   const token = await getSilentToken();
   if (!token) {
     throw new Error("Google Drive authorization is unavailable. Reconnect sync and try again.");
@@ -533,20 +595,25 @@ export async function downloadSync(): Promise<Partial<StorageData> | null> {
     return null;
   }
 
-  const response = await authedFetch(
-    token,
-    `${DRIVE_FILES_URL}/${encodeURIComponent(existing.id)}?alt=media`
+  const response = await requireOkResponse(
+    await authedFetch(token, `${DRIVE_FILES_URL}/${encodeURIComponent(existing.id)}?alt=media`),
+    "Google Drive download"
   );
-
-  if (!response?.ok) {
-    return null;
-  }
 
   try {
     const body: unknown = await response.json();
-    return isRecord(body) ? body : null;
-  } catch {
-    return null;
+    if (!isRecord(body)) {
+      throw new GoogleDriveSyncError("The Google Drive backup has an invalid format.");
+    }
+    return {
+      data: body,
+      fileId: existing.id,
+      etag: response.headers.get("etag"),
+      version: existing.version ?? null,
+    };
+  } catch (error) {
+    if (error instanceof GoogleDriveSyncError) throw error;
+    throw new GoogleDriveSyncError("The Google Drive backup could not be read as JSON.");
   }
 }
 

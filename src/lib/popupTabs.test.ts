@@ -26,6 +26,11 @@ describe("popup tab helpers", () => {
     expect(result.map((item) => item.id)).toEqual([2]);
   });
 
+  it("never exposes incognito tabs for capture", () => {
+    const privateTab = { ...tab(4, "Private", "https://private.example.com"), incognito: true };
+    expect(filterCapturableTabs([privateTab])).toEqual([]);
+  });
+
   it("matches query against title and url", () => {
     const result = filterCapturableTabs(
       [

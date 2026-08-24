@@ -10,6 +10,8 @@ extension in this repository. TabSetu does not operate a backend server.
 TabSetu stores sessions, tabs, folders, tags, notes, schedules, reminder data, and encoded
 share-link records in browser extension local storage. Lightweight settings and AI prompt-sharing
 preferences may use `chrome.storage.sync` where the browser supports it.
+TabSetu excludes incognito/private tabs from every capture path and does not write them to its
+library.
 
 Users can export a JSON backup from the dashboard and can delete local data from Settings or by
 removing the extension.
@@ -49,6 +51,7 @@ Optional permissions:
   uploaded to a TabSetu server. Users can disable the feature and revoke the permission in Settings.
 - `notifications`: show reminder, schedule, and capture notices. Core saving works without it.
 - `identity`: start optional Google Drive OAuth connection where supported.
+- `tabGroups`: on Chromium, preserve tab-group names, colors, and collapsed state after opt-in.
 
 TabSetu does not request `<all_urls>` host access.
 

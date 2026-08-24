@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearRememberedFavicons, getRememberedFaviconForOrigin } from "@/lib/favicon";
-import { chromeTabToTabItemWithFavicon, isValidUrl } from "@/lib/tabHelpers";
+import { chromeTabToTabItemWithFavicon, collectTabsForSession, isValidUrl } from "@/lib/tabHelpers";
 
 afterEach(() => {
   clearRememberedFavicons();
@@ -51,5 +51,27 @@ describe("isValidUrl", () => {
     expect(isValidUrl("intent://example.com")).toBe(false);
     expect(isValidUrl("ftp://example.com/file")).toBe(false);
     expect(isValidUrl("javascript:alert(1)")).toBe(false);
+  });
+});
+
+describe("collectTabsForSession", () => {
+  it("excludes incognito tabs even when explicitly selected", async () => {
+    vi.mocked(chrome.tabs.query).mockResolvedValueOnce([
+      {
+        id: 1,
+        url: "https://public.example.com",
+        incognito: false,
+        pinned: false,
+      } as chrome.tabs.Tab,
+      {
+        id: 2,
+        url: "https://private.example.com",
+        incognito: true,
+        pinned: false,
+      } as chrome.tabs.Tab,
+    ]);
+
+    const result = await collectTabsForSession({ selectedTabIds: [1, 2] });
+    expect(result.map((tab) => tab.id)).toEqual([1]);
   });
 });

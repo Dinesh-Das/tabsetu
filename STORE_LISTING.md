@@ -33,6 +33,7 @@ TabSetu provides local-first browser tab and session management.
 - Optional Google Drive app-data sync.
 - Optional browser history search.
 - Optional AI prompt sharing.
+- Tab-group membership restore, with optional group metadata preservation on Chromium.
 
 ## Privacy Summary
 
@@ -41,6 +42,7 @@ TabSetu provides local-first browser tab and session management.
 - No ads or analytics.
 - No sale of user data.
 - Browser history access is optional and off by default.
+- Incognito/private tabs are never saved.
 - Share links are encoded local snapshots, not hosted cloud links.
 - AI prompts are generated locally and are not automatically uploaded.
 
@@ -56,6 +58,7 @@ TabSetu provides local-first browser tab and session management.
 | Optional `history` | Show matching browser-history rows after explicit opt-in. |
 | Optional `notifications` | Show reminder, schedule, and capture notices. |
 | Optional `identity` | Start optional Google Drive OAuth where supported. |
+| Optional `tabGroups` | Preserve group names, colors, and collapsed state on Chromium. |
 
 ## Chrome Web Store Data Disclosure
 

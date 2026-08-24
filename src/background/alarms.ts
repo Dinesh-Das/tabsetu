@@ -12,6 +12,7 @@ import {
 import { useSettingsStore } from "@/store/settingsStore";
 import { useSyncStore } from "@/store/syncStore";
 import { isValidUrl } from "@/lib/tabHelpers";
+import { openSavedTab, openSessionTabsDetailed } from "@/lib/sessionBrowser";
 import { reconcileReminderAlarms } from "@/lib/reminderAlarms";
 import {
   clearNotification,
@@ -329,11 +330,12 @@ async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
 
   let openedCount = 0;
   try {
-    const windowRef = await chrome.windows.create({ url: urls[0], focused: true });
-    openedCount = 1;
-    for (const url of urls.slice(1)) {
-      await chrome.tabs.create({ windowId: windowRef.id, url });
-      openedCount += 1;
+    const result = await openSessionTabsDetailed(session, true);
+    openedCount = result.openedCount;
+    if (result.failedTabs.length > 0 || result.warnings.length > 0) {
+      throw new Error(
+        `${result.failedTabs.length} tabs failed and ${result.warnings.length} restore warnings occurred.`
+      );
     }
   } catch (error) {
     const failedAt = Date.now();
@@ -376,7 +378,7 @@ async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
     console.error("[TabSetu] Scheduled session open failed:", error);
     return;
   }
-  await notifyScheduledSessionOpened(session, urls.length);
+  await notifyScheduledSessionOpened(session, openedCount);
 
   const openedAt = Date.now();
   const updatedSessions = sessions.map((item) =>
@@ -432,7 +434,7 @@ function registerReminderNotificationButtons(): void {
       void updateReminderTab(tabId, (tab) => ({ ...tab, reminderDismissed: true })).then(
         async (tab) => {
           if (tab?.url && isValidUrl(tab.url)) {
-            await chrome.tabs.create({ url: tab.url });
+            await openSavedTab(tab);
           }
           await clearNotification(notificationId);
           await updateBadge();

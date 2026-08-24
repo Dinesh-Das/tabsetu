@@ -1,7 +1,7 @@
 import { isRestrictedUrl, isValidUrl } from "@/lib/tabHelpers";
 
 export function isCapturableChromeTab(tab: chrome.tabs.Tab): boolean {
-  return Boolean(tab.url && !isRestrictedUrl(tab.url) && isValidUrl(tab.url));
+  return Boolean(!tab.incognito && tab.url && !isRestrictedUrl(tab.url) && isValidUrl(tab.url));
 }
 
 export function filterCapturableTabs(tabs: chrome.tabs.Tab[], query = ""): chrome.tabs.Tab[] {

@@ -7,15 +7,9 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import RecoveryScreen from "@/components/shared/RecoveryScreen";
 import type { ToastMessage, UndoCollapseBuffer } from "@/types";
 import { saveUndoBuffer } from "@/lib/storage";
-import { isValidUrl } from "@/lib/tabHelpers";
+import { openTabItemsDetailed } from "@/lib/sessionBrowser";
 import { applyTheme, subscribeToSystemTheme } from "@/lib/theme";
-import { useFolderStore } from "@/store/folderStore";
-import { useNotesStore } from "@/store/notesStore";
-import { useScheduleStore } from "@/store/scheduleStore";
-import { useSessionStore } from "@/store/sessionStore";
 import { useSettingsStore } from "@/store/settingsStore";
-import { useShareStore } from "@/store/shareStore";
-import { useTagStore } from "@/store/tagStore";
 import { loadHydratedStorage, useHydrationStore } from "@/store/hydration";
 import DashToast from "./components/DashToast";
 import ImportExportPanel from "./components/ImportExportPanel";
@@ -30,6 +24,7 @@ import RemindersPage from "./pages/RemindersPage";
 import type { DesktopSidebarView } from "./components/Sidebar";
 import { useSyncStore } from "@/store/syncStore";
 import { subscribeToPersistenceFailures } from "@/store/persistenceQueue";
+import { applyStorageDataToStores, subscribeToStorageBridge } from "@/store/storageBridge";
 
 type DashView = MobileNavView | "settings" | "importexport";
 type SavePromptMode = "save" | "collapse";
@@ -168,13 +163,7 @@ function DashboardAppContent() {
   useEffect(() => {
     void loadHydratedStorage()
       .then((data) => {
-        useSessionStore.getState().importSessions(data.sessions);
-        useFolderStore.getState().importFolders(data.folders);
-        useTagStore.getState().importTags(data.tags);
-        useScheduleStore.getState().importSchedules(data.schedules);
-        useNotesStore.getState().importNotes(data.standaloneNotes);
-        useShareStore.getState().importShareLinks(data.shareLinks);
-        useSettingsStore.setState({ settings: data.settings });
+        applyStorageDataToStores(data);
         Array.from({ length: 7 }).forEach(() => useHydrationStore.getState().markOneHydrated());
       })
       .catch((error: unknown) => {
@@ -213,6 +202,14 @@ function DashboardAppContent() {
     [addToast]
   );
 
+  useEffect(
+    () =>
+      subscribeToStorageBridge(() => {
+        addToast("error", "TabSetu could not refresh changes made in another window.");
+      }),
+    [addToast]
+  );
+
   const handleInitialSavePromptHandled = () => {
     setSavePrompt(null);
     clearSavePromptUrl();
@@ -227,24 +224,20 @@ function DashboardAppContent() {
       onAction: () => {
         void (async () => {
           try {
-            let targetWindowId = buffer.windowId;
-            for (const tab of buffer.tabs) {
-              if (!isValidUrl(tab.url)) {
-                continue;
-              }
-              if (targetWindowId) {
-                try {
-                  await chrome.tabs.create({ windowId: targetWindowId, url: tab.url });
-                  continue;
-                } catch {
-                  targetWindowId = null;
-                }
-              }
-              await chrome.tabs.create({ url: tab.url });
+            let result = await openTabItemsDetailed(buffer.tabs, false, {
+              targetWindowId: buffer.windowId,
+            });
+            if (result.openedCount === 0 && buffer.windowId != null) {
+              result = await openTabItemsDetailed(buffer.tabs, false);
             }
             await saveUndoBuffer(null);
             setToasts((current) => current.filter((toast) => toast.id !== toastId));
-            addToast("success", `Restored tabs from "${buffer.sessionName}".`);
+            addToast(
+              result.failedTabs.length > 0 || result.warnings.length > 0 ? "error" : "success",
+              result.failedTabs.length > 0 || result.warnings.length > 0
+                ? `Restored ${result.openedCount} tabs; some tabs or groups could not be restored.`
+                : `Restored tabs from "${buffer.sessionName}".`
+            );
           } catch {
             addToast("error", "TabSetu could not restore the collapsed tabs.");
           }

@@ -53,6 +53,9 @@ const targets = [
 function toFirefoxManifest(manifest) {
   return {
     ...manifest,
+    optional_permissions: (manifest.optional_permissions ?? []).filter(
+      (perm) => perm !== "tabGroups"
+    ),
     background: {
       scripts: [manifest.background.service_worker],
       type: "module",
@@ -79,7 +82,7 @@ function toSafariManifest(manifest) {
     (perm) => perm !== "identity"
   );
   const optionalPermissions = (rest.optional_permissions ?? []).filter(
-    (perm) => perm !== "identity"
+    (perm) => perm !== "identity" && perm !== "tabGroups"
   );
 
   const webAccessibleResources = (rest.web_accessible_resources ?? []).map((entry) => {

@@ -7,25 +7,15 @@ import {
   downloadSync,
   getLastSyncedAt,
   getSignedInEmail,
+  GoogleDriveSyncError,
   hasSilentAuthToken,
   signIn as googleSignIn,
   signOut as googleSignOut,
   uploadSync,
 } from "@/lib/googleSync";
-import {
-  hideDeletedStorageData,
-  loadStorage,
-  registerAutoSyncUploadHandler,
-  saveStorageData,
-} from "@/lib/storage";
+import { loadStorage, registerAutoSyncUploadHandler, saveStorageData } from "@/lib/storage";
 import { mergeStorageData } from "@/lib/syncMerge";
-import { useFolderStore } from "@/store/folderStore";
-import { useNotesStore } from "@/store/notesStore";
-import { useScheduleStore } from "@/store/scheduleStore";
-import { useSessionStore } from "@/store/sessionStore";
-import { useSettingsStore } from "@/store/settingsStore";
-import { useShareStore } from "@/store/shareStore";
-import { useTagStore } from "@/store/tagStore";
+import { applyStorageDataToStores } from "@/store/storageBridge";
 
 interface SyncStore extends SyncState {
   refreshStatus: () => Promise<void>;
@@ -39,17 +29,6 @@ function syncErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Sync failed. Please try again.";
 }
 
-function reloadStoresFromStorage(data: Awaited<ReturnType<typeof loadStorage>>): void {
-  const visibleData = hideDeletedStorageData(data);
-  useSessionStore.getState().importSessions(visibleData.sessions);
-  useFolderStore.getState().importFolders(visibleData.folders);
-  useTagStore.getState().importTags(visibleData.tags);
-  useScheduleStore.getState().importSchedules(visibleData.schedules);
-  useNotesStore.getState().importNotes(visibleData.standaloneNotes);
-  useShareStore.getState().importShareLinks(visibleData.shareLinks);
-  useSettingsStore.getState().replaceSettings(visibleData.settings);
-}
-
 export const useSyncStore = create<SyncStore>((set, get) => ({
   enabled: false,
   email: null,
@@ -58,14 +37,18 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
   syncError: null,
 
   refreshStatus: async () => {
-    const hasToken = await hasSilentAuthToken();
-    if (!hasToken) {
-      set({ enabled: false, email: null, lastSyncedAt: null, syncError: null });
-      return;
-    }
+    try {
+      const hasToken = await hasSilentAuthToken();
+      if (!hasToken) {
+        set({ enabled: false, email: null, lastSyncedAt: null, syncError: null });
+        return;
+      }
 
-    const [email, lastSyncedAt] = await Promise.all([getSignedInEmail(), getLastSyncedAt()]);
-    set({ enabled: true, email, lastSyncedAt, syncError: null });
+      const [email, lastSyncedAt] = await Promise.all([getSignedInEmail(), getLastSyncedAt()]);
+      set({ enabled: true, email, lastSyncedAt, syncError: null });
+    } catch (error) {
+      set({ syncError: syncErrorMessage(error) });
+    }
   },
 
   signIn: async () => {
@@ -109,16 +92,34 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
 
     set({ isSyncing: true, syncError: null });
     try {
-      const local = await loadStorage({ includeDeleted: true });
-      const remote = await downloadSync();
-      const data = remote
-        ? mergeStorageData(local, remote, { mergeSettings: true, includeDeleted: true })
-        : local;
-      if (remote) {
-        await saveStorageData(data, { scheduleSync: false });
-        reloadStoresFromStorage(data);
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const local = await loadStorage({ includeDeleted: true });
+        const remote = await downloadSync();
+        const data = remote
+          ? mergeStorageData(local, remote.data, {
+              mergeSettings: true,
+              includeDeleted: true,
+            })
+          : local;
+        if (remote) {
+          await saveStorageData(data, { scheduleSync: false });
+          applyStorageDataToStores(data);
+        }
+
+        try {
+          await uploadSync(data, {
+            expectedRemote: remote
+              ? { fileId: remote.fileId, etag: remote.etag, version: remote.version }
+              : null,
+          });
+          break;
+        } catch (error) {
+          if (error instanceof GoogleDriveSyncError && error.isConflict && attempt === 0) {
+            continue;
+          }
+          throw error;
+        }
       }
-      await uploadSync(data);
       const lastSyncedAt = await getLastSyncedAt();
       if (lastSyncedAt == null) {
         throw new Error("Google Drive did not confirm the uploaded sync file.");
@@ -141,12 +142,12 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
       const remote = await downloadSync();
       if (remote) {
         const local = await loadStorage({ includeDeleted: true });
-        const merged = mergeStorageData(local, remote, {
+        const merged = mergeStorageData(local, remote.data, {
           mergeSettings: true,
           includeDeleted: true,
         });
         await saveStorageData(merged, { scheduleSync: false });
-        reloadStoresFromStorage(merged);
+        applyStorageDataToStores(merged);
       }
       const lastSyncedAt = (await getLastSyncedAt()) ?? get().lastSyncedAt ?? null;
       set({ lastSyncedAt, syncError: null });

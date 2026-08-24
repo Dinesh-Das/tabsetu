@@ -24,7 +24,7 @@
     "format": "prettier --write src",
     "format:check": "prettier --check src",
     "compliance:check": "node scripts/compliance-check.mjs",
-    "verify": "npm run type-check && npm run type-check:strict && npm run lint && npm test && npm run build:all && npm run compliance:check"
+    "verify": "npm run type-check && npm run type-check:strict && npm run lint && npm run test:coverage && npm run build:all && npm run compliance:check"
   },
   "dependencies": {
     "framer-motion": "^11.3.8",

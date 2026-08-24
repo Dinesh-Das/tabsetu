@@ -54,7 +54,7 @@
     "type": "module"
   },
   "permissions": ["tabs", "storage", "alarms", "scripting", "activeTab", "contextMenus"],
-  "optional_permissions": ["history", "notifications", "identity"],
+  "optional_permissions": ["history", "notifications", "identity", "tabGroups"],
   "oauth2": {
     "client_id": "__REPLACE_WITH_CLIENT_ID__",
     "scopes": [

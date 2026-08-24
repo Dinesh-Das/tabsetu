@@ -5,7 +5,7 @@ import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import EntityEditorModal from "@/components/shared/EntityEditorModal";
 import { exportJSON } from "@/lib/exportImport";
 import { formatRelativeTime } from "@/lib/format";
-import { clearAllData, loadStorage } from "@/lib/storage";
+import { clearAllData, ensurePendingAutoSyncUploadAlarm, loadStorage } from "@/lib/storage";
 import { checkStorageQuota, formatBytes, type StorageQuotaStatus } from "@/lib/storageQuota";
 import {
   hasOptionalPermission,
@@ -103,6 +103,7 @@ export default function SettingsPanel({ addToast }: Props) {
   const [historyPermissionGranted, setHistoryPermissionGranted] = useState(false);
   const [notificationsPermissionGranted, setNotificationsPermissionGranted] = useState(false);
   const [identityPermissionGranted, setIdentityPermissionGranted] = useState(false);
+  const [tabGroupsPermissionGranted, setTabGroupsPermissionGranted] = useState(false);
 
   useEffect(() => {
     void checkStorageQuota().then(setStorageQuota);
@@ -121,14 +122,16 @@ export default function SettingsPanel({ addToast }: Props) {
   }, [refreshSyncStatus]);
 
   const refreshOptionalPermissions = useCallback(async () => {
-    const [history, notifications, identity] = await Promise.all([
+    const [history, notifications, identity, tabGroups] = await Promise.all([
       hasOptionalPermission("history"),
       hasOptionalPermission("notifications"),
       hasOptionalPermission("identity"),
+      hasOptionalPermission("tabGroups"),
     ]);
     setHistoryPermissionGranted(history);
     setNotificationsPermissionGranted(notifications);
     setIdentityPermissionGranted(identity);
+    setTabGroupsPermissionGranted(tabGroups);
     if (!history && settings.browserHistorySearchEnabled) {
       updateSettings({
         browserHistorySearchEnabled: false,
@@ -183,6 +186,23 @@ export default function SettingsPanel({ addToast }: Props) {
     addToast("success", "Notification permission revoked.");
   };
 
+  const toggleTabGroupMetadata = async () => {
+    const enabled = tabGroupsPermissionGranted;
+    const changed = enabled
+      ? await removeOptionalPermission("tabGroups")
+      : await requestOptionalPermission("tabGroups");
+    const granted = enabled ? !changed : changed;
+    setTabGroupsPermissionGranted(granted);
+    addToast(
+      granted ? "success" : "info",
+      granted
+        ? "Tab group names and colors will be preserved when the browser supports them."
+        : enabled
+          ? "Tab group metadata permission revoked."
+          : "Tab group metadata permission was not granted. Group membership is still preserved."
+    );
+  };
+
   const disconnectGoogleDrive = async () => {
     await signOut();
     setIdentityPermissionGranted(false);
@@ -198,6 +218,7 @@ export default function SettingsPanel({ addToast }: Props) {
   const handleReset = async () => {
     await clearAllData();
     await chrome.alarms.clearAll();
+    await ensurePendingAutoSyncUploadAlarm();
     const data = await loadStorage();
 
     importSessions(data.sessions);
@@ -458,6 +479,7 @@ export default function SettingsPanel({ addToast }: Props) {
                 <input
                   className="input"
                   value={settings.customAIProviderUrl}
+                  maxLength={2048}
                   onChange={(event) => updateSettings({ customAIProviderUrl: event.target.value })}
                   placeholder="https://example.com/new"
                 />
@@ -474,6 +496,7 @@ export default function SettingsPanel({ addToast }: Props) {
                 <textarea
                   className="input"
                   value={settings.customAIPromptTemplate}
+                  maxLength={4000}
                   onChange={(event) =>
                     updateSettings({ customAIPromptTemplate: event.target.value })
                   }
@@ -601,6 +624,27 @@ export default function SettingsPanel({ addToast }: Props) {
                   Check permission
                 </button>
               </div>
+            </div>
+
+            <div className="card-raised" style={{ padding: 14 }}>
+              <strong>Optional tab group metadata</strong>
+              <p style={{ color: "var(--color-text-muted)", fontSize: 12, margin: "8px 0 0" }}>
+                Group membership is saved automatically. On Chromium browsers, this optional
+                permission also preserves group names, colors, and collapsed state.
+              </p>
+              <p style={{ fontSize: 12, margin: "10px 0 0" }}>
+                Status: <strong>{tabGroupsPermissionGranted ? "Enabled" : "Off"}</strong>
+              </p>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                style={{ marginTop: 12 }}
+                onClick={() => void toggleTabGroupMetadata()}
+              >
+                {tabGroupsPermissionGranted
+                  ? "Revoke tab group metadata"
+                  : "Preserve group metadata"}
+              </button>
             </div>
 
             <div className="card-raised" style={{ padding: 14 }}>

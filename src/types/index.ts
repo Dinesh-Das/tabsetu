@@ -6,7 +6,22 @@ export interface TabItem {
   folderId: string | null;
   tagIds: string[];
   pinned: boolean;
+  muted?: boolean;
   windowId: number | null;
+  groupKey?: string | null;
+  groupTitle?: string | null;
+  groupColor?:
+    | "grey"
+    | "blue"
+    | "red"
+    | "yellow"
+    | "green"
+    | "pink"
+    | "purple"
+    | "cyan"
+    | "orange"
+    | null;
+  groupCollapsed?: boolean;
   note: string;
   reminderAt: number | null;
   reminderSnoozedUntil: number | null;
@@ -116,7 +131,6 @@ export interface Settings {
   schedulesEnabled: boolean;
   remindersEnabled: boolean;
   searchOverlayEnabled: boolean;
-  searchOverlayShortcut: string;
   browserHistorySearchEnabled: boolean;
   quickInfoEnabled: boolean;
   quickInfoDelayMs: 200 | 400 | 700;

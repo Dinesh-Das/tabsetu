@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { openSessionTabs } from "@/lib/sessionBrowser";
+import { openSessionTabsDetailed } from "@/lib/sessionBrowser";
 import { buildSearchIndex, buildSessionListItems, type SessionListItem } from "@/lib/sessionQuery";
 import { useFolderStore } from "@/store/folderStore";
 import { useScheduleStore } from "@/store/scheduleStore";
@@ -217,13 +217,23 @@ export function useSessionListController({
     setPendingBulkDelete(false);
   };
   const handleOpen = async (session: Session, openInNewWindow = settings.openInNewWindow) => {
-    const opened = await openSessionTabs(session, openInNewWindow);
-    if (opened === 0) {
-      addToast("error", "That session has no openable tabs.");
+    const result = await openSessionTabsDetailed(session, openInNewWindow);
+    if (result.openedCount === 0) {
+      addToast(
+        "error",
+        result.failedTabs.length > 0
+          ? `TabSetu could not open ${result.failedTabs.length} saved tabs.`
+          : "That session has no openable tabs."
+      );
       return;
     }
     recordOpened(session.id);
-    addToast("success", `Opened "${session.name}".`);
+    addToast(
+      result.failedTabs.length > 0 || result.warnings.length > 0 ? "error" : "success",
+      result.failedTabs.length > 0 || result.warnings.length > 0
+        ? `Opened ${result.openedCount} tabs; some tabs or groups could not be restored.`
+        : `Opened "${session.name}".`
+    );
   };
   const handleDelete = (session: Session) => {
     if (settings.confirmBeforeDelete) {

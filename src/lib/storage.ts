@@ -69,11 +69,10 @@ export const DEFAULT_SETTINGS: Settings = {
   schedulesEnabled: true,
   remindersEnabled: true,
   searchOverlayEnabled: true,
-  searchOverlayShortcut: "Ctrl+Shift+F",
   browserHistorySearchEnabled: false,
   quickInfoEnabled: true,
   quickInfoDelayMs: 400,
-  aiEnabled: true,
+  aiEnabled: false,
   defaultAIProvider: "chatgpt",
   customAIProviderUrl: "",
   customAIPromptTemplate: "",
@@ -223,6 +222,65 @@ export function hideDeletedStorageData(data: StorageData): StorageData {
   return withoutDeletedData(data);
 }
 
+function replacementEntities<T extends PersistedEntity>(
+  current: T[],
+  replacement: T[],
+  now: number,
+  updateEntity: (entity: T, previous: T | undefined) => T = (entity) => ({
+    ...entity,
+    updatedAt: now,
+  })
+): T[] {
+  const currentById = new Map(current.map((entity) => [entity.id, entity]));
+  const replacementIds = new Set(replacement.map((entity) => entity.id));
+  const stampedReplacement = replacement.map((entity) =>
+    updateEntity(entity, currentById.get(entity.id))
+  );
+  const deletedMissing = current
+    .filter((entity) => entity.deletedAt == null && !replacementIds.has(entity.id))
+    .map((entity) => ({ ...entity, updatedAt: now, deletedAt: now }));
+
+  return purgeOldTombstones(
+    mergeLatestEntities(current, [...stampedReplacement, ...deletedMissing]),
+    now
+  );
+}
+
+/**
+ * Turn an intentional full-library replacement into a sync-safe snapshot.
+ * Items omitted by reset/import become tombstones, so a connected Drive backup
+ * cannot resurrect them on the next merge.
+ */
+export function prepareStorageReplacement(
+  currentData: StorageData,
+  replacementData: StorageData,
+  now = Date.now()
+): StorageData {
+  const current = normalizeStorageData(currentData);
+  const replacement = normalizeStorageData(replacementData);
+
+  return {
+    ...replacement,
+    sessions: replacementEntities(
+      current.sessions,
+      replacement.sessions,
+      now,
+      (session, prior) => ({
+        ...session,
+        updatedAt: now,
+        version: Math.max(session.version, prior?.version ?? 0) + 1,
+      })
+    ),
+    folders: replacementEntities(current.folders, replacement.folders, now),
+    tags: replacementEntities(current.tags, replacement.tags, now),
+    schedules: replacementEntities(current.schedules, replacement.schedules, now),
+    standaloneNotes: replacementEntities(current.standaloneNotes, replacement.standaloneNotes, now),
+    shareLinks: replacementEntities(current.shareLinks, replacement.shareLinks, now),
+    settings: { ...replacement.settings, updatedAt: now },
+    aiConfig: { ...replacement.aiConfig, updatedAt: now },
+  };
+}
+
 function sourceValue<T>(
   source: Record<string, unknown>,
   prefixedKey: string,
@@ -284,6 +342,20 @@ function generatedCaptureNameMode(name: string): "save" | "collapse" | null {
   return null;
 }
 
+function asTabGroupColor(value: unknown): Exclude<TabItem["groupColor"], undefined> {
+  return value === "grey" ||
+    value === "blue" ||
+    value === "red" ||
+    value === "yellow" ||
+    value === "green" ||
+    value === "pink" ||
+    value === "purple" ||
+    value === "cyan" ||
+    value === "orange"
+    ? value
+    : null;
+}
+
 function normalizeTabItem(raw: unknown): TabItem | null {
   if (!isRecord(raw)) {
     return null;
@@ -305,7 +377,13 @@ function normalizeTabItem(raw: unknown): TabItem | null {
     folderId: raw.folderId == null ? null : asString(raw.folderId) || null,
     tagIds: asStringArray(raw.tagIds),
     pinned: asBoolean(raw.pinned),
+    muted: asBoolean(raw.muted),
     windowId: typeof raw.windowId === "number" ? raw.windowId : null,
+    groupKey: raw.groupKey == null ? null : asString(raw.groupKey) || null,
+    groupTitle:
+      raw.groupTitle == null ? null : sanitizeLabel(asString(raw.groupTitle), "", 100) || null,
+    groupColor: asTabGroupColor(raw.groupColor),
+    groupCollapsed: asBoolean(raw.groupCollapsed),
     note: clampText(stripHtml(asString(raw.note)), 2000),
     reminderAt: asNullableNumber(raw.reminderAt),
     reminderSnoozedUntil: asNullableNumber(raw.reminderSnoozedUntil),
@@ -512,15 +590,18 @@ function normalizeAIConfig(raw: unknown): AIShareConfig {
       defaultProvider === "custom"
         ? defaultProvider
         : DEFAULT_AI_CONFIG.defaultProvider,
-    customProviderUrl: asString(raw.customProviderUrl, DEFAULT_AI_CONFIG.customProviderUrl),
-    customPromptTemplate: asString(
-      raw.customPromptTemplate,
-      DEFAULT_AI_CONFIG.customPromptTemplate
+    customProviderUrl: clampText(
+      asString(raw.customProviderUrl, DEFAULT_AI_CONFIG.customProviderUrl),
+      2048
+    ),
+    customPromptTemplate: clampText(
+      asString(raw.customPromptTemplate, DEFAULT_AI_CONFIG.customPromptTemplate),
+      4000
     ),
     includeUrls: asBoolean(raw.includeUrls, DEFAULT_AI_CONFIG.includeUrls),
     includeTitles: asBoolean(raw.includeTitles, DEFAULT_AI_CONFIG.includeTitles),
     includeNotes: asBoolean(raw.includeNotes, DEFAULT_AI_CONFIG.includeNotes),
-    promptPreamble: asString(raw.promptPreamble, DEFAULT_AI_CONFIG.promptPreamble),
+    promptPreamble: clampText(asString(raw.promptPreamble, DEFAULT_AI_CONFIG.promptPreamble), 1000),
   };
 }
 
@@ -560,10 +641,6 @@ function normalizeSettings(raw: unknown): Settings {
       raw.searchOverlayEnabled,
       DEFAULT_SETTINGS.searchOverlayEnabled
     ),
-    searchOverlayShortcut: asString(
-      raw.searchOverlayShortcut,
-      DEFAULT_SETTINGS.searchOverlayShortcut
-    ),
     browserHistorySearchEnabled: asBoolean(
       raw.browserHistorySearchEnabled,
       DEFAULT_SETTINGS.browserHistorySearchEnabled
@@ -581,10 +658,13 @@ function normalizeSettings(raw: unknown): Settings {
       defaultAIProvider === "custom"
         ? defaultAIProvider
         : DEFAULT_SETTINGS.defaultAIProvider,
-    customAIProviderUrl: asString(raw.customAIProviderUrl, DEFAULT_SETTINGS.customAIProviderUrl),
-    customAIPromptTemplate: asString(
-      raw.customAIPromptTemplate,
-      DEFAULT_SETTINGS.customAIPromptTemplate
+    customAIProviderUrl: clampText(
+      asString(raw.customAIProviderUrl, DEFAULT_SETTINGS.customAIProviderUrl),
+      2048
+    ),
+    customAIPromptTemplate: clampText(
+      asString(raw.customAIPromptTemplate, DEFAULT_SETTINGS.customAIPromptTemplate),
+      4000
     ),
     exportIncludeNotes: asBoolean(raw.exportIncludeNotes, DEFAULT_SETTINGS.exportIncludeNotes),
     version: asString(raw.version, APP_VERSION),
@@ -646,6 +726,70 @@ function storageSet(area: StorageArea, value: object): Promise<void> {
   });
 }
 
+type CoordinatedStorageTarget =
+  | "sessions"
+  | "folders"
+  | "tags"
+  | "schedules"
+  | "settings"
+  | "settingsPatch"
+  | "standaloneNotes"
+  | "shareLinks"
+  | "aiConfig"
+  | "storageData"
+  | "clearAllData";
+
+let localStorageWriteQueue: Promise<void> = Promise.resolve();
+let backgroundStorageCoordinator = false;
+
+export function markBackgroundStorageCoordinator(): void {
+  backgroundStorageCoordinator = true;
+}
+
+function enqueueLocalStorageWrite<T>(operation: () => Promise<T>): Promise<T> {
+  const result = localStorageWriteQueue.then(operation);
+  localStorageWriteQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+}
+
+function isExtensionPageContext(): boolean {
+  if (
+    backgroundStorageCoordinator ||
+    typeof window === "undefined" ||
+    typeof chrome.runtime?.getURL !== "function"
+  ) {
+    return false;
+  }
+  try {
+    return new URL(window.location.href).origin === new URL(chrome.runtime.getURL("/")).origin;
+  } catch {
+    return false;
+  }
+}
+
+async function coordinateStorageWrite(
+  target: CoordinatedStorageTarget,
+  value: unknown,
+  options?: { scheduleSync?: boolean }
+): Promise<boolean> {
+  if (!isExtensionPageContext()) return false;
+
+  const response: unknown = await chrome.runtime.sendMessage({
+    type: "tabsetu:storage-write",
+    target,
+    value,
+    ...(options ? { options } : {}),
+  });
+  if (!isRecord(response) || response.ok !== true) {
+    const message = isRecord(response) ? asString(response.error) : "";
+    throw new Error(message || "The background storage coordinator did not confirm the write.");
+  }
+  return true;
+}
+
 function createNotification(
   notificationId: string,
   options: chrome.notifications.NotificationOptions<true>
@@ -682,32 +826,58 @@ function storageRemove(area: StorageArea, keys: readonly string[]): Promise<void
   });
 }
 
-async function loadLocalDeletedItems<
-  K extends keyof Pick<
-    StorageData,
-    "sessions" | "folders" | "tags" | "schedules" | "standaloneNotes" | "shareLinks"
-  >,
->(key: K): Promise<StorageData[K]> {
-  const raw = await storageGet<Record<string, unknown>>(chrome.storage.local, null);
-  return normalizeStorageData(raw)[key].filter((item) => isDeletedEntity(item)) as StorageData[K];
+type LocalEntityCollection = Pick<
+  StorageData,
+  "sessions" | "folders" | "tags" | "schedules" | "standaloneNotes" | "shareLinks"
+>;
+
+type PersistedEntity = {
+  id: string;
+  updatedAt: number;
+  deletedAt?: number;
+};
+
+function entityChangeTime(entity: PersistedEntity): number {
+  return Math.max(entity.updatedAt, entity.deletedAt ?? 0);
 }
 
-async function withRetainedTombstones<T extends { id: string; deletedAt?: number }>(
-  key: keyof Pick<
-    StorageData,
-    "sessions" | "folders" | "tags" | "schedules" | "standaloneNotes" | "shareLinks"
-  >,
+/**
+ * Merge a store snapshot with the latest persisted entities using per-entity
+ * timestamps. Extension pages and the service worker have separate JavaScript
+ * contexts, so their in-memory persistence queues cannot serialize one another.
+ * This last-write-wins merge prevents a stale full-array save from erasing a
+ * newer entity written by another context.
+ */
+export function mergeLatestEntities<T extends PersistedEntity>(latest: T[], incoming: T[]): T[] {
+  const latestById = new Map(latest.map((entity) => [entity.id, entity]));
+  const incomingById = new Map(incoming.map((entity) => [entity.id, entity]));
+  const orderedIds = [
+    ...incoming.map((entity) => entity.id),
+    ...latest.filter((entity) => !incomingById.has(entity.id)).map((entity) => entity.id),
+  ];
+
+  return orderedIds.map((id) => {
+    const current = latestById.get(id);
+    const candidate = incomingById.get(id);
+    if (!current) return candidate as T;
+    if (!candidate) return current;
+    return entityChangeTime(candidate) >= entityChangeTime(current) ? candidate : current;
+  });
+}
+
+async function loadLocalItems<
+  K extends keyof Pick<LocalEntityCollection, keyof LocalEntityCollection>,
+>(key: K): Promise<StorageData[K]> {
+  const raw = await storageGet<Record<string, unknown>>(chrome.storage.local, null);
+  return normalizeStorageData(raw)[key];
+}
+
+async function withLatestEntities<T extends PersistedEntity>(
+  key: keyof LocalEntityCollection,
   items: T[]
 ): Promise<T[]> {
-  const merged = new Map(items.map((item) => [item.id, item]));
-  const deletedItems = (await loadLocalDeletedItems(key)) as unknown as T[];
-  for (const deletedItem of deletedItems) {
-    if (!merged.has(deletedItem.id)) {
-      merged.set(deletedItem.id, deletedItem);
-    }
-  }
-
-  return purgeOldTombstones(Array.from(merged.values()));
+  const latestItems = (await loadLocalItems(key)) as unknown as T[];
+  return purgeOldTombstones(mergeLatestEntities(latestItems, items));
 }
 
 function sessionChunksRecord(sessions: Session[]): Record<string, Session[]> {
@@ -1123,82 +1293,127 @@ function scheduleAutoSyncUpload(): void {
 }
 
 export async function saveSessions(sessions: Session[]): Promise<void> {
-  const nextSessions = await withRetainedTombstones("sessions", sessions);
-  await saveSessionChunks(nextSessions);
-  await checkQuotaAfterSave();
-  scheduleAutoSyncUpload();
+  if (await coordinateStorageWrite("sessions", sessions)) return;
+  await enqueueLocalStorageWrite(async () => {
+    const nextSessions = await withLatestEntities("sessions", sessions);
+    await saveSessionChunks(nextSessions);
+    await checkQuotaAfterSave();
+    scheduleAutoSyncUpload();
+  });
 }
 
 export async function saveFolders(folders: Folder[]): Promise<void> {
-  const nextFolders = await withRetainedTombstones("folders", folders);
-  await storageSet(chrome.storage.local, {
-    [STORAGE_KEYS.folders]: nextFolders,
-    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  if (await coordinateStorageWrite("folders", folders)) return;
+  await enqueueLocalStorageWrite(async () => {
+    const nextFolders = await withLatestEntities("folders", folders);
+    await storageSet(chrome.storage.local, {
+      [STORAGE_KEYS.folders]: nextFolders,
+      [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+    });
+    await checkQuotaAfterSave();
+    scheduleAutoSyncUpload();
   });
-  await checkQuotaAfterSave();
-  scheduleAutoSyncUpload();
 }
 
 export async function saveTags(tags: Tag[]): Promise<void> {
-  const nextTags = await withRetainedTombstones("tags", tags);
-  await storageSet(chrome.storage.local, {
-    [STORAGE_KEYS.tags]: nextTags,
-    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  if (await coordinateStorageWrite("tags", tags)) return;
+  await enqueueLocalStorageWrite(async () => {
+    const nextTags = await withLatestEntities("tags", tags);
+    await storageSet(chrome.storage.local, {
+      [STORAGE_KEYS.tags]: nextTags,
+      [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+    });
+    await checkQuotaAfterSave();
+    scheduleAutoSyncUpload();
   });
-  await checkQuotaAfterSave();
-  scheduleAutoSyncUpload();
 }
 
 export async function saveSchedules(schedules: Schedule[]): Promise<void> {
-  const nextSchedules = await withRetainedTombstones("schedules", schedules);
-  await storageSet(chrome.storage.local, {
-    [STORAGE_KEYS.schedules]: nextSchedules,
-    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  if (await coordinateStorageWrite("schedules", schedules)) return;
+  await enqueueLocalStorageWrite(async () => {
+    const nextSchedules = await withLatestEntities("schedules", schedules);
+    await storageSet(chrome.storage.local, {
+      [STORAGE_KEYS.schedules]: nextSchedules,
+      [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+    });
+    await checkQuotaAfterSave();
+    scheduleAutoSyncUpload();
   });
-  await checkQuotaAfterSave();
-  scheduleAutoSyncUpload();
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {
-  const nextSettings =
+  if (await coordinateStorageWrite("settings", settings)) return;
+  const nextSettings = normalizeSettings(
     settings.updatedAt > 0
       ? settings
       : {
           ...settings,
           updatedAt: Date.now(),
-        };
-  await storageSet(getSyncStorage(), {
-    [STORAGE_KEYS.settings]: nextSettings,
+        }
+  );
+  if (new TextEncoder().encode(JSON.stringify(nextSettings)).byteLength > 7_500) {
+    throw new Error("Settings are too large for browser sync storage.");
+  }
+  await enqueueLocalStorageWrite(() =>
+    storageSet(getSyncStorage(), {
+      [STORAGE_KEYS.settings]: nextSettings,
+    })
+  );
+}
+
+export async function saveSettingsPatch(updates: Partial<Settings>): Promise<void> {
+  if (await coordinateStorageWrite("settingsPatch", updates)) return;
+  await enqueueLocalStorageWrite(async () => {
+    const current = await loadSettings();
+    const updatedAt = Math.max(current.updatedAt, updates.updatedAt ?? 0, Date.now());
+    const nextSettings = normalizeSettings({ ...current, ...updates, updatedAt });
+    if (new TextEncoder().encode(JSON.stringify(nextSettings)).byteLength > 7_500) {
+      throw new Error("Settings are too large for browser sync storage.");
+    }
+    await storageSet(getSyncStorage(), { [STORAGE_KEYS.settings]: nextSettings });
   });
 }
 
 export async function saveStandaloneNotes(standaloneNotes: StandaloneNote[]): Promise<void> {
-  const nextNotes = await withRetainedTombstones("standaloneNotes", standaloneNotes);
-  await storageSet(chrome.storage.local, {
-    [STORAGE_KEYS.standaloneNotes]: nextNotes,
-    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  if (await coordinateStorageWrite("standaloneNotes", standaloneNotes)) return;
+  await enqueueLocalStorageWrite(async () => {
+    const nextNotes = await withLatestEntities("standaloneNotes", standaloneNotes);
+    await storageSet(chrome.storage.local, {
+      [STORAGE_KEYS.standaloneNotes]: nextNotes,
+      [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+    });
+    await checkQuotaAfterSave();
+    scheduleAutoSyncUpload();
   });
-  await checkQuotaAfterSave();
-  scheduleAutoSyncUpload();
 }
 
 export async function saveShareLinks(shareLinks: ShareLink[]): Promise<void> {
-  const nextShareLinks = await withRetainedTombstones("shareLinks", shareLinks);
-  await storageSet(chrome.storage.local, {
-    [STORAGE_KEYS.shareLinks]: nextShareLinks,
-    [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+  if (await coordinateStorageWrite("shareLinks", shareLinks)) return;
+  await enqueueLocalStorageWrite(async () => {
+    const nextShareLinks = await withLatestEntities("shareLinks", shareLinks);
+    await storageSet(chrome.storage.local, {
+      [STORAGE_KEYS.shareLinks]: nextShareLinks,
+      [STORAGE_KEYS.schemaVersion]: SCHEMA_VERSION,
+    });
+    await checkQuotaAfterSave();
+    scheduleAutoSyncUpload();
   });
-  await checkQuotaAfterSave();
-  scheduleAutoSyncUpload();
 }
 
 export async function saveAIConfig(aiConfig: AIShareConfig): Promise<void> {
-  await storageSet(getSyncStorage(), {
-    [STORAGE_KEYS.aiConfig]: aiConfig,
-  });
+  if (await coordinateStorageWrite("aiConfig", aiConfig)) return;
+  const nextAIConfig = normalizeAIConfig(aiConfig);
+  if (new TextEncoder().encode(JSON.stringify(nextAIConfig)).byteLength > 7_500) {
+    throw new Error("AI sharing settings are too large for browser sync storage.");
+  }
+  await enqueueLocalStorageWrite(() =>
+    storageSet(getSyncStorage(), {
+      [STORAGE_KEYS.aiConfig]: nextAIConfig,
+    })
+  );
 }
 
-export async function saveStorageData(
+async function persistStorageDataSnapshot(
   data: StorageData,
   options: { scheduleSync?: boolean } = {}
 ): Promise<void> {
@@ -1236,8 +1451,25 @@ export async function saveStorageData(
   }
 }
 
+export async function saveStorageData(
+  data: StorageData,
+  options: { scheduleSync?: boolean } = {}
+): Promise<void> {
+  if (await coordinateStorageWrite("storageData", data, options)) return;
+  await enqueueLocalStorageWrite(() => persistStorageDataSnapshot(data, options));
+}
+
 export async function clearAllData(): Promise<void> {
-  await saveStorageData(getDefaultStorageData());
+  if (await coordinateStorageWrite("clearAllData", null)) return;
+  await enqueueLocalStorageWrite(async () => {
+    const syncStorage = getSyncStorage();
+    const [localRaw, syncRaw] = await Promise.all([
+      storageGet<Record<string, unknown>>(chrome.storage.local, null),
+      storageGet<Record<string, unknown>>(syncStorage, null),
+    ]);
+    const current = normalizeStorageData(mergeLocalAndSyncRaw(localRaw, syncRaw));
+    await persistStorageDataSnapshot(prepareStorageReplacement(current, getDefaultStorageData()));
+  });
 }
 
 export async function saveUndoBuffer(buffer: UndoCollapseBuffer | null): Promise<void> {

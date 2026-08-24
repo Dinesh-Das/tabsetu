@@ -111,6 +111,8 @@ Drive sync is disabled until the user connects an account. When enabled, TabSetu
 `tabsetu-sync.json` in the user's Google Drive `appDataFolder`; requests go directly from the
 extension to Google APIs. Changes are merged using entity versions and timestamps, including
 deletion records, before the merged library is saved locally and uploaded.
+Uploads are conditional on the Drive version that was downloaded, so simultaneous clients re-merge
+instead of silently overwriting one another.
 
 OAuth scopes:
 
@@ -135,6 +137,11 @@ pages.
 The optional `notifications` permission enables reminder, schedule, capture, and command-status
 notices. Core session saving remains available without it.
 
+### Tab group metadata
+
+TabSetu preserves tab-group membership during capture and restore. Chromium users can optionally
+grant `tabGroups` in Settings to also preserve group names, colors, and collapsed state.
+
 ## Storage, Privacy, and Data Safety
 
 - Sessions, folders, tags, schedules, standalone notes, share-link records, OAuth state, and the
@@ -144,6 +151,7 @@ notices. Core session saving remains available without it.
 - Large session libraries are split into local storage chunks.
 - Persistence queues continue processing after a failed write and surface errors in the popup or
   dashboard.
+- Incognito/private tabs are never captured or written to the TabSetu library.
 - Collapse waits for both the session write and undo-buffer write before closing tabs.
 - Full-library updates write local metadata and session chunks together. Cross-area updates attempt
   to restore the previous complete snapshot if either storage area rejects the update.
@@ -195,9 +203,10 @@ Optional permissions:
 | `history`       | Add local browser-history matches to search after explicit opt-in. |
 | `notifications` | Show reminder, schedule, capture, and command notices.             |
 | `identity`      | Start optional Google OAuth where the browser supports this API.   |
+| `tabGroups`     | Preserve group names, colors, and collapsed state on Chromium.     |
 
-Safari packages omit `identity` and the manifest `oauth2` key, and use the packaged tab-based OAuth
-callback fallback.
+Firefox and Safari packages omit `tabGroups`; Safari also omits `identity` and the manifest `oauth2`
+key and uses the packaged tab-based OAuth callback fallback.
 
 ## Development Commands
 

@@ -12,8 +12,12 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: 24, cache: npm }
       - run: npm ci
-      - name: Build browser packages
-        run: npm run build:all
+      - name: Format check
+        run: npm run format:check
+      - name: Dependency audit
+        run: npm audit
+      - name: Verify release
+        run: npm run verify
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           REQUIRE_GOOGLE_CLIENT_ID: "true"

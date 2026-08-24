@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Settings } from "@/types";
-import { DEFAULT_SETTINGS, loadSettings, saveSettings, STORAGE_KEYS } from "@/lib/storage";
+import { DEFAULT_SETTINGS, loadSettings, saveSettingsPatch } from "@/lib/storage";
 import { useHydrationStore } from "@/store/hydration";
 import { PersistenceQueue } from "@/store/persistenceQueue";
 
@@ -12,9 +12,26 @@ interface SettingsState {
 }
 
 const persistenceQueue = new PersistenceQueue("settings");
+const SETTINGS_PERSIST_DEBOUNCE_MS = 600;
+let pendingSettingsPatch: Partial<Settings> | null = null;
+let persistenceTimer: ReturnType<typeof setTimeout> | null = null;
 
-function persistSettings(settings: Settings): void {
-  void persistenceQueue.enqueue(() => saveSettings(settings));
+function flushSettingsPersistence(): void {
+  if (persistenceTimer) {
+    clearTimeout(persistenceTimer);
+    persistenceTimer = null;
+  }
+  const updates = pendingSettingsPatch;
+  pendingSettingsPatch = null;
+  if (updates) {
+    void persistenceQueue.enqueue(() => saveSettingsPatch(updates));
+  }
+}
+
+function persistSettings(updates: Partial<Settings>): void {
+  pendingSettingsPatch = { ...pendingSettingsPatch, ...updates };
+  if (persistenceTimer) clearTimeout(persistenceTimer);
+  persistenceTimer = setTimeout(flushSettingsPersistence, SETTINGS_PERSIST_DEBOUNCE_MS);
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -29,7 +46,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   updateSettings: (updates) => {
     const settings = { ...get().settings, ...updates, updatedAt: Date.now() };
     set({ settings });
-    persistSettings(settings);
+    persistSettings({ ...updates, updatedAt: settings.updatedAt });
   },
 
   replaceSettings: (settings) => {
@@ -37,17 +54,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 }));
 
-if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "sync") {
-      return;
-    }
-
-    const change = changes[STORAGE_KEYS.settings];
-    if (!change?.newValue) {
-      return;
-    }
-
-    useSettingsStore.getState().replaceSettings(change.newValue as Settings);
-  });
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", flushSettingsPersistence);
 }

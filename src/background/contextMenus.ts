@@ -10,6 +10,9 @@ function contextMenuUrl(
   info: chrome.contextMenus.OnClickData,
   tab?: chrome.tabs.Tab
 ): string | null {
+  if (tab?.incognito) {
+    return null;
+  }
   const rawUrl = info.linkUrl ?? info.pageUrl ?? tab?.url;
   if (!rawUrl || !isValidUrl(rawUrl) || isRestrictedUrl(rawUrl)) {
     return null;
@@ -57,7 +60,15 @@ async function createSessionFromContextItem(
     folderId: null,
     tagIds: [],
     pinned: tab?.url === url ? (tab.pinned ?? false) : false,
+    muted: tab?.url === url ? (tab.mutedInfo?.muted ?? false) : false,
     windowId: tab?.windowId ?? null,
+    groupKey:
+      tab?.url === url && typeof tab.groupId === "number" && tab.groupId >= 0
+        ? `browser-group-${tab.groupId}`
+        : null,
+    groupTitle: null,
+    groupColor: null,
+    groupCollapsed: false,
     note: "",
     reminderAt: null,
     reminderSnoozedUntil: null,

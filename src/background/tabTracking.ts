@@ -38,7 +38,7 @@ function sessionStorageSet(value: object): Promise<void> {
 }
 
 function isTrackableTab(tab: chrome.tabs.Tab | undefined | null): tab is TrackableTab {
-  return Boolean(tab?.id && tab.url && !isRestrictedUrl(tab.url));
+  return Boolean(!tab?.incognito && tab?.id && tab.url && !isRestrictedUrl(tab.url));
 }
 
 export async function storeBrowserTab(tab: chrome.tabs.Tab): Promise<void> {

@@ -1,6 +1,51 @@
 import { describe, expect, it } from "vitest";
 import sourceManifest from "@/manifest.json";
-import { DEFAULT_SETTINGS, normalizeImportedStorageData } from "@/lib/storage";
+import {
+  DEFAULT_SETTINGS,
+  getDefaultStorageData,
+  loadStorage,
+  loadSettings,
+  mergeLatestEntities,
+  normalizeImportedStorageData,
+  prepareStorageReplacement,
+  saveSessions,
+  saveSettingsPatch,
+} from "@/lib/storage";
+import type { Folder, Session } from "@/types";
+
+function folder(id: string, updatedAt: number, deletedAt?: number): Folder {
+  return {
+    id,
+    name: id,
+    color: "#000000",
+    icon: "folder",
+    position: 0,
+    createdAt: 1,
+    updatedAt,
+    ...(deletedAt == null ? {} : { deletedAt }),
+  };
+}
+
+function session(id: string, updatedAt: number): Session {
+  return {
+    id,
+    name: id,
+    description: "",
+    folderId: null,
+    tagIds: [],
+    tabs: [],
+    note: "",
+    color: null,
+    icon: null,
+    openCount: 0,
+    createdAt: 1,
+    updatedAt,
+    lastOpenedAt: null,
+    version: 1,
+    isPinned: false,
+    isArchived: false,
+  };
+}
 
 describe("normalizeImportedStorageData", () => {
   it("uses the manifest version for default settings", () => {
@@ -16,6 +61,22 @@ describe("normalizeImportedStorageData", () => {
     expect(
       normalizeImportedStorageData({ sessions: [] }).settings.browserHistorySearchEnabled
     ).toBe(false);
+  });
+
+  it("keeps AI prompt sharing off by default", () => {
+    expect(DEFAULT_SETTINGS.aiEnabled).toBe(false);
+  });
+
+  it("bounds settings stored in browser sync", () => {
+    const result = normalizeImportedStorageData({
+      settings: {
+        customAIProviderUrl: `https://example.com/${"u".repeat(3000)}`,
+        customAIPromptTemplate: "p".repeat(5000),
+      },
+    });
+
+    expect(result.settings.customAIProviderUrl.length).toBe(2048);
+    expect(result.settings.customAIPromptTemplate.length).toBe(4000);
   });
 
   it("reindexes positions and normalizes imported entities", () => {
@@ -162,5 +223,64 @@ describe("normalizeImportedStorageData", () => {
         folders: [],
       })
     ).toThrow("newer version of TabSetu");
+  });
+});
+
+describe("concurrency-safe persistence merges", () => {
+  it("preserves newer entities from another extension context", () => {
+    const result = mergeLatestEntities(
+      [folder("newer", 20), folder("background-created", 15)],
+      [folder("newer", 10), folder("page-created", 21)]
+    );
+
+    expect(result.map((item) => item.id)).toEqual(["newer", "page-created", "background-created"]);
+    expect(result[0]?.updatedAt).toBe(20);
+  });
+
+  it("does not resurrect an entity older than its deletion tombstone", () => {
+    const [result] = mergeLatestEntities([folder("gone", 30, 30)], [folder("gone", 20)]);
+    expect(result?.deletedAt).toBe(30);
+  });
+
+  it("turns reset omissions into tombstones for the next cloud merge", () => {
+    const current = {
+      ...getDefaultStorageData(),
+      sessions: [session("remove-me", 10)],
+      folders: [folder("remove-folder", 10)],
+    };
+    const result = prepareStorageReplacement(current, getDefaultStorageData(), 100);
+
+    expect(result.sessions[0]).toMatchObject({ id: "remove-me", deletedAt: 100, updatedAt: 100 });
+    expect(result.folders[0]).toMatchObject({
+      id: "remove-folder",
+      deletedAt: 100,
+      updatedAt: 100,
+    });
+    expect(result.settings.updatedAt).toBe(100);
+    expect(result.aiConfig.updatedAt).toBe(100);
+  });
+
+  it("serializes simultaneous full-array saves before merging them", async () => {
+    await Promise.all([
+      saveSessions([session("from-popup", 20)]),
+      saveSessions([session("from-background", 21)]),
+    ]);
+
+    const stored = await loadStorage();
+    expect(stored.sessions.map((item) => item.id).sort()).toEqual([
+      "from-background",
+      "from-popup",
+    ]);
+  });
+
+  it("merges simultaneous settings patches instead of overwriting unrelated fields", async () => {
+    await Promise.all([
+      saveSettingsPatch({ theme: "dark", updatedAt: 20 }),
+      saveSettingsPatch({ confirmBeforeDelete: false, updatedAt: 21 }),
+    ]);
+
+    const stored = await loadSettings();
+    expect(stored.theme).toBe("dark");
+    expect(stored.confirmBeforeDelete).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
+import { openSavedTab, openSessionTabsDetailed } from "@/lib/sessionBrowser";
 import { buildSearchIndex, buildSessionListItems } from "@/lib/sessionQuery";
 import { chromeTabToTabItem, getPreferredBrowserTab, isRestrictedUrl } from "@/lib/tabHelpers";
 import { useFolderStore } from "@/store/folderStore";
@@ -118,15 +118,27 @@ export function useSavedSessionsController({
 
   const handleOpenSession = useCallback(
     async (session: Session, openInNewWindow = settings.openInNewWindow) => {
-      const openedCount = await openSessionTabs(session, openInNewWindow);
-      if (openedCount === 0) {
-        addToast("error", "This session does not have any openable tabs.");
+      const result = await openSessionTabsDetailed(session, openInNewWindow);
+      if (result.openedCount === 0) {
+        addToast(
+          "error",
+          result.failedTabs.length > 0
+            ? `TabSetu could not open ${result.failedTabs.length} saved tabs.`
+            : "This session does not have any openable tabs."
+        );
         return;
       }
       recordOpened(session.id);
+      if (result.failedTabs.length > 0 || result.warnings.length > 0) {
+        addToast(
+          "error",
+          `Opened ${result.openedCount} tabs, but some tabs or groups could not be fully restored.`
+        );
+        return;
+      }
       addToast(
         "success",
-        `Opened "${session.name}" with ${openedCount} ${openedCount === 1 ? "tab" : "tabs"}.`
+        `Opened "${session.name}" with ${result.openedCount} ${result.openedCount === 1 ? "tab" : "tabs"}.`
       );
     },
     [addToast, recordOpened, settings.openInNewWindow]

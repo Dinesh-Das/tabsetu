@@ -11,10 +11,12 @@ import {
   flushPendingAutoSyncUpload,
   initializeStorageForInstall,
   loadStorage,
+  markBackgroundStorageCoordinator,
   migrateSettingsToSync,
 } from "@/lib/storage";
 import { useSyncStore } from "@/store/syncStore";
 
+markBackgroundStorageCoordinator();
 registerTabTrackingListeners();
 registerAlarmListeners();
 registerMessagingListeners();

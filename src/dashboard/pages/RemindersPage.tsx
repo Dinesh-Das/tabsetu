@@ -9,7 +9,7 @@ import {
   type TabReminderRow,
 } from "@/lib/reminderCenter";
 import { formatReminderDate } from "@/lib/reminders";
-import { getDomainLabel, openSavedTab, openSessionTabs } from "@/lib/sessionBrowser";
+import { getDomainLabel, openSavedTab, openSessionTabsDetailed } from "@/lib/sessionBrowser";
 import type { Session, TabItem, ToastMessage } from "@/types";
 import { useScheduleStore } from "@/store/scheduleStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -261,14 +261,24 @@ function ScheduleJobList({
       return;
     }
 
-    const opened = await openSessionTabs(row.session, settings.openInNewWindow);
-    if (opened === 0) {
-      addToast("error", "That scheduled session has no openable tabs.");
+    const result = await openSessionTabsDetailed(row.session, settings.openInNewWindow);
+    if (result.openedCount === 0) {
+      addToast(
+        "error",
+        result.failedTabs.length > 0
+          ? `TabSetu could not open ${result.failedTabs.length} scheduled tabs.`
+          : "That scheduled session has no openable tabs."
+      );
       return;
     }
 
     recordOpened(row.session.id);
-    addToast("success", `Opened "${row.session.name}".`);
+    addToast(
+      result.failedTabs.length > 0 || result.warnings.length > 0 ? "error" : "success",
+      result.failedTabs.length > 0 || result.warnings.length > 0
+        ? `Opened ${result.openedCount} tabs; some tabs or groups could not be restored.`
+        : `Opened "${row.session.name}".`
+    );
   };
 
   if (rows.length === 0) {
